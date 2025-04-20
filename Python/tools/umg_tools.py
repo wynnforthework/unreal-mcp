@@ -19,7 +19,7 @@ def register_umg_tools(mcp: FastMCP):
         ctx: Context,
         widget_name: str,
         parent_class: str = "UserWidget",
-        path: str = "/Game/UI"
+        path: str = "/Game/Widgets"
     ) -> Dict[str, Any]:
         """
         Create a new UMG Widget Blueprint.
@@ -31,6 +31,16 @@ def register_umg_tools(mcp: FastMCP):
             
         Returns:
             Dict containing success status and widget path
+            
+        Examples:
+            # Create a basic UserWidget blueprint
+            create_umg_widget_blueprint(widget_name="MyWidget")
+            
+            # Create a widget with custom parent class
+            create_umg_widget_blueprint(widget_name="MyCustomWidget", parent_class="MyBaseUserWidget")
+            
+            # Create a widget in a custom folder
+            create_umg_widget_blueprint(widget_name="MyWidget", path="/Game/UI/Widgets")
         """
         from unreal_mcp_server import get_unreal_connection
         
@@ -41,7 +51,7 @@ def register_umg_tools(mcp: FastMCP):
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
             
             params = {
-                "widget_name": widget_name,
+                "name": widget_name,
                 "parent_class": parent_class,
                 "path": path
             }
@@ -330,4 +340,4 @@ def register_umg_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 
-    logger.info("UMG tools registered successfully") 
+    logger.info("UMG tools registered successfully")
