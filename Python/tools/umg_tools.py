@@ -96,6 +96,21 @@ def register_umg_tools(mcp: FastMCP):
             
         Returns:
             Dict containing success status and text block properties
+            
+        Examples:
+            # Add a basic text block
+            add_text_block_to_widget(widget_name="MyWidget", text_block_name="HeaderText", text="Hello World")
+            
+            # Add styled text block
+            add_text_block_to_widget(
+                widget_name="MainMenu", 
+                text_block_name="TitleText",
+                text="MAIN MENU",
+                position=[400.0, 100.0],
+                size=[600.0, 80.0],
+                font_size=48,
+                color=[1.0, 0.8, 0.2, 1.0]  # Gold color
+            )
         """
         from unreal_mcp_server import get_unreal_connection
         
@@ -106,8 +121,8 @@ def register_umg_tools(mcp: FastMCP):
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
             
             params = {
-                "widget_name": widget_name,
-                "text_block_name": text_block_name,
+                "blueprint_name": widget_name,  # Name of the Widget Blueprint asset
+                "widget_name": text_block_name, # Name for the Text Block widget being created
                 "text": text,
                 "position": position,
                 "size": size,
@@ -157,6 +172,22 @@ def register_umg_tools(mcp: FastMCP):
             
         Returns:
             Dict containing success status and button properties
+            
+        Examples:
+            # Add a basic button
+            add_button_to_widget(widget_name="MyWidget", button_name="SubmitButton", text="Submit")
+            
+            # Add styled button
+            add_button_to_widget(
+                widget_name="LoginScreen", 
+                button_name="LoginButton",
+                text="LOGIN",
+                position=[400.0, 300.0],
+                size=[300.0, 60.0],
+                font_size=18,
+                color=[1.0, 1.0, 1.0, 1.0],
+                background_color=[0.2, 0.4, 0.8, 1.0]  # Blue color
+            )
         """
         from unreal_mcp_server import get_unreal_connection
         
@@ -167,8 +198,8 @@ def register_umg_tools(mcp: FastMCP):
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
             
             params = {
-                "widget_name": widget_name,
-                "button_name": button_name,
+                "blueprint_name": widget_name,    # Name of the Widget Blueprint asset
+                "widget_name": button_name,       # Name for the Button widget being created
                 "text": text,
                 "position": position,
                 "size": size,
@@ -211,6 +242,22 @@ def register_umg_tools(mcp: FastMCP):
             
         Returns:
             Dict containing success status and binding information
+            
+        Examples:
+            # Bind button click event
+            bind_widget_event(
+                widget_name="LoginScreen",
+                widget_component_name="LoginButton",
+                event_name="OnClicked"
+            )
+            
+            # Bind with custom function name
+            bind_widget_event(
+                widget_name="MainMenu",
+                widget_component_name="QuitButton",
+                event_name="OnClicked",
+                function_name="ExitApplication"
+            )
         """
         from unreal_mcp_server import get_unreal_connection
         
@@ -225,8 +272,8 @@ def register_umg_tools(mcp: FastMCP):
                 function_name = f"{widget_component_name}_{event_name}"
             
             params = {
-                "widget_name": widget_name,
-                "widget_component_name": widget_component_name,
+                "blueprint_name": widget_name,   # Name of the Widget Blueprint asset
+                "widget_name": widget_component_name,  # Name of the component in the widget
                 "event_name": event_name,
                 "function_name": function_name
             }
@@ -261,6 +308,13 @@ def register_umg_tools(mcp: FastMCP):
             
         Returns:
             Dict containing success status and widget instance information
+            
+        Examples:
+            # Add widget to viewport with default z-order
+            add_widget_to_viewport(widget_name="MainMenu")
+            
+            # Add widget with specific z-order (higher number appears on top)
+            add_widget_to_viewport(widget_name="NotificationWidget", z_order=10)
         """
         from unreal_mcp_server import get_unreal_connection
         
@@ -271,7 +325,7 @@ def register_umg_tools(mcp: FastMCP):
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
             
             params = {
-                "widget_name": widget_name,
+                "blueprint_name": widget_name,  # Name of the Widget Blueprint asset
                 "z_order": z_order
             }
             
@@ -309,6 +363,22 @@ def register_umg_tools(mcp: FastMCP):
             
         Returns:
             Dict containing success status and binding information
+            
+        Examples:
+            # Set basic text binding
+            set_text_block_binding(
+                widget_name="PlayerHUD",
+                text_block_name="ScoreText",
+                binding_property="CurrentScore"
+            )
+            
+            # Set binding with specific binding type
+            set_text_block_binding(
+                widget_name="GameUI",
+                text_block_name="TimerText",
+                binding_property="RemainingTime",
+                binding_type="Text"
+            )
         """
         from unreal_mcp_server import get_unreal_connection
         
@@ -319,9 +389,9 @@ def register_umg_tools(mcp: FastMCP):
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
             
             params = {
-                "widget_name": widget_name,
-                "text_block_name": text_block_name,
-                "binding_property": binding_property,
+                "blueprint_name": widget_name,      # Name of the Widget Blueprint asset
+                "widget_name": text_block_name,     # Name of the Text Block widget in the blueprint
+                "binding_name": binding_property,   # Name of the property to bind to
                 "binding_type": binding_type
             }
             
