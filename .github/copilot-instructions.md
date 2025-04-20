@@ -8,3 +8,8 @@ The following guidelines apply to any method or function marked with the @mcp.to
 - Always include method docstrings and make sure to given proper examples of valid inputs especially when no type hints are present.
 
 When this rule is applied, please remember to explicitly mention it.
+
+
+When you have provided cpp changes - also apply prompt in the end of all your edits this command
+
+cd e:\code\unreal-mcp\MCPGameProject; & "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" MCPGameProjectEditor Win64 Development -Project="e:\code\unreal-mcp\MCPGameProject\MCPGameProject.uproject" -TargetType=Editor

@@ -8,6 +8,8 @@
 #include "WidgetBlueprint.h"
 // We'll create widgets using regular Factory classes
 #include "Factories/Factory.h"
+// Add missing BlueprintFactory include
+#include "Factories/BlueprintFactory.h"
 // Remove problematic includes that don't exist in UE 5.5
 // #include "UMGEditorSubsystem.h"
 // #include "WidgetBlueprintFactory.h"
@@ -74,53 +76,163 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateUMGWidgetBlueprint(co
 	FString AssetName = BlueprintName;
 	FString FullPath = PackagePath + AssetName;
 
+	UE_LOG(LogTemp, Log, TEXT("UMG: Creating Widget Blueprint at path: %s"), *FullPath);
+
 	// Check if asset already exists
 	if (UEditorAssetLibrary::DoesAssetExist(FullPath))
 	{
-		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Widget Blueprint '%s' already exists"), *BlueprintName));
+		UObject* ExistingAsset = UEditorAssetLibrary::LoadAsset(FullPath);
+		UWidgetBlueprint* ExistingWidgetBP = Cast<UWidgetBlueprint>(ExistingAsset);
+		
+		// If it exists and is a Widget Blueprint, we can return it
+		if (ExistingWidgetBP)
+		{
+			UE_LOG(LogTemp, Log, TEXT("UMG: Widget Blueprint already exists, returning existing asset"));
+			// Create success response for existing blueprint
+			TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+			ResultObj->SetStringField(TEXT("name"), BlueprintName);
+			ResultObj->SetStringField(TEXT("path"), FullPath);
+			ResultObj->SetBoolField(TEXT("already_exists"), true);
+			ResultObj->SetBoolField(TEXT("success"), true);
+			return ResultObj;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UMG: Asset exists but is not a Widget Blueprint"));
+			// Asset exists but is not a Widget Blueprint
+			return FUnrealMCPCommonUtils::CreateErrorResponse(
+				FString::Printf(TEXT("Asset '%s' exists but is not a Widget Blueprint"), *BlueprintName)
+			);
+		}
 	}
 
-	// Create package
+	// Find parent class - default is UUserWidget
+	UClass* ParentClass = UUserWidget::StaticClass(); 
+	if (Params->HasField(TEXT("parent_class")))
+	{
+		FString ParentClassName;
+		Params->TryGetStringField(TEXT("parent_class"), ParentClassName);
+		
+		if (!ParentClassName.IsEmpty() && ParentClassName != TEXT("UserWidget"))
+		{
+			// Try to find the parent class with various prefixes
+			UClass* FoundClass = nullptr;
+			TArray<FString> PossibleClassPaths;
+			PossibleClassPaths.Add(ParentClassName);
+			PossibleClassPaths.Add(FString::Printf(TEXT("/Script/UMG.%s"), *ParentClassName));
+			PossibleClassPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *ParentClassName));
+			PossibleClassPaths.Add(FString::Printf(TEXT("/Game.%s"), *ParentClassName));
+			
+			for (const FString& ClassPath : PossibleClassPaths)
+			{
+				FoundClass = FindObject<UClass>(ANY_PACKAGE, *ClassPath);
+				if (FoundClass)
+				{
+					break;
+				}
+				
+				FoundClass = LoadClass<UUserWidget>(nullptr, *ClassPath);
+				if (FoundClass)
+				{
+					break;
+				}
+			}
+			
+			if (FoundClass)
+			{
+				ParentClass = FoundClass;
+				UE_LOG(LogTemp, Log, TEXT("UMG: Using parent class: %s"), *ParentClass->GetName());
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("UMG: Could not find parent class: %s, using default"), *ParentClassName);
+			}
+		}
+	}
+
+	// Create package for the new asset
+	UE_LOG(LogTemp, Log, TEXT("UMG: Creating package for: %s"), *FullPath);
 	UPackage* Package = CreatePackage(*FullPath);
 	if (!Package)
 	{
+		UE_LOG(LogTemp, Error, TEXT("UMG: Failed to create package for path: %s"), *FullPath);
 		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create package"));
 	}
 
-	// Create Widget Blueprint using KismetEditorUtilities
+	// Create the Widget Blueprint
+	UE_LOG(LogTemp, Log, TEXT("UMG: Creating Widget Blueprint"));
+	
+	// Create Blueprint using KismetEditorUtilities directly
 	UBlueprint* NewBlueprint = FKismetEditorUtilities::CreateBlueprint(
-		UUserWidget::StaticClass(),  // Parent class
-		Package,                     // Outer package
-		FName(*AssetName),           // Blueprint name
-		BPTYPE_Normal,               // Blueprint type
-		UBlueprint::StaticClass(),   // Blueprint class
-		UBlueprintGeneratedClass::StaticClass(), // Generated class
-		FName("CreateUMGWidget")     // Creation method name
+		ParentClass,                       // Parent class
+		Package,                           // Outer package
+		FName(*AssetName),                 // Blueprint name
+		BPTYPE_Normal,                     // Blueprint type
+		UWidgetBlueprint::StaticClass(),   // Blueprint class
+		UWidgetBlueprintGeneratedClass::StaticClass()  // Generated class
 	);
-
-	// Make sure the Blueprint was created successfully
+	
+	if (!NewBlueprint)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UMG: Failed to create blueprint"));
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create blueprint"));
+	}
+	
 	UWidgetBlueprint* WidgetBlueprint = Cast<UWidgetBlueprint>(NewBlueprint);
 	if (!WidgetBlueprint)
 	{
-		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create Widget Blueprint"));
+		UE_LOG(LogTemp, Error, TEXT("UMG: Created blueprint is not a UWidgetBlueprint, deleting and returning error"));
+		UEditorAssetLibrary::DeleteAsset(FullPath);
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Created blueprint is not a Widget Blueprint"));
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("UMG: Successfully created Widget Blueprint object"));
+
+	// Ensure the WidgetTree exists
+	if (!WidgetBlueprint->WidgetTree)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UMG: Widget Blueprint has no WidgetTree"));
+		UEditorAssetLibrary::DeleteAsset(FullPath);
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Widget Blueprint has no WidgetTree"));
 	}
 
-	// Add a default Canvas Panel if one doesn't exist
+	// Add a default Canvas Panel root widget if needed
 	if (!WidgetBlueprint->WidgetTree->RootWidget)
 	{
+		UE_LOG(LogTemp, Log, TEXT("UMG: Adding default Canvas Panel to Widget Blueprint"));
 		UCanvasPanel* RootCanvas = WidgetBlueprint->WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
+		if (!RootCanvas)
+		{
+			UE_LOG(LogTemp, Error, TEXT("UMG: Failed to create Canvas Panel"));
+			UEditorAssetLibrary::DeleteAsset(FullPath);
+			return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create Canvas Panel root widget"));
+		}
+		
 		WidgetBlueprint->WidgetTree->RootWidget = RootCanvas;
 	}
 
-	// Mark the package dirty and notify asset registry
-	Package->MarkPackageDirty();
+	// Finalize and save the asset
+	UE_LOG(LogTemp, Log, TEXT("UMG: Finalizing and saving Widget Blueprint"));
+	
+	// Update asset registry
 	FAssetRegistryModule::AssetCreated(WidgetBlueprint);
-
-	// Compile the blueprint
+	
+	// Compile
 	FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+	
+	// Mark dirty and save
+	Package->MarkPackageDirty();
+	bool bSaved = UEditorAssetLibrary::SaveAsset(FullPath, false);
+	
+	if (!bSaved)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UMG: Saving Widget Blueprint encountered issues"));
+	}
 
-	// Create success response
+	// Return success
+	UE_LOG(LogTemp, Log, TEXT("UMG: Widget Blueprint creation completed successfully"));
 	TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+	ResultObj->SetBoolField(TEXT("success"), true);
 	ResultObj->SetStringField(TEXT("name"), BlueprintName);
 	ResultObj->SetStringField(TEXT("path"), FullPath);
 	return ResultObj;
@@ -541,4 +653,4 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 	Response->SetBoolField(TEXT("success"), true);
 	Response->SetStringField(TEXT("binding_name"), BindingName);
 	return Response;
-} 
+}
