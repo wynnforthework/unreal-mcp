@@ -70,18 +70,108 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCommand(const FString
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const TSharedPtr<FJsonObject>& Params)
 {
     // Get required parameters
-    FString BlueprintName;
-    if (!Params->TryGetStringField(TEXT("name"), BlueprintName))
+    FString BlueprintFullPath;
+    if (!Params->TryGetStringField(TEXT("name"), BlueprintFullPath))
     {
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'name' parameter"));
     }
 
-    // Check if blueprint already exists
-    FString PackagePath = TEXT("/Game/Blueprints/");
-    FString AssetName = BlueprintName;
-    if (UEditorAssetLibrary::DoesAssetExist(PackagePath + AssetName))
+    // Extract folder path and blueprint name if the name contains path separators
+    FString BlueprintName;
+    FString ProvidedFolderPath;
+    
+    if (BlueprintFullPath.Contains(TEXT("/")))
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint already exists: %s"), *BlueprintName));
+        // Split path and name - find the last slash
+        int32 LastSlashIndex = INDEX_NONE;
+        if (BlueprintFullPath.FindLastChar('/', LastSlashIndex))
+        {
+            ProvidedFolderPath = BlueprintFullPath.Left(LastSlashIndex);
+            BlueprintName = BlueprintFullPath.RightChop(LastSlashIndex + 1);
+            UE_LOG(LogTemp, Log, TEXT("Extracted path from name: Path='%s', Name='%s'"), *ProvidedFolderPath, *BlueprintName);
+        }
+        else
+        {
+            BlueprintName = BlueprintFullPath;
+        }
+    }
+    else
+    {
+        // No path separator in name
+        BlueprintName = BlueprintFullPath;
+    }
+
+    // Get optional folder path parameter (default to empty path - Content folder)
+    FString FolderPath;
+    Params->TryGetStringField(TEXT("folder_path"), FolderPath);
+    
+    // If we already extracted a path from the name, use that unless folder_path was explicitly specified
+    if (!ProvidedFolderPath.IsEmpty() && FolderPath.IsEmpty())
+    {
+        FolderPath = ProvidedFolderPath;
+        UE_LOG(LogTemp, Log, TEXT("Using path extracted from name: '%s'"), *FolderPath);
+    }
+
+    // Normalize folder path - ensure it's format is "SomeFolder/SubFolder" without leading or trailing slashes
+    if (FolderPath.StartsWith(TEXT("/")))
+    {
+        FolderPath = FolderPath.RightChop(1);
+    }
+    if (FolderPath.StartsWith(TEXT("Content/")))
+    {
+        FolderPath = FolderPath.RightChop(8); // Remove "Content/" prefix
+    }
+    if (FolderPath.StartsWith(TEXT("Game/")))
+    {
+        FolderPath = FolderPath.RightChop(5); // Remove "Game/" prefix
+    }
+    if (FolderPath.EndsWith(TEXT("/")))
+    {
+        FolderPath = FolderPath.LeftChop(1);
+    }
+    
+    // Build the full package path - always start with /Game/ (Content folder)
+    FString PackagePath = TEXT("/Game/");
+    if (!FolderPath.IsEmpty())
+    {
+        PackagePath += FolderPath + TEXT("/");
+    }
+    
+    // Check if the folder exists, and create it if it doesn't (recursively for nested paths)
+    if (!FolderPath.IsEmpty() && !UEditorAssetLibrary::DoesDirectoryExist(PackagePath))
+    {
+        // For nested paths, we need to create each folder level recursively
+        TArray<FString> FolderLevels;
+        FolderPath.ParseIntoArray(FolderLevels, TEXT("/"));
+        
+        FString CurrentPath = TEXT("/Game/");
+        for (const FString& FolderLevel : FolderLevels)
+        {
+            CurrentPath += FolderLevel + TEXT("/");
+            if (!UEditorAssetLibrary::DoesDirectoryExist(CurrentPath))
+            {
+                UE_LOG(LogTemp, Log, TEXT("Creating directory: %s"), *CurrentPath);
+                if (!UEditorAssetLibrary::MakeDirectory(CurrentPath))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to create directory: %s"), *CurrentPath));
+                }
+                UE_LOG(LogTemp, Log, TEXT("Created directory: %s"), *CurrentPath);
+            }
+        }
+    }
+    
+    FString AssetName = BlueprintName;
+    FString FullAssetPath = PackagePath + AssetName;
+    
+    // Check if blueprint already exists
+    if (UEditorAssetLibrary::DoesAssetExist(FullAssetPath))
+    {
+        // Return success but indicate it already exists
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetStringField(TEXT("name"), BlueprintFullPath); // Return the original full path name that was passed in
+        ResultObj->SetStringField(TEXT("path"), FullAssetPath);
+        ResultObj->SetBoolField(TEXT("already_exists"), true);
+        return ResultObj;
     }
 
     // Create the blueprint factory
@@ -141,8 +231,18 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const
     
     Factory->ParentClass = SelectedParentClass;
 
+    // Add extra logging to debug creation
+    UE_LOG(LogTemp, Log, TEXT("Creating blueprint: Name='%s', FullPath='%s', ParentClass='%s'"), 
+        *AssetName, *FullAssetPath, *SelectedParentClass->GetName());
+
     // Create the blueprint
-    UPackage* Package = CreatePackage(*(PackagePath + AssetName));
+    UPackage* Package = CreatePackage(*FullAssetPath);
+    if (!Package)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to create package for path: '%s'"), *FullAssetPath);
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to create package for path: '%s'"), *FullAssetPath));
+    }
+
     UBlueprint* NewBlueprint = Cast<UBlueprint>(Factory->FactoryCreateNew(UBlueprint::StaticClass(), Package, *AssetName, RF_Standalone | RF_Public, nullptr, GWarn));
 
     if (NewBlueprint)
@@ -152,10 +252,21 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const
 
         // Mark the package dirty
         Package->MarkPackageDirty();
+        
+        // Save the asset to disk to ensure it persists
+        if (UEditorAssetLibrary::SaveLoadedAsset(NewBlueprint))
+        {
+            UE_LOG(LogTemp, Log, TEXT("Successfully saved blueprint: %s"), *FullAssetPath);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to save blueprint: %s"), *FullAssetPath);
+        }
 
         TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-        ResultObj->SetStringField(TEXT("name"), AssetName);
-        ResultObj->SetStringField(TEXT("path"), PackagePath + AssetName);
+        ResultObj->SetStringField(TEXT("name"), BlueprintFullPath); // Return the original full path name that was passed in
+        ResultObj->SetStringField(TEXT("path"), FullAssetPath);
+        ResultObj->SetBoolField(TEXT("already_exists"), false);
         return ResultObj;
     }
 
@@ -1157,4 +1268,4 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetPawnProperties(con
     ResponseObj->SetBoolField(TEXT("success"), bAnyPropertiesSet);
     ResponseObj->SetObjectField(TEXT("results"), ResultsObj);
     return ResponseObj;
-} 
+}
