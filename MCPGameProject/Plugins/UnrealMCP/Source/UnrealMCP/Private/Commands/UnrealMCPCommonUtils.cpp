@@ -153,8 +153,80 @@ UBlueprint* FUnrealMCPCommonUtils::FindBlueprint(const FString& BlueprintName)
 
 UBlueprint* FUnrealMCPCommonUtils::FindBlueprintByName(const FString& BlueprintName)
 {
-    FString AssetPath = TEXT("/Game/Blueprints/") + BlueprintName;
-    return LoadObject<UBlueprint>(nullptr, *AssetPath);
+    // First try the direct path if provided
+    if (BlueprintName.Contains(TEXT("/")))
+    {
+        // This might be a full path or a partial path
+        FString AssetPath;
+        
+        if (BlueprintName.StartsWith(TEXT("/")))
+        {
+            // Already starts with /, use as is
+            AssetPath = BlueprintName;
+        }
+        else
+        {
+            // Need to add /Game/ prefix if missing
+            AssetPath = TEXT("/Game/") + BlueprintName;
+        }
+        
+        // Ensure the path doesn't have .uasset extension
+        if (AssetPath.EndsWith(TEXT(".uasset")))
+        {
+            AssetPath = AssetPath.LeftChop(7); // Remove .uasset
+        }
+        
+        UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetPath);
+        if (Blueprint)
+        {
+            return Blueprint;
+        }
+    }
+
+    // If no path separator, first try in default Blueprints folder
+    FString DefaultPath = TEXT("/Game/Blueprints/") + BlueprintName;
+    UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *DefaultPath);
+    if (Blueprint)
+    {
+        return Blueprint;
+    }
+    
+    // Next try in Success folder if that's where it might be
+    FString SuccessPath = TEXT("/Game/Success/") + BlueprintName;
+    Blueprint = LoadObject<UBlueprint>(nullptr, *SuccessPath);
+    if (Blueprint)
+    {
+        return Blueprint;
+    }
+    
+    // If still not found, search in Content root
+    FString RootPath = TEXT("/Game/") + BlueprintName;
+    Blueprint = LoadObject<UBlueprint>(nullptr, *RootPath);
+    if (Blueprint)
+    {
+        return Blueprint;
+    }
+
+    // If still not found, try to find it using asset registry
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    TArray<FAssetData> AssetData;
+    
+    // Create a filter to search for blueprints with the specified name
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+    Filter.PackageNames.Add(FName(*BlueprintName));
+    
+    // Get all blueprints matching the filter
+    AssetRegistryModule.Get().GetAssets(Filter, AssetData);
+    
+    // If we found any assets, load the first one
+    if (AssetData.Num() > 0)
+    {
+        return Cast<UBlueprint>(AssetData[0].GetAsset());
+    }
+    
+    // Blueprint not found
+    return nullptr;
 }
 
 UEdGraph* FUnrealMCPCommonUtils::FindOrCreateEventGraph(UBlueprint* Blueprint)
@@ -706,4 +778,4 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
     OutErrorMessage = FString::Printf(TEXT("Unsupported property type: %s for property %s"), 
                                     *Property->GetClass()->GetName(), *PropertyName);
     return false;
-} 
+}

@@ -18,9 +18,32 @@ def register_blueprint_tools(mcp: FastMCP):
     def create_blueprint(
         ctx: Context,
         name: str,
-        parent_class: str
+        parent_class: str,
+        folder_path: str = ""
     ) -> Dict[str, Any]:
-        """Create a new Blueprint class."""
+        """
+        Create a new Blueprint class.
+        
+        Args:
+            name: Name of the new Blueprint class (can include path with "/")
+            parent_class: Parent class for the Blueprint (e.g., "Actor", "Pawn")
+            folder_path: Optional folder path where the blueprint should be created
+                         If name contains a path (e.g. "System/Blueprints/my_bp"), 
+                         folder_path is ignored unless explicitly specified
+                         
+        Returns:
+            Dictionary containing information about the created Blueprint including path and success status
+        
+        Examples:
+            # Create blueprint directly in Content folder
+            create_blueprint(name="MyBlueprint", parent_class="Actor")
+            
+            # Create blueprint with path in name (creates in Content/System/Blueprints)
+            create_blueprint(name="System/Blueprints/my_bp", parent_class="Actor")
+            
+            # Create blueprint in Content/Success folder
+            create_blueprint(name="MyBlueprint", parent_class="Actor", folder_path="Success")
+        """
         # Import inside function to avoid circular imports
         from unreal_mcp_server import get_unreal_connection
         
@@ -29,10 +52,17 @@ def register_blueprint_tools(mcp: FastMCP):
             if not unreal:
                 logger.error("Failed to connect to Unreal Engine")
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
-                
+            
+            # Log whether we're using a path in the name
+            if "/" in name:
+                logger.info(f"Name contains a path: {name}")
+                if folder_path:
+                    logger.info(f"folder_path parameter will be ignored: {folder_path}")
+            
             response = unreal.send_command("create_blueprint", {
                 "name": name,
-                "parent_class": parent_class
+                "parent_class": parent_class,
+                "folder_path": folder_path
             })
             
             if not response:
@@ -417,4 +447,4 @@ def register_blueprint_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
     
-    logger.info("Blueprint tools registered successfully") 
+    logger.info("Blueprint tools registered successfully")
