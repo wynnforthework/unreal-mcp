@@ -7,6 +7,26 @@ This module provides tools for creating and manipulating UMG Widget Blueprints i
 import logging
 from typing import Dict, List, Any
 from mcp.server.fastmcp import FastMCP, Context
+from utils.widgets.widget_components import (
+    create_widget_blueprint,
+    add_text_block,
+    add_button,
+    add_image,
+    add_check_box,
+    bind_event,
+    add_to_viewport,
+    set_text_binding,
+    add_slider,
+    add_progress_bar,
+    add_border,
+    add_scroll_box,
+    add_spacer,
+    add_widget_switcher,
+    add_throbber,
+    add_expandable_area,
+    add_rich_text_block,
+    add_multi_line_editable_text
+)
 
 # Get logger
 logger = logging.getLogger("UnrealMCP")
@@ -42,34 +62,7 @@ def register_umg_tools(mcp: FastMCP):
             # Create a widget in a custom folder
             create_umg_widget_blueprint(widget_name="MyWidget", path="/Game/UI/Widgets")
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "name": widget_name,
-                "parent_class": parent_class,
-                "path": path
-            }
-            
-            logger.info(f"Creating UMG Widget Blueprint with params: {params}")
-            response = unreal.send_command("create_umg_widget_blueprint", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Create UMG Widget Blueprint response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error creating UMG Widget Blueprint: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return create_widget_blueprint(ctx, widget_name, parent_class, path)
 
     @mcp.tool()
     def add_text_block_to_widget(
@@ -112,38 +105,7 @@ def register_umg_tools(mcp: FastMCP):
                 color=[1.0, 0.8, 0.2, 1.0]  # Gold color
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,  # Name of the Widget Blueprint asset
-                "widget_name": text_block_name, # Name for the Text Block widget being created
-                "text": text,
-                "position": position,
-                "size": size,
-                "font_size": font_size,
-                "color": color
-            }
-            
-            logger.info(f"Adding Text Block to widget with params: {params}")
-            response = unreal.send_command("add_text_block_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Text Block response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Text Block to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_text_block(ctx, widget_name, text_block_name, text, position, size, font_size, color)
 
     @mcp.tool()
     def add_button_to_widget(
@@ -189,39 +151,7 @@ def register_umg_tools(mcp: FastMCP):
                 background_color=[0.2, 0.4, 0.8, 1.0]  # Blue color
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,    # Name of the Widget Blueprint asset
-                "widget_name": button_name,       # Name for the Button widget being created
-                "text": text,
-                "position": position,
-                "size": size,
-                "font_size": font_size,
-                "color": color,
-                "background_color": background_color
-            }
-            
-            logger.info(f"Adding Button to widget with params: {params}")
-            response = unreal.send_command("add_button_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Button response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Button to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_button(ctx, widget_name, button_name, text, position, size, font_size, color, background_color)
 
     @mcp.tool()
     def add_image_to_widget(
@@ -261,36 +191,7 @@ def register_umg_tools(mcp: FastMCP):
                 size=[64.0, 64.0]
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": image_name,
-                "brush_asset_path": brush_asset_path,
-                "position": position,
-                "size": size
-            }
-            
-            logger.info(f"Adding Image to widget with params: {params}")
-            response = unreal.send_command("add_image_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Image response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Image to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_image(ctx, widget_name, image_name, brush_asset_path, position, size)
 
     @mcp.tool()
     def add_check_box_to_widget(
@@ -330,36 +231,7 @@ def register_umg_tools(mcp: FastMCP):
                 is_checked=True
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": checkbox_name,
-                "position": position,
-                "size": size,
-                "is_checked": is_checked
-            }
-            
-            logger.info(f"Adding CheckBox to widget with params: {params}")
-            response = unreal.send_command("add_check_box_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add CheckBox response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding CheckBox to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_check_box(ctx, widget_name, checkbox_name, position, size, is_checked)
 
     @mcp.tool()
     def bind_widget_event(
@@ -397,39 +269,7 @@ def register_umg_tools(mcp: FastMCP):
                 function_name="ExitApplication"
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            # If no function name provided, create one from component and event names
-            if not function_name:
-                function_name = f"{widget_component_name}_{event_name}"
-            
-            params = {
-                "blueprint_name": widget_name,   # Name of the Widget Blueprint asset
-                "widget_name": widget_component_name,  # Name of the component in the widget
-                "event_name": event_name,
-                "function_name": function_name
-            }
-            
-            logger.info(f"Binding widget event with params: {params}")
-            response = unreal.send_command("bind_widget_event", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Bind widget event response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error binding widget event: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return bind_event(ctx, widget_name, widget_component_name, event_name, function_name)
 
     @mcp.tool()
     def add_widget_to_viewport(
@@ -454,33 +294,7 @@ def register_umg_tools(mcp: FastMCP):
             # Add widget with specific z-order (higher number appears on top)
             add_widget_to_viewport(widget_name="NotificationWidget", z_order=10)
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,  # Name of the Widget Blueprint asset
-                "z_order": z_order
-            }
-            
-            logger.info(f"Adding widget to viewport with params: {params}")
-            response = unreal.send_command("add_widget_to_viewport", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add widget to viewport response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding widget to viewport: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_to_viewport(ctx, widget_name, z_order)
 
     @mcp.tool()
     def set_text_block_binding(
@@ -518,35 +332,7 @@ def register_umg_tools(mcp: FastMCP):
                 binding_type="Text"
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,      # Name of the Widget Blueprint asset
-                "widget_name": text_block_name,     # Name of the Text Block widget in the blueprint
-                "binding_name": binding_property,   # Name of the property to bind to
-                "binding_type": binding_type
-            }
-            
-            logger.info(f"Setting text block binding with params: {params}")
-            response = unreal.send_command("set_text_block_binding", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Set text block binding response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error setting text block binding: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return set_text_binding(ctx, widget_name, text_block_name, binding_property, binding_type)
 
     @mcp.tool()
     def add_slider_to_widget(
@@ -598,41 +384,7 @@ def register_umg_tools(mcp: FastMCP):
                 handle_color=[0.8, 0.8, 0.8, 1.0]
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": slider_name,
-                "min_value": min_value,
-                "max_value": max_value,
-                "value": value,
-                "position": position,
-                "size": size,
-                "orientation": orientation,
-                "bar_color": bar_color,
-                "handle_color": handle_color
-            }
-            
-            logger.info(f"Adding Slider to widget with params: {params}")
-            response = unreal.send_command("add_slider_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Slider response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Slider to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_slider(ctx, widget_name, slider_name, min_value, max_value, value, position, size, orientation, bar_color, handle_color)
 
     @mcp.tool()
     def add_progress_bar_to_widget(
@@ -675,38 +427,7 @@ def register_umg_tools(mcp: FastMCP):
                 background_color=[0.2, 0.0, 0.0, 0.8]
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": progress_bar_name,
-                "percent": percent,
-                "position": position,
-                "size": size,
-                "fill_color": fill_color,
-                "background_color": background_color
-            }
-            
-            logger.info(f"Adding ProgressBar to widget with params: {params}")
-            response = unreal.send_command("add_progress_bar_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add ProgressBar response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding ProgressBar to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_progress_bar(ctx, widget_name, progress_bar_name, percent, position, size, fill_color, background_color)
 
     @mcp.tool()
     def add_border_to_widget(
@@ -746,37 +467,7 @@ def register_umg_tools(mcp: FastMCP):
                 brush_thickness=2.0
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": border_name,
-                "position": position,
-                "size": size,
-                "brush_color": brush_color,
-                "brush_thickness": brush_thickness
-            }
-            
-            logger.info(f"Adding Border to widget with params: {params}")
-            response = unreal.send_command("add_border_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Border response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Border to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_border(ctx, widget_name, border_name, position, size, brush_color, brush_thickness)
 
     @mcp.tool()
     def add_scroll_box_to_widget(
@@ -816,37 +507,7 @@ def register_umg_tools(mcp: FastMCP):
                 scroll_bar_visibility="Auto"
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": scroll_box_name,
-                "position": position,
-                "size": size,
-                "orientation": orientation,
-                "scroll_bar_visibility": scroll_bar_visibility
-            }
-            
-            logger.info(f"Adding ScrollBox to widget with params: {params}")
-            response = unreal.send_command("add_scroll_box_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add ScrollBox response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding ScrollBox to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_scroll_box(ctx, widget_name, scroll_box_name, position, size, orientation, scroll_bar_visibility)
 
     @mcp.tool()
     def add_spacer_to_widget(
@@ -880,35 +541,7 @@ def register_umg_tools(mcp: FastMCP):
                 size=[300.0, 20.0]
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": spacer_name,
-                "position": position,
-                "size": size
-            }
-            
-            logger.info(f"Adding Spacer to widget with params: {params}")
-            response = unreal.send_command("add_spacer_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Spacer response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Spacer to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_spacer(ctx, widget_name, spacer_name, position, size)
 
     @mcp.tool()
     def add_widget_switcher_to_widget(
@@ -947,36 +580,7 @@ def register_umg_tools(mcp: FastMCP):
                 active_widget_index=1
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": switcher_name,
-                "position": position,
-                "size": size,
-                "active_widget_index": active_widget_index
-            }
-            
-            logger.info(f"Adding Widget Switcher to widget with params: {params}")
-            response = unreal.send_command("add_widget_switcher_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Widget Switcher response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Widget Switcher to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_widget_switcher(ctx, widget_name, switcher_name, position, size, active_widget_index)
 
     @mcp.tool()
     def add_throbber_to_widget(
@@ -1018,37 +622,7 @@ def register_umg_tools(mcp: FastMCP):
                 animate=True
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": throbber_name,
-                "position": position,
-                "size": size,
-                "num_pieces": num_pieces,
-                "animate": animate
-            }
-            
-            logger.info(f"Adding Throbber to widget with params: {params}")
-            response = unreal.send_command("add_throbber_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Throbber response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Throbber to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_throbber(ctx, widget_name, throbber_name, position, size, num_pieces, animate)
 
     @mcp.tool()
     def add_expandable_area_to_widget(
@@ -1094,108 +668,7 @@ def register_umg_tools(mcp: FastMCP):
                 is_expanded=True
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": expandable_area_name,
-                "header_text": header_text,
-                "position": position,
-                "size": size,
-                "is_expanded": is_expanded
-            }
-            
-            logger.info(f"Adding Expandable Area to widget with params: {params}")
-            response = unreal.send_command("add_expandable_area_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Expandable Area response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Expandable Area to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
-
-    @mcp.tool()
-    def add_menu_anchor_to_widget(
-        ctx: Context,
-        widget_name: str,
-        menu_anchor_name: str,
-        position: List[float] = [0.0, 0.0],
-        size: List[float] = [100.0, 30.0],
-        placement: str = "Below"
-    ) -> Dict[str, Any]:
-        """
-        Add a Menu Anchor widget to a UMG Widget Blueprint.
-        
-        The Menu Anchor allows you to specify a location that a popup menu should be anchored to.
-        
-        Args:
-            widget_name: Name of the target Widget Blueprint
-            menu_anchor_name: Name to give the new Menu Anchor widget
-            position: [X, Y] position in the canvas panel
-            size: [Width, Height] of the menu anchor
-            placement: Placement of the popup relative to anchor ("Below", "Above", "Left", "Right", "Center")
-            
-        Returns:
-            Dict containing success status and menu anchor properties
-            
-        Examples:
-            # Add a basic menu anchor
-            add_menu_anchor_to_widget(
-                widget_name="MyWidget", 
-                menu_anchor_name="DropdownAnchor"
-            )
-            
-            # Add a customized menu anchor
-            add_menu_anchor_to_widget(
-                widget_name="MainUI",
-                menu_anchor_name="OptionsMenuAnchor",
-                position=[200.0, 50.0],
-                size=[120.0, 40.0],
-                placement="Right"
-            )
-        """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": menu_anchor_name,
-                "position": position,
-                "size": size,
-                "placement": placement
-            }
-            
-            logger.info(f"Adding Menu Anchor to widget with params: {params}")
-            response = unreal.send_command("add_menu_anchor_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Menu Anchor response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Menu Anchor to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_expandable_area(ctx, widget_name, expandable_area_name, header_text, position, size, is_expanded)
 
     @mcp.tool()
     def add_rich_text_block_to_widget(
@@ -1246,256 +719,7 @@ def register_umg_tools(mcp: FastMCP):
                 default_color=[0.9, 0.9, 0.9, 1.0]
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": rich_text_name,
-                "text": text,
-                "position": position,
-                "size": size,
-                "font_size": font_size,
-                "default_color": default_color,
-                "auto_wrap_text": auto_wrap_text
-            }
-            
-            logger.info(f"Adding Rich Text Block to widget with params: {params}")
-            response = unreal.send_command("add_rich_text_block_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Rich Text Block response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Rich Text Block to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
-
-    @mcp.tool()
-    def add_safe_zone_to_widget(
-        ctx: Context,
-        widget_name: str,
-        safe_zone_name: str,
-        position: List[float] = [0.0, 0.0],
-        size: List[float] = [600.0, 400.0],
-        padding: List[float] = [0.0, 0.0, 0.0, 0.0]
-    ) -> Dict[str, Any]:
-        """
-        Add a Safe Zone widget to a UMG Widget Blueprint.
-        
-        The Safe Zone widget ensures UI elements stay in the visible "safe" area of the screen across different devices.
-        
-        Args:
-            widget_name: Name of the target Widget Blueprint
-            safe_zone_name: Name to give the new Safe Zone widget
-            position: [X, Y] position in the canvas panel
-            size: [Width, Height] of the safe zone
-            padding: [Left, Top, Right, Bottom] additional padding values
-            
-        Returns:
-            Dict containing success status and safe zone properties
-            
-        Examples:
-            # Add a basic safe zone
-            add_safe_zone_to_widget(
-                widget_name="MyWidget", 
-                safe_zone_name="SafeContent"
-            )
-            
-            # Add a customized safe zone with padding
-            add_safe_zone_to_widget(
-                widget_name="GameHUD",
-                safe_zone_name="HUDSafeArea",
-                position=[0.0, 0.0],
-                size=[1920.0, 1080.0],
-                padding=[20.0, 20.0, 20.0, 20.0]
-            )
-        """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": safe_zone_name,
-                "position": position,
-                "size": size,
-                "padding": padding
-            }
-            
-            logger.info(f"Adding Safe Zone to widget with params: {params}")
-            response = unreal.send_command("add_safe_zone_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Safe Zone response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Safe Zone to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
-
-    @mcp.tool()
-    def add_invalidation_box_to_widget(
-        ctx: Context,
-        widget_name: str,
-        invalidation_box_name: str,
-        position: List[float] = [0.0, 0.0],
-        size: List[float] = [300.0, 300.0],
-        cache_in_invalidation: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Add an Invalidation Box widget to a UMG Widget Blueprint.
-        
-        The Invalidation Box allows you to cache parts of your UI for performance optimization.
-        
-        Args:
-            widget_name: Name of the target Widget Blueprint
-            invalidation_box_name: Name to give the new Invalidation Box widget
-            position: [X, Y] position in the canvas panel
-            size: [Width, Height] of the invalidation box
-            cache_in_invalidation: Whether to enable caching
-            
-        Returns:
-            Dict containing success status and invalidation box properties
-            
-        Examples:
-            # Add a basic invalidation box
-            add_invalidation_box_to_widget(
-                widget_name="MyWidget", 
-                invalidation_box_name="CachedContent"
-            )
-            
-            # Add a customized invalidation box
-            add_invalidation_box_to_widget(
-                widget_name="ComplexUI",
-                invalidation_box_name="StaticElementsCache",
-                position=[100.0, 100.0],
-                size=[500.0, 400.0],
-                cache_in_invalidation=True
-            )
-        """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": invalidation_box_name,
-                "position": position,
-                "size": size,
-                "cache_in_invalidation": cache_in_invalidation
-            }
-            
-            logger.info(f"Adding Invalidation Box to widget with params: {params}")
-            response = unreal.send_command("add_invalidation_box_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Invalidation Box response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Invalidation Box to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
-
-    @mcp.tool()
-    def add_input_key_selector_to_widget(
-        ctx: Context,
-        widget_name: str,
-        key_selector_name: str,
-        position: List[float] = [0.0, 0.0],
-        size: List[float] = [200.0, 50.0],
-        text_color: List[float] = [1.0, 1.0, 1.0, 1.0],
-        selected_key: str = ""
-    ) -> Dict[str, Any]:
-        """
-        Add an Input Key Selector widget to a UMG Widget Blueprint.
-        
-        A widget for selecting a single key or a single key with a modifier.
-        
-        Args:
-            widget_name: Name of the target Widget Blueprint
-            key_selector_name: Name to give the new Input Key Selector widget
-            position: [X, Y] position in the canvas panel
-            size: [Width, Height] of the input key selector
-            text_color: [R, G, B, A] color values for the text (0.0 to 1.0)
-            selected_key: Initially selected key name (e.g., "W", "Gamepad_FaceButton_Bottom")
-            
-        Returns:
-            Dict containing success status and input key selector properties
-            
-        Examples:
-            # Add a basic input key selector
-            add_input_key_selector_to_widget(
-                widget_name="MyWidget", 
-                key_selector_name="JumpKeySelector"
-            )
-            
-            # Add a customized input key selector with a default key
-            add_input_key_selector_to_widget(
-                widget_name="ControlsMenu",
-                key_selector_name="FireKeySelector",
-                position=[200.0, 150.0],
-                size=[250.0, 60.0],
-                text_color=[0.9, 0.9, 0.9, 1.0],
-                selected_key="LeftMouseButton"
-            )
-        """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": key_selector_name,
-                "position": position,
-                "size": size,
-                "text_color": text_color,
-                "selected_key": selected_key
-            }
-            
-            logger.info(f"Adding Input Key Selector to widget with params: {params}")
-            response = unreal.send_command("add_input_key_selector_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Input Key Selector response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Input Key Selector to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_rich_text_block(ctx, widget_name, rich_text_name, text, position, size, font_size, default_color, auto_wrap_text)
 
     @mcp.tool()
     def add_multi_line_editable_text_to_widget(
@@ -1543,124 +767,6 @@ def register_umg_tools(mcp: FastMCP):
                 size=[400.0, 200.0]
             )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": text_box_name,
-                "hint_text": hint_text,
-                "text": text,
-                "position": position,
-                "size": size,
-                "allows_multiline": allows_multiline
-            }
-            
-            logger.info(f"Adding Multi-Line Editable Text to widget with params: {params}")
-            response = unreal.send_command("add_multi_line_editable_text_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Multi-Line Editable Text response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Multi-Line Editable Text to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
-
-    @mcp.tool()
-    def add_size_box_to_widget(
-        ctx: Context,
-        widget_name: str,
-        size_box_name: str,
-        position: List[float] = [0.0, 0.0],
-        fixed_width: float = 200.0,
-        fixed_height: float = 200.0,
-        min_width: float = 0.0,
-        min_height: float = 0.0,
-        max_width: float = 0.0,
-        max_height: float = 0.0
-    ) -> Dict[str, Any]:
-        """
-        Add a Size Box widget to a UMG Widget Blueprint.
-        
-        A container that limits the size of its child widget.
-        
-        Args:
-            widget_name: Name of the target Widget Blueprint
-            size_box_name: Name to give the new Size Box widget
-            position: [X, Y] position in the canvas panel
-            fixed_width: Fixed width (0 means not fixed)
-            fixed_height: Fixed height (0 means not fixed)
-            min_width: Minimum width (0 means no minimum)
-            min_height: Minimum height (0 means no minimum)
-            max_width: Maximum width (0 means no maximum)
-            max_height: Maximum height (0 means no maximum)
-            
-        Returns:
-            Dict containing success status and size box properties
-            
-        Examples:
-            # Add a basic size box with fixed dimensions
-            add_size_box_to_widget(
-                widget_name="MyWidget", 
-                size_box_name="ContentSizer"
-            )
-            
-            # Add a size box with min/max constraints
-            add_size_box_to_widget(
-                widget_name="ResponsiveUI",
-                size_box_name="FlexibleContainer",
-                position=[100.0, 100.0],
-                fixed_width=0.0,
-                fixed_height=0.0,
-                min_width=200.0,
-                min_height=150.0,
-                max_width=500.0,
-                max_height=350.0
-            )
-        """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "blueprint_name": widget_name,
-                "widget_name": size_box_name,
-                "position": position,
-                "fixed_width": fixed_width,
-                "fixed_height": fixed_height,
-                "min_width": min_width,
-                "min_height": min_height,
-                "max_width": max_width,
-                "max_height": max_height
-            }
-            
-            logger.info(f"Adding Size Box to widget with params: {params}")
-            response = unreal.send_command("add_size_box_to_widget", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Add Size Box response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error adding Size Box to widget: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return add_multi_line_editable_text(ctx, widget_name, text_box_name, hint_text, text, position, size, allows_multiline)
 
     logger.info("UMG tools registered successfully")
