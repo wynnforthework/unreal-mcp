@@ -9,6 +9,8 @@ The following guidelines apply to any method or function marked with the @mcp.to
 
 When this rule is applied, please remember to explicitly mention it.
 
+Python/tools/* - is a mcp entrypoint but a decorator, the real functionalities stored outside this file and you will need to use existing prefered file for that kind of funtionalities,or to create new one and add any new in there 
+
 
 When you have provided cpp changes - also apply prompt in the end of all your edits this command
 

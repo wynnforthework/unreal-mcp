@@ -25,7 +25,10 @@ from utils.widgets.widget_components import (
     add_throbber,
     add_expandable_area,
     add_rich_text_block,
-    add_multi_line_editable_text
+    add_multi_line_editable_text,
+    add_widget_as_child,
+    create_widget_component_with_child,
+    check_component_exists
 )
 
 # Get logger
@@ -40,7 +43,7 @@ def register_umg_tools(mcp: FastMCP):
         widget_name: str,
         parent_class: str = "UserWidget",
         path: str = "/Game/Widgets"
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Create a new UMG Widget Blueprint.
         
@@ -74,7 +77,7 @@ def register_umg_tools(mcp: FastMCP):
         size: List[float] = [200.0, 50.0],
         font_size: int = 12,
         color: List[float] = [1.0, 1.0, 1.0, 1.0]
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Text Block widget to a UMG Widget Blueprint.
         
@@ -118,7 +121,7 @@ def register_umg_tools(mcp: FastMCP):
         font_size: int = 12,
         color: List[float] = [1.0, 1.0, 1.0, 1.0],
         background_color: List[float] = [0.1, 0.1, 0.1, 1.0]
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Button widget to a UMG Widget Blueprint.
         
@@ -161,7 +164,7 @@ def register_umg_tools(mcp: FastMCP):
         brush_asset_path: str = "",
         position: List[float] = [0.0, 0.0],
         size: List[float] = [100.0, 100.0]
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add an Image widget to a UMG Widget Blueprint.
         
@@ -201,7 +204,7 @@ def register_umg_tools(mcp: FastMCP):
         position: List[float] = [0.0, 0.0],
         size: List[float] = [40.0, 40.0],
         is_checked: bool = False
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a CheckBox widget to a UMG Widget Blueprint.
         
@@ -240,7 +243,7 @@ def register_umg_tools(mcp: FastMCP):
         widget_component_name: str,
         event_name: str,
         function_name: str = ""
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Bind an event on a widget component to a function.
         
@@ -276,7 +279,7 @@ def register_umg_tools(mcp: FastMCP):
         ctx: Context,
         widget_name: str,
         z_order: int = 0
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Widget Blueprint instance to the viewport.
         
@@ -303,7 +306,7 @@ def register_umg_tools(mcp: FastMCP):
         text_block_name: str,
         binding_property: str,
         binding_type: str = "Text"
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Set up a property binding for a Text Block widget.
         
@@ -347,7 +350,7 @@ def register_umg_tools(mcp: FastMCP):
         orientation: str = "Horizontal",
         bar_color: List[float] = [0.2, 0.2, 0.8, 1.0],
         handle_color: List[float] = [1.0, 1.0, 1.0, 1.0]
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Slider widget to a UMG Widget Blueprint.
         
@@ -396,7 +399,7 @@ def register_umg_tools(mcp: FastMCP):
         size: List[float] = [200.0, 20.0],
         fill_color: List[float] = [0.0, 0.5, 1.0, 1.0],
         background_color: List[float] = [0.1, 0.1, 0.1, 1.0]
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a ProgressBar widget to a UMG Widget Blueprint.
         
@@ -438,7 +441,7 @@ def register_umg_tools(mcp: FastMCP):
         size: List[float] = [200.0, 200.0],
         brush_color: List[float] = [0.1, 0.1, 0.1, 1.0],
         brush_thickness: float = 4.0
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Border widget to a UMG Widget Blueprint.
         
@@ -478,7 +481,7 @@ def register_umg_tools(mcp: FastMCP):
         size: List[float] = [300.0, 200.0],
         orientation: str = "Vertical",
         scroll_bar_visibility: str = "Visible"
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a ScrollBox widget to a UMG Widget Blueprint.
         
@@ -516,7 +519,7 @@ def register_umg_tools(mcp: FastMCP):
         spacer_name: str,
         position: List[float] = [0.0, 0.0],
         size: List[float] = [100.0, 100.0]
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Spacer widget to a UMG Widget Blueprint.
         
@@ -551,7 +554,7 @@ def register_umg_tools(mcp: FastMCP):
         position: List[float] = [0.0, 0.0],
         size: List[float] = [400.0, 300.0],
         active_widget_index: int = 0
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Widget Switcher component to a UMG Widget Blueprint.
         
@@ -591,7 +594,7 @@ def register_umg_tools(mcp: FastMCP):
         size: List[float] = [100.0, 20.0],
         num_pieces: int = 3,
         animate: bool = True
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Throbber widget to a UMG Widget Blueprint.
         
@@ -633,7 +636,7 @@ def register_umg_tools(mcp: FastMCP):
         position: List[float] = [0.0, 0.0],
         size: List[float] = [300.0, 100.0],
         is_expanded: bool = False
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add an Expandable Area widget to a UMG Widget Blueprint.
         
@@ -681,7 +684,7 @@ def register_umg_tools(mcp: FastMCP):
         font_size: int = 12,
         default_color: List[float] = [1.0, 1.0, 1.0, 1.0],
         auto_wrap_text: bool = True
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Rich Text Block widget to a UMG Widget Blueprint.
         
@@ -731,7 +734,7 @@ def register_umg_tools(mcp: FastMCP):
         position: List[float] = [0.0, 0.0],
         size: List[float] = [300.0, 150.0],
         allows_multiline: bool = True
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, object]:
         """
         Add a Multi-Line Editable Text widget to a UMG Widget Blueprint.
         
@@ -768,5 +771,162 @@ def register_umg_tools(mcp: FastMCP):
             )
         """
         return add_multi_line_editable_text(ctx, widget_name, text_box_name, hint_text, text, position, size, allows_multiline)
+
+    @mcp.tool()
+    def add_widget_as_child(
+        ctx: Context,
+        widget_name: str,
+        parent_component_name: str,
+        child_component_name: str,
+        create_parent_if_missing: bool = False,
+        parent_component_type: str = "Border",
+        parent_position: List[float] = [0.0, 0.0],
+        parent_size: List[float] = [300.0, 200.0]
+    ) -> Dict[str, object]:
+        """
+        Add a widget component as a child to another component.
+        
+        This function can:
+        1. Add an existing component inside an existing component
+        2. If the parent doesn't exist, optionally create it and add the child inside
+        
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            parent_component_name: Name of the parent component
+            child_component_name: Name of the child component to add to the parent
+            create_parent_if_missing: Whether to create the parent component if it doesn't exist
+            parent_component_type: Type of parent component to create if needed (e.g., "Border", "VerticalBox")
+            parent_position: [X, Y] position of the parent component if created
+            parent_size: [Width, Height] of the parent component if created
+            
+        Returns:
+            Dict containing success status and component relationship information
+            
+        Examples:
+            # Add an existing text block inside an existing border
+            add_widget_as_child(
+                widget_name="MyWidget",
+                parent_component_name="ContentBorder",
+                child_component_name="HeaderText"
+            )
+            
+            # Add an existing button to a new vertical box (creates if missing)
+            add_widget_as_child(
+                widget_name="GameMenu",
+                parent_component_name="ButtonsContainer",
+                child_component_name="StartButton",
+                create_parent_if_missing=True,
+                parent_component_type="VerticalBox",
+                parent_position=[100.0, 100.0],
+                parent_size=[300.0, 400.0]
+            )
+        """
+        return add_widget_as_child(
+            ctx, 
+            widget_name, 
+            parent_component_name, 
+            child_component_name, 
+            create_parent_if_missing, 
+            parent_component_type, 
+            parent_position, 
+            parent_size
+        )
+
+    @mcp.tool()
+    def create_widget_component_with_child(
+        ctx: Context,
+        widget_name: str,
+        parent_component_name: str,
+        child_component_name: str,
+        parent_component_type: str = "Border",
+        child_component_type: str = "TextBlock",
+        parent_position: List[float] = [0.0, 0.0],
+        parent_size: List[float] = [300.0, 200.0],
+        child_attributes: Dict[str, object] = None
+    ) -> Dict[str, object]:
+        """
+        Create a new parent widget component with a new child component.
+        
+        This function creates both components from scratch:
+        1. Creates the parent component
+        2. Creates the child component
+        3. Adds the child inside the parent
+        
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            parent_component_name: Name for the new parent component
+            child_component_name: Name for the new child component
+            parent_component_type: Type of parent component to create (e.g., "Border", "VerticalBox")
+            child_component_type: Type of child component to create (e.g., "TextBlock", "Button")
+            parent_position: [X, Y] position of the parent component
+            parent_size: [Width, Height] of the parent component
+            child_attributes: Additional attributes for the child component (content, colors, etc.)
+            
+        Returns:
+            Dict containing success status and component creation information
+            
+        Examples:
+            # Create a border with a text block inside
+            create_widget_component_with_child(
+                widget_name="MyWidget",
+                parent_component_name="HeaderBorder",
+                child_component_name="TitleText",
+                parent_component_type="Border",
+                child_component_type="TextBlock",
+                parent_position=[50.0, 50.0],
+                parent_size=[400.0, 100.0],
+                child_attributes={"text": "Welcome to My Game", "font_size": 24}
+            )
+            
+            # Create a scroll box with a vertical box inside
+            create_widget_component_with_child(
+                widget_name="InventoryScreen",
+                parent_component_name="ItemsScrollBox",
+                child_component_name="ItemsContainer",
+                parent_component_type="ScrollBox",
+                child_component_type="VerticalBox",
+                parent_position=[100.0, 200.0],
+                parent_size=[300.0, 400.0]
+            )
+        """
+        if child_attributes is None:
+            child_attributes = {}
+            
+        return create_widget_component_with_child(
+            ctx, 
+            widget_name, 
+            parent_component_name, 
+            child_component_name, 
+            parent_component_type, 
+            child_component_type,
+            parent_position, 
+            parent_size, 
+            child_attributes
+        )
+
+    @mcp.tool()
+    def check_component_exists(
+        ctx: Context,
+        widget_name: str,
+        component_name: str
+    ) -> Dict[str, object]:
+        """
+        Check if a component exists in the specified widget blueprint.
+        
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            component_name: Name of the component to check
+            
+        Returns:
+            Dict containing existence status of the component
+            
+        Examples:
+            # Check if a component exists
+            check_component_exists(
+                widget_name="MyWidget",
+                component_name="HeaderText"
+            )
+        """
+        return check_component_exists(ctx, widget_name, component_name)
 
     logger.info("UMG tools registered successfully")

@@ -191,3 +191,68 @@ def import_asset(
         params["options"] = options
     
     return send_unreal_command("import_asset", params)
+
+def find_actors_by_name(ctx: Context, pattern: str) -> List[Dict[str, Any]]:
+    """Implementation for finding actors by name pattern."""
+    params = {"pattern": pattern}
+    return send_unreal_command("find_actors_by_name", params)
+
+def get_actors_in_level(ctx: Context) -> List[Dict[str, Any]]:
+    """Implementation for getting all actors in the current level.
+    
+    Returns a list of dictionaries, each containing details about an actor in the current level.
+    
+    Returns:
+        List[Dict[str, Any]]: A list of actors with their properties
+        
+    Examples:
+        # Get all actors in the current level
+        actors = get_actors_in_level()
+        
+        # Print names of all actors
+        for actor in actors:
+            print(actor["name"])
+    """
+    return send_unreal_command("get_actors_in_level", {})
+
+def spawn_blueprint_actor(
+    ctx: Context,
+    blueprint_name: str,
+    actor_name: str,
+    location: List[float] = None,
+    rotation: List[float] = None
+) -> Dict[str, Any]:
+    """Implementation for spawning an actor from a Blueprint."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "actor_name": actor_name
+    }
+    
+    if location is not None:
+        params["location"] = location
+        
+    if rotation is not None:
+        params["rotation"] = rotation
+        
+    return send_unreal_command("spawn_blueprint_actor", params)
+
+def focus_viewport(
+    ctx: Context,
+    target: str = None,
+    location: List[float] = None,
+    distance: float = 1000.0,
+    orientation: List[float] = None
+) -> Dict[str, Any]:
+    """Implementation for focusing the viewport on a specific actor or location."""
+    params = {"distance": distance}
+    
+    if target is not None:
+        params["target"] = target
+        
+    if location is not None:
+        params["location"] = location
+        
+    if orientation is not None:
+        params["orientation"] = orientation
+        
+    return send_unreal_command("focus_viewport", params)

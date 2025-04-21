@@ -387,3 +387,67 @@ def add_multi_line_editable_text(
     }
     
     return send_unreal_command("add_multi_line_editable_text_to_widget", params)
+
+def add_widget_as_child(
+    ctx: Context,
+    widget_name: str,
+    parent_component_name: str,
+    child_component_name: str,
+    create_parent_if_missing: bool = False,
+    parent_component_type: str = "Border",
+    parent_position: List[float] = [0.0, 0.0],
+    parent_size: List[float] = [300.0, 200.0]
+) -> Dict[str, Any]:
+    """Implementation for adding a widget component as child to another component."""
+    params = {
+        "blueprint_name": widget_name,
+        "parent_component_name": parent_component_name,
+        "child_component_name": child_component_name,
+        "create_parent_if_missing": create_parent_if_missing,
+        "parent_component_type": parent_component_type,
+        "parent_position": parent_position,
+        "parent_size": parent_size
+    }
+    
+    return send_unreal_command("add_widget_as_child", params)
+
+def create_widget_component_with_child(
+    ctx: Context,
+    widget_name: str,
+    parent_component_name: str,
+    child_component_name: str,
+    parent_component_type: str = "Border",
+    child_component_type: str = "TextBlock",
+    parent_position: List[float] = [0.0, 0.0],
+    parent_size: List[float] = [300.0, 200.0],
+    child_attributes: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """Implementation for creating a new parent widget component with a new child component."""
+    if child_attributes is None:
+        child_attributes = {}
+        
+    params = {
+        "blueprint_name": widget_name,
+        "parent_component_name": parent_component_name,
+        "child_component_name": child_component_name,
+        "parent_component_type": parent_component_type,
+        "child_component_type": child_component_type,
+        "parent_position": parent_position,
+        "parent_size": parent_size,
+        "child_attributes": child_attributes
+    }
+    
+    return send_unreal_command("create_widget_component_with_child", params)
+
+def check_component_exists(
+    ctx: Context,
+    widget_name: str,
+    component_name: str
+) -> Dict[str, Any]:
+    """Implementation for checking if a component exists in the specified widget blueprint."""
+    params = {
+        "blueprint_name": widget_name,
+        "component_name": component_name
+    }
+    
+    return send_unreal_command("check_component_exists", params)
