@@ -79,4 +79,159 @@ private:
      * @return JSON response with the binding details
      */
     TSharedPtr<FJsonObject> HandleSetTextBlockBinding(const TSharedPtr<FJsonObject>& Params);
-}; 
+
+    /**
+     * Add a Widget Switcher to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Widget Switcher
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddWidgetSwitcherToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Throbber widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Throbber widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddThrobberToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add an Expandable Area widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Expandable Area widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddExpandableAreaToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Menu Anchor widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Menu Anchor widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddMenuAnchorToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Rich Text Block widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Rich Text Block widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddRichTextBlockToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Safe Zone widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Safe Zone widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddSafeZoneToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add an Invalidation Box widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Invalidation Box widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddInvalidationBoxToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add an Input Key Selector widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Input Key Selector widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddInputKeySelectorToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Multi-Line Editable Text widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Multi-Line Editable Text widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddMultiLineEditableTextToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Size Box widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Size Box widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddSizeBoxToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add an Image widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Image widget
+     *                "brush_asset_path" - Path to the image asset to use (optional)
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddImageToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a CheckBox widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new CheckBox widget
+     *                "is_checked" - Initial checked state (optional)
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddCheckBoxToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Slider widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Slider widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddSliderToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Progress Bar widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Progress Bar widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddProgressBarToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Border widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Border widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddBorderToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a ScrollBox widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new ScrollBox widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddScrollBoxToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a Spacer widget to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name for the new Spacer widget
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddSpacerToWidget(const TSharedPtr<FJsonObject>& Params);
+};

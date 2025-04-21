@@ -116,24 +116,4 @@ def register_project_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 
-    # For backward compatibility
-    @mcp.tool()
-    def create_project_folder(
-        ctx: Context,
-        folder_path: str
-    ) -> Dict[str, Any]:
-        """
-        [DEPRECATED] Please use create_folder instead.
-        Create a new folder in the Unreal project.
-
-        Args:
-            folder_path: Path to create, relative to project root.
-                       Use "Content/..." prefix for content browser folders.
-
-        Returns:
-            Dictionary with the creation status and folder path
-        """
-        logger.warning("create_project_folder is deprecated, please use create_folder instead")
-        return create_folder(ctx, folder_path)
-
     logger.info("Project tools registered successfully")
