@@ -25,8 +25,8 @@
 #include "Misc/Paths.h"
 #include "Kismet/GameplayStatics.h"
 
-// Define the logging category
-DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
+// Using LogTemp instead of a custom log category for UE5.5 compatibility
+// DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
 
 FUnrealMCPBlueprintCommands::FUnrealMCPBlueprintCommands()
 {

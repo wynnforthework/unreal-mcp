@@ -6,7 +6,7 @@ alwaysApply: true
 ---
 description: 
 globs: Python/**/tools/*.py
-alwaysApply: false
+alwaysApply: true
 ---
 # Guidelines for using Python for MCP Tools
 
