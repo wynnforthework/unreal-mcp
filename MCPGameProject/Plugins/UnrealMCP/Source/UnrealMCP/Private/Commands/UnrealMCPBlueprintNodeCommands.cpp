@@ -17,8 +17,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "EdGraphSchema_K2.h"
 
-// Declare the log category
-DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
+// No longer needed as we're using LogTemp
+// DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
 
 FUnrealMCPBlueprintNodeCommands::FUnrealMCPBlueprintNodeCommands()
 {
@@ -508,7 +508,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
                             if (!Class)
                             {
                                 Class = LoadObject<UClass>(nullptr, *ClassName);
-                                UE_LOG(LogUnrealMCP, Display, TEXT("FindObject<UClass> failed. Assuming soft path  path: %s"), *ClassName);
+                                UE_LOG(LogTemp, Display, TEXT("FindObject<UClass> failed. Assuming soft path  path: %s"), *ClassName);
                             }
                             
                             // If not found, try with Engine module path
@@ -516,30 +516,30 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
                             {
                                 FString EngineClassName = FString::Printf(TEXT("/Script/Engine.%s"), *ClassName);
                                 Class = LoadObject<UClass>(nullptr, *EngineClassName);
-                                UE_LOG(LogUnrealMCP, Display, TEXT("Trying Engine module path: %s"), *EngineClassName);
+                                UE_LOG(LogTemp, Display, TEXT("Trying Engine module path: %s"), *EngineClassName);
                             }
                             
                             if (!Class)
                             {
-                                UE_LOG(LogUnrealMCP, Error, TEXT("Failed to find class '%s'. Make sure to use the exact class name with proper prefix (A for actors, U for non-actors)"), *ClassName);
+                                UE_LOG(LogTemp, Error, TEXT("Failed to find class '%s'. Make sure to use the exact class name with proper prefix (A for actors, U for non-actors)"), *ClassName);
                                 return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to find class '%s'"), *ClassName));
                             }
 
                             const UEdGraphSchema_K2* K2Schema = Cast<const UEdGraphSchema_K2>(EventGraph->GetSchema());
                             if (!K2Schema)
                             {
-                                UE_LOG(LogUnrealMCP, Error, TEXT("Failed to get K2Schema"));
+                                UE_LOG(LogTemp, Error, TEXT("Failed to get K2Schema"));
                                 return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get K2Schema"));
                             }
 
                             K2Schema->TrySetDefaultObject(*ParamPin, Class);
                             if (ParamPin->DefaultObject != Class)
                             {
-                                UE_LOG(LogUnrealMCP, Error, TEXT("Failed to set class reference for pin '%s' to '%s'"), *ParamPin->PinName.ToString(), *ClassName);
+                                UE_LOG(LogTemp, Error, TEXT("Failed to set class reference for pin '%s' to '%s'"), *ParamPin->PinName.ToString(), *ClassName);
                                 return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to set class reference for pin '%s'"), *ParamPin->PinName.ToString()));
                             }
 
-                            UE_LOG(LogUnrealMCP, Log, TEXT("Successfully set class reference for pin '%s' to '%s'"), *ParamPin->PinName.ToString(), *ClassName);
+                            UE_LOG(LogTemp, Log, TEXT("Successfully set class reference for pin '%s' to '%s'"), *ParamPin->PinName.ToString(), *ClassName);
                             continue;
                         }
                         else if (ParamPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Int)

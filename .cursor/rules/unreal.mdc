@@ -5,8 +5,8 @@ alwaysApply: true
 ---
 ---
 description: Apply this rule for any MCP Tool call for the Unreal Engine editor
-globs: 
-alwaysApply: false
+globs: MCPGameProject/Plugins/UnrealMCP/Source/UnrealMCP/
+alwaysApply: true
 ---
 # Working with Unreal Engine
 
