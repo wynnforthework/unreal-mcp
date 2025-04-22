@@ -234,4 +234,42 @@ private:
      * @return JSON response with the added widget details
      */
     TSharedPtr<FJsonObject> HandleAddSpacerToWidget(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Check if a component exists in a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "component_name" - Name of the component to check
+     * @return JSON response with existence status of the component
+     */
+    TSharedPtr<FJsonObject> HandleCheckComponentExists(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Add a widget component as a child to another component
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "parent_component_name" - Name of the parent component
+     *                "child_component_name" - Name of the child component to add
+     *                "create_parent_if_missing" - Whether to create the parent if it doesn't exist (optional)
+     *                "parent_component_type" - Type of parent component to create if needed (optional)
+     *                "parent_position" - [X, Y] position of the parent component if created (optional)
+     *                "parent_size" - [Width, Height] of the parent component if created (optional)
+     * @return JSON response with the component relationship details
+     */
+    TSharedPtr<FJsonObject> HandleAddWidgetAsChild(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Create a new parent widget component with a new child component
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "parent_component_name" - Name for the new parent component
+     *                "child_component_name" - Name for the new child component
+     *                "parent_component_type" - Type of parent component to create (optional)
+     *                "child_component_type" - Type of child component to create (optional)
+     *                "parent_position" - [X, Y] position of the parent component (optional)
+     *                "parent_size" - [Width, Height] of the parent component (optional)
+     *                "child_attributes" - Additional attributes for the child component (optional)
+     * @return JSON response with the component creation details
+     */
+    TSharedPtr<FJsonObject> HandleCreateWidgetComponentWithChild(const TSharedPtr<FJsonObject>& Params);
 };

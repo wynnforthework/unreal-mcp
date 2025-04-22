@@ -20,9 +20,9 @@ def get_selected_actors(ctx: Context) -> List[Dict[str, Any]]:
     """Implementation for getting information about currently selected actors in the editor."""
     return send_unreal_command("get_selected_actors", {})
 
-def select_actor(ctx: Context, actor_name: str) -> Dict[str, Any]:
+def select_actor(ctx: Context, name: str) -> Dict[str, Any]:
     """Implementation for selecting an actor in the editor."""
-    params = {"actor_name": actor_name}
+    params = {"name": name}
     return send_unreal_command("select_actor", params)
 
 def deselect_all_actors(ctx: Context) -> Dict[str, Any]:
@@ -31,22 +31,26 @@ def deselect_all_actors(ctx: Context) -> Dict[str, Any]:
 
 def spawn_actor(
     ctx: Context,
-    actor_class: str,
-    location: List[float] = [0, 0, 0],
-    rotation: List[float] = [0, 0, 0],
-    scale: List[float] = [1, 1, 1],
-    properties: Dict[str, Any] = None
+    name: str,
+    type: str,
+    location: List[float] = None,
+    rotation: List[float] = None,
+    scale: List[float] = None
 ) -> Dict[str, Any]:
     """Implementation for spawning an actor in the editor."""
     params = {
-        "actor_class": actor_class,
-        "location": location,
-        "rotation": rotation, 
-        "scale": scale
+        "name": name,
+        "type": type
     }
     
-    if properties:
-        params["properties"] = properties
+    if location is not None:
+        params["location"] = location
+        
+    if rotation is not None:
+        params["rotation"] = rotation
+        
+    if scale is not None:
+        params["scale"] = scale
     
     return send_unreal_command("spawn_actor", params)
 
@@ -54,20 +58,20 @@ def delete_selected_actors(ctx: Context) -> Dict[str, Any]:
     """Implementation for deleting all currently selected actors."""
     return send_unreal_command("delete_selected_actors", {})
 
-def delete_actor(ctx: Context, actor_name: str) -> Dict[str, Any]:
+def delete_actor(ctx: Context, name: str) -> Dict[str, Any]:
     """Implementation for deleting a specific actor by name."""
-    params = {"actor_name": actor_name}
+    params = {"name": name}
     return send_unreal_command("delete_actor", params)
 
 def set_actor_property(
     ctx: Context,
-    actor_name: str,
+    name: str,
     property_name: str,
-    property_value: Any
+    property_value
 ) -> Dict[str, Any]:
     """Implementation for setting a property on an actor."""
     params = {
-        "actor_name": actor_name,
+        "name": name,
         "property_name": property_name,
         "property_value": property_value
     }
@@ -75,30 +79,30 @@ def set_actor_property(
 
 def get_actor_property(
     ctx: Context,
-    actor_name: str,
+    name: str,
     property_name: str
 ) -> Dict[str, Any]:
     """Implementation for getting the value of a property on an actor."""
     params = {
-        "actor_name": actor_name,
+        "name": name,
         "property_name": property_name
     }
     return send_unreal_command("get_actor_property", params)
 
-def get_actor_properties(ctx: Context, actor_name: str) -> Dict[str, Any]:
+def get_actor_properties(ctx: Context, name: str) -> Dict[str, Any]:
     """Implementation for getting all properties of an actor."""
-    params = {"actor_name": actor_name}
+    params = {"name": name}
     return send_unreal_command("get_actor_properties", params)
 
 def set_actor_transform(
     ctx: Context,
-    actor_name: str,
+    name: str,
     location: List[float] = None,
     rotation: List[float] = None,
     scale: List[float] = None
 ) -> Dict[str, Any]:
     """Implementation for setting the transform of an actor."""
-    params = {"actor_name": actor_name}
+    params = {"name": name}
     
     if location is not None:
         params["location"] = location
@@ -111,9 +115,9 @@ def set_actor_transform(
     
     return send_unreal_command("set_actor_transform", params)
 
-def get_actor_transform(ctx: Context, actor_name: str) -> Dict[str, Any]:
+def get_actor_transform(ctx: Context, name: str) -> Dict[str, Any]:
     """Implementation for getting the transform of an actor."""
-    params = {"actor_name": actor_name}
+    params = {"name": name}
     return send_unreal_command("get_actor_transform", params)
 
 def get_all_actors(ctx: Context, actor_class: str = None) -> List[Dict[str, Any]]:
@@ -125,9 +129,9 @@ def get_all_actors(ctx: Context, actor_class: str = None) -> List[Dict[str, Any]
     
     return send_unreal_command("get_all_actors", params)
 
-def get_actor_by_name(ctx: Context, actor_name: str) -> Dict[str, Any]:
+def get_actor_by_name(ctx: Context, name: str) -> Dict[str, Any]:
     """Implementation for getting information about a specific actor by name."""
-    params = {"actor_name": actor_name}
+    params = {"name": name}
     return send_unreal_command("get_actor_by_name", params)
 
 def play_in_editor(ctx: Context, play_mode: str = "PlayInViewport") -> Dict[str, Any]:
@@ -191,3 +195,100 @@ def import_asset(
         params["options"] = options
     
     return send_unreal_command("import_asset", params)
+
+def find_actors_by_name(ctx: Context, pattern: str) -> List[Dict[str, Any]]:
+    """Implementation for finding actors by name pattern."""
+    params = {"pattern": pattern}
+    return send_unreal_command("find_actors_by_name", params)
+
+def get_actors_in_level(ctx: Context) -> List[Dict[str, Any]]:
+    """Implementation for getting all actors in the current level.
+    
+    Returns a list of dictionaries, each containing details about an actor in the current level.
+    
+    Returns:
+        List[Dict[str, Any]]: A list of actors with their properties
+        
+    Examples:
+        # Get all actors in the current level
+        actors = get_actors_in_level()
+        
+        # Print names of all actors
+        for actor in actors:
+            print(actor["name"])
+    """
+    return send_unreal_command("get_actors_in_level", {})
+
+def spawn_blueprint_actor(
+    ctx: Context,
+    blueprint_name: str,
+    actor_name: str,
+    location: List[float] = None,
+    rotation: List[float] = None
+) -> Dict[str, Any]:
+    """Implementation for spawning an actor from a Blueprint."""
+    # Process the blueprint path - if doesn't start with /Game/, assume it's in /Game/Blueprints/
+    if not blueprint_name.startswith("/Game/"):
+        blueprint_name = f"/Game/Blueprints/{blueprint_name}"
+    
+    params = {
+        "blueprint_name": blueprint_name,
+        "actor_name": actor_name
+    }
+    
+    if location is not None:
+        params["location"] = location
+        
+    if rotation is not None:
+        params["rotation"] = rotation
+        
+    return send_unreal_command("spawn_blueprint_actor", params)
+
+def focus_viewport(
+    ctx: Context,
+    target: str = None,
+    location: List[float] = None,
+    distance: float = 1000.0,
+    orientation: List[float] = None
+) -> Dict[str, Any]:
+    """Implementation for focusing the viewport on a specific actor or location."""
+    params = {"distance": distance}
+    
+    if target is not None:
+        params["target"] = target
+        
+    if location is not None:
+        params["location"] = location
+        
+    if orientation is not None:
+        params["orientation"] = orientation
+        
+    return send_unreal_command("focus_viewport", params)
+
+def set_light_property(
+    ctx: Context,
+    name: str,
+    property_name: str,
+    property_value
+) -> Dict[str, Any]:
+    """Implementation for setting properties on a light actor.
+    
+    This function specifically handles properties of light actors by using
+    specific property names that correspond to light component methods.
+    
+    Args:
+        name: Name of the light actor
+        property_name: Name of the property to set (Intensity, LightColor, AttenuationRadius)
+        property_value: Value to set the property to
+        
+    Returns:
+        Dict containing response from Unreal
+    """
+    # Create the parameters for the light-specific command
+    params = {
+        "name": name,
+        "property_name": property_name,
+        "property_value": property_value
+    }
+    
+    return send_unreal_command("set_light_property", params)

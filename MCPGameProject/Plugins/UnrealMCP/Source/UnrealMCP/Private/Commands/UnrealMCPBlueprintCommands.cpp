@@ -20,6 +20,13 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Kismet/GameplayStatics.h"
+
+// Define the logging category
+DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
 
 FUnrealMCPBlueprintCommands::FUnrealMCPBlueprintCommands()
 {
@@ -303,35 +310,122 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
 
     // Create the component - dynamically find the component class by name
     UClass* ComponentClass = nullptr;
-
-    // Try to find the class with exact name first
-    ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentType);
     
-    // If not found, try with "Component" suffix
-    if (!ComponentClass && !ComponentType.EndsWith(TEXT("Component")))
+    // Log what we're trying to find for debugging
+    UE_LOG(LogTemp, Display, TEXT("Attempting to find component class: %s"), *ComponentType);
+
+    // Check if it's a direct match for one of the known components from our log
+    // This is a direct fix for the issue we're seeing
+    if (ComponentType == TEXT("StaticMesh"))
     {
-        FString ComponentTypeWithSuffix = ComponentType + TEXT("Component");
-        ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentTypeWithSuffix);
+        FString DirectComponentName = TEXT("StaticMeshComponent");
+        ComponentClass = FindObject<UClass>(ANY_PACKAGE, *DirectComponentName);
+        UE_LOG(LogTemp, Display, TEXT("Direct match attempt for %s -> %s: %s"), 
+               *ComponentType, *DirectComponentName, ComponentClass ? TEXT("Found") : TEXT("Not found"));
     }
     
-    // If still not found, try with "U" prefix
-    if (!ComponentClass && !ComponentType.StartsWith(TEXT("U")))
+    // If we still don't have a component class, try the regular lookup flow
+    if (!ComponentClass)
     {
-        FString ComponentTypeWithPrefix = TEXT("U") + ComponentType;
-        ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentTypeWithPrefix);
+        // Try to find the class with exact name first
+        ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentType);
+        UE_LOG(LogTemp, Display, TEXT("FindObject<%s>: %s"), *ComponentType, ComponentClass ? TEXT("Found") : TEXT("Not found"));
+
+        // If found, make sure it's actually a component class
+        if (ComponentClass && !ComponentClass->IsChildOf(UActorComponent::StaticClass()))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Found class %s but it's not a component class"), *ComponentType);
+            ComponentClass = nullptr;
+        }
         
-        // Try with both prefix and suffix
+        // If not found, try with "Component" suffix
         if (!ComponentClass && !ComponentType.EndsWith(TEXT("Component")))
         {
-            FString ComponentTypeWithBoth = TEXT("U") + ComponentType + TEXT("Component");
-            ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentTypeWithBoth);
+            FString ComponentTypeWithSuffix = ComponentType + TEXT("Component");
+            ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentTypeWithSuffix);
+            UE_LOG(LogTemp, Display, TEXT("FindObject<%s>: %s"), *ComponentTypeWithSuffix, ComponentClass ? TEXT("Found") : TEXT("Not found"));
+        }
+        
+        // If still not found, try with "U" prefix
+        if (!ComponentClass && !ComponentType.StartsWith(TEXT("U")))
+        {
+            FString ComponentTypeWithPrefix = TEXT("U") + ComponentType;
+            ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentTypeWithPrefix);
+            UE_LOG(LogTemp, Display, TEXT("FindObject<%s>: %s"), *ComponentTypeWithPrefix, ComponentClass ? TEXT("Found") : TEXT("Not found"));
+            
+            // Try with both prefix and suffix
+            if (!ComponentClass && !ComponentType.EndsWith(TEXT("Component")))
+            {
+                FString ComponentTypeWithBoth = TEXT("U") + ComponentType + TEXT("Component");
+                ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentTypeWithBoth);
+                UE_LOG(LogTemp, Display, TEXT("FindObject<%s>: %s"), *ComponentTypeWithBoth, ComponentClass ? TEXT("Found") : TEXT("Not found"));
+            }
+        }
+    }
+    
+    // If still not found, try matching against common component types
+    if (!ComponentClass)
+    {
+        // Common component type mappings - use exact matches from the log
+        TMap<FString, FString> CommonComponentTypes;
+        CommonComponentTypes.Add(TEXT("StaticMesh"), TEXT("StaticMeshComponent"));
+        CommonComponentTypes.Add(TEXT("PointLight"), TEXT("PointLightComponent"));
+        CommonComponentTypes.Add(TEXT("SpotLight"), TEXT("SpotLightComponent"));
+        CommonComponentTypes.Add(TEXT("DirectionalLight"), TEXT("DirectionalLightComponent"));
+        CommonComponentTypes.Add(TEXT("Box"), TEXT("BoxComponent"));
+        CommonComponentTypes.Add(TEXT("Sphere"), TEXT("SphereComponent"));
+        CommonComponentTypes.Add(TEXT("Capsule"), TEXT("CapsuleComponent"));
+        CommonComponentTypes.Add(TEXT("Camera"), TEXT("CameraComponent"));
+        CommonComponentTypes.Add(TEXT("Audio"), TEXT("AudioComponent"));
+        CommonComponentTypes.Add(TEXT("Scene"), TEXT("SceneComponent"));
+        CommonComponentTypes.Add(TEXT("Billboard"), TEXT("BillboardComponent"));
+        
+        // Check if we have a mapping for this component type
+        FString* MappedType = CommonComponentTypes.Find(ComponentType);
+        if (MappedType)
+        {
+            ComponentClass = FindObject<UClass>(ANY_PACKAGE, **MappedType);
+            UE_LOG(LogTemp, Display, TEXT("Mapped to common type: %s -> %s, Found: %s"), 
+                  *ComponentType, **MappedType, ComponentClass ? TEXT("Yes") : TEXT("No"));
+        }
+    }
+    
+    // If still not found, try direct loading by path
+    if (!ComponentClass)
+    {
+        // Try direct loading by path for engine components
+        FString EnginePath = FString::Printf(TEXT("/Script/Engine.%sComponent"), *ComponentType);
+        ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
+        UE_LOG(LogTemp, Display, TEXT("LoadObject<%s>: %s"), *EnginePath, ComponentClass ? TEXT("Found") : TEXT("Not found"));
+        
+        if (!ComponentClass)
+        {
+            // For components that don't follow the standard naming pattern
+            FString RawPath = FString::Printf(TEXT("/Script/Engine.%s"), *ComponentType);
+            ComponentClass = LoadObject<UClass>(nullptr, *RawPath);
+            UE_LOG(LogTemp, Display, TEXT("LoadObject<%s>: %s"), *RawPath, ComponentClass ? TEXT("Found") : TEXT("Not found"));
         }
     }
     
     // Verify that the class is a valid component type
     if (!ComponentClass || !ComponentClass->IsChildOf(UActorComponent::StaticClass()))
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown component type: %s"), *ComponentType));
+        // List available component classes for debugging
+        UE_LOG(LogTemp, Error, TEXT("Failed to find component class for: %s"), *ComponentType);
+        UE_LOG(LogTemp, Error, TEXT("Listing first 10 available component classes:"));
+        int32 Count = 0;
+        for (TObjectIterator<UClass> It; It && Count < 10; ++It)
+        {
+            UClass* Class = *It;
+            if (Class->IsChildOf(UActorComponent::StaticClass()))
+            {
+                UE_LOG(LogTemp, Error, TEXT("  - %s"), *Class->GetName());
+                Count++;
+            }
+        }
+        
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(
+            TEXT("Unknown component type: %s. Please check logs for available component types."), *ComponentType));
     }
 
     // Add the component to the blueprint
@@ -365,6 +459,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
         TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
         ResultObj->SetStringField(TEXT("component_name"), ComponentName);
         ResultObj->SetStringField(TEXT("component_type"), ComponentType);
+        ResultObj->SetStringField(TEXT("actual_class"), ComponentClass->GetName());
         return ResultObj;
     }
 
@@ -963,6 +1058,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCompileBlueprint(cons
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSpawnBlueprintActor(const TSharedPtr<FJsonObject>& Params)
 {
+    
     // Get required parameters
     FString BlueprintName;
     if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
@@ -981,6 +1077,19 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSpawnBlueprintActor(c
     if (!Blueprint)
     {
         return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+    }
+    
+    
+    // Try to compile the blueprint if needed
+    if (!Blueprint->GeneratedClass)
+    {
+        FKismetEditorUtilities::CompileBlueprint(Blueprint);
+        
+        // Check again after compilation
+        if (!Blueprint->GeneratedClass)
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint compilation failed"));
+        }
     }
 
     // Get transform parameters
@@ -1006,8 +1115,53 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSpawnBlueprintActor(c
     FTransform SpawnTransform;
     SpawnTransform.SetLocation(Location);
     SpawnTransform.SetRotation(FQuat(Rotation));
+    
+    // Extra validation of GeneratedClass
+    if (!Blueprint->GeneratedClass)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint's GeneratedClass is null"));
+    }
+    
+    // Check if the blueprint is properly compiled
+    if (!Blueprint->GeneratedClass->IsValidLowLevel())
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint GeneratedClass is not valid"));
+    }
+    
+    // Additional checks for blueprint class properties
+    UBlueprintGeneratedClass* BPGenClass = Cast<UBlueprintGeneratedClass>(Blueprint->GeneratedClass);
 
-    AActor* NewActor = World->SpawnActor<AActor>(Blueprint->GeneratedClass, SpawnTransform);
+    // Try spawning with SpawnActorDeferred first for better diagnostics
+    AActor* NewActor = nullptr;
+    try
+    {
+        
+        // Capture actual class pointer before spawning
+        UClass* ClassToSpawn = Blueprint->GeneratedClass;
+        
+        // First try with deferred spawning
+        NewActor = World->SpawnActorDeferred<AActor>(ClassToSpawn, SpawnTransform);
+        if (NewActor)
+        {
+            UGameplayStatics::FinishSpawningActor(NewActor, SpawnTransform);
+        }
+        else
+        {
+            
+            // Fallback to regular spawn
+            NewActor = World->SpawnActor<AActor>(ClassToSpawn, SpawnTransform);
+        }
+    }
+    catch (const std::exception& e)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(
+            FString::Printf(TEXT("Exception during spawn: %s"), UTF8_TO_TCHAR(e.what())));
+    }
+    catch (...)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Unknown exception during spawn"));
+    }
+
     if (NewActor)
     {
         NewActor->SetActorLabel(*ActorName);

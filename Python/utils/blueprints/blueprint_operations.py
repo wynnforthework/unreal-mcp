@@ -178,3 +178,152 @@ def connect_graph_nodes(
     }
     
     return send_unreal_command("connect_graph_nodes", params)
+
+def create_blueprint(
+    ctx: Context,
+    name: str,
+    parent_class: str,
+    folder_path: str = ""
+) -> Dict[str, Any]:
+    """Implementation for creating a new Blueprint class."""
+    params = {
+        "name": name,
+        "parent_class": parent_class
+    }
+    
+    if folder_path:
+        params["folder_path"] = folder_path
+        
+    return send_unreal_command("create_blueprint", params)
+
+def add_component_to_blueprint(
+    ctx: Context,
+    blueprint_name: str,
+    component_type: str,
+    component_name: str,
+    location: List[float] = None,
+    rotation: List[float] = None,
+    scale: List[float] = None,
+    component_properties: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """Implementation for adding a component to a Blueprint."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "component_type": component_type,
+        "component_name": component_name
+    }
+    
+    if location is not None:
+        params["location"] = location
+        
+    if rotation is not None:
+        params["rotation"] = rotation
+        
+    if scale is not None:
+        params["scale"] = scale
+        
+    if component_properties is not None:
+        params["component_properties"] = component_properties
+        
+    return send_unreal_command("add_component_to_blueprint", params)
+
+def set_static_mesh_properties(
+    ctx: Context,
+    blueprint_name: str,
+    component_name: str,
+    static_mesh: str = "/Engine/BasicShapes/Cube.Cube"
+) -> Dict[str, Any]:
+    """Implementation for setting static mesh properties on a StaticMeshComponent."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "component_name": component_name,
+        "static_mesh": static_mesh
+    }
+    
+    return send_unreal_command("set_static_mesh_properties", params)
+
+def set_component_property(
+    ctx: Context,
+    blueprint_name: str,
+    component_name: str,
+    property_name: str,
+    property_value: Any
+) -> Dict[str, Any]:
+    """Implementation for setting a property on a component in a Blueprint."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "component_name": component_name,
+        "property_name": property_name,
+        "property_value": property_value
+    }
+    
+    return send_unreal_command("set_component_property", params)
+
+def set_physics_properties(
+    ctx: Context,
+    blueprint_name: str,
+    component_name: str,
+    simulate_physics: bool = True,
+    gravity_enabled: bool = True,
+    mass: float = 1.0,
+    linear_damping: float = 0.01,
+    angular_damping: float = 0.0
+) -> Dict[str, Any]:
+    """Implementation for setting physics properties on a component."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "component_name": component_name,
+        "simulate_physics": simulate_physics,
+        "gravity_enabled": gravity_enabled,
+        "mass": mass,
+        "linear_damping": linear_damping,
+        "angular_damping": angular_damping
+    }
+    
+    return send_unreal_command("set_physics_properties", params)
+
+def set_blueprint_property(
+    ctx: Context,
+    blueprint_name: str,
+    property_name: str,
+    property_value: Any
+) -> Dict[str, Any]:
+    """Implementation for setting a property on a Blueprint class default object."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "property_name": property_name,
+        "property_value": property_value
+    }
+    
+    return send_unreal_command("set_blueprint_property", params)
+
+def set_pawn_properties(
+    ctx: Context,
+    blueprint_name: str,
+    auto_possess_player: str = "",
+    use_controller_rotation_yaw: bool = None,
+    use_controller_rotation_pitch: bool = None,
+    use_controller_rotation_roll: bool = None,
+    can_be_damaged: bool = None
+) -> Dict[str, Any]:
+    """Implementation for setting common Pawn properties on a Blueprint."""
+    params = {
+        "blueprint_name": blueprint_name
+    }
+    
+    if auto_possess_player:
+        params["auto_possess_player"] = auto_possess_player
+        
+    if use_controller_rotation_yaw is not None:
+        params["use_controller_rotation_yaw"] = use_controller_rotation_yaw
+        
+    if use_controller_rotation_pitch is not None:
+        params["use_controller_rotation_pitch"] = use_controller_rotation_pitch
+        
+    if use_controller_rotation_roll is not None:
+        params["use_controller_rotation_roll"] = use_controller_rotation_roll
+        
+    if can_be_damaged is not None:
+        params["can_be_damaged"] = can_be_damaged
+        
+    return send_unreal_command("set_pawn_properties", params)

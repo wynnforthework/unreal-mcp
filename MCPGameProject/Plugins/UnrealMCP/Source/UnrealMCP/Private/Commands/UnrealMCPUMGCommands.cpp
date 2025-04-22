@@ -46,6 +46,9 @@
 #include "Components/Border.h"
 #include "Components/ScrollBox.h"
 #include "Components/Spacer.h"
+#include "Components/VerticalBox.h"
+#include "Components/HorizontalBox.h"
+#include "Components/Overlay.h"
 
 // Helper function to find a Widget Blueprint by name
 UWidgetBlueprint* FindWidgetBlueprint(const FString& BlueprintNameOrPath)
@@ -233,6 +236,18 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCommand(const FString& Comm
 	else if (CommandName == TEXT("add_spacer_to_widget"))
 	{
 		return HandleAddSpacerToWidget(Params);
+	}
+	else if (CommandName == TEXT("check_component_exists"))
+	{
+		return HandleCheckComponentExists(Params);
+	}
+	else if (CommandName == TEXT("add_widget_as_child"))
+	{
+		return HandleAddWidgetAsChild(Params);
+	}
+	else if (CommandName == TEXT("create_widget_component_with_child"))
+	{
+		return HandleCreateWidgetComponentWithChild(Params);
 	}
 
 	return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown UMG command: %s"), *CommandName));
@@ -2535,4 +2550,494 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddSpacerToWidget(const TSh
 	Response->SetBoolField(TEXT("success"), true);
 	Response->SetStringField(TEXT("widget_name"), WidgetName);
 	return Response;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCheckComponentExists(const TSharedPtr<FJsonObject>& Params)
+{
+	TSharedPtr<FJsonObject> Response = MakeShared<FJsonObject>();
+
+	// Get required parameters
+	FString BlueprintName;
+	if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+	}
+
+	FString ComponentName;
+	if (!Params->TryGetStringField(TEXT("component_name"), ComponentName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'component_name' parameter"));
+	}
+
+	// Load the Widget Blueprint using our helper function
+	UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
+	if (!WidgetBlueprint)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Widget Blueprint '%s' not found"), *BlueprintName));
+	}
+
+	// Check if the component exists
+	UWidget* ExistingWidget = WidgetBlueprint->WidgetTree->FindWidget(*ComponentName);
+	bool bExists = (ExistingWidget != nullptr);
+
+	// Create response
+	Response->SetBoolField(TEXT("success"), true);
+	Response->SetStringField(TEXT("component_name"), ComponentName);
+	Response->SetBoolField(TEXT("exists"), bExists);
+	
+	if (bExists)
+	{
+		// Include component class name if it exists
+		Response->SetStringField(TEXT("component_type"), ExistingWidget->GetClass()->GetName());
+	}
+	
+	return Response;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetAsChild(const TSharedPtr<FJsonObject>& Params)
+{
+	TSharedPtr<FJsonObject> Response = MakeShared<FJsonObject>();
+
+	// Get required parameters
+	FString BlueprintName;
+	if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+	}
+
+	FString ParentComponentName;
+	if (!Params->TryGetStringField(TEXT("parent_component_name"), ParentComponentName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'parent_component_name' parameter"));
+	}
+
+	FString ChildComponentName;
+	if (!Params->TryGetStringField(TEXT("child_component_name"), ChildComponentName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'child_component_name' parameter"));
+	}
+
+	// Load the Widget Blueprint using our helper function
+	UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
+	if (!WidgetBlueprint)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Widget Blueprint '%s' not found"), *BlueprintName));
+	}
+
+	// Find the child widget
+	UWidget* ChildWidget = WidgetBlueprint->WidgetTree->FindWidget(*ChildComponentName);
+	if (!ChildWidget)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Child widget '%s' not found"), *ChildComponentName));
+	}
+
+	// Find the parent widget
+	UWidget* ParentWidget = WidgetBlueprint->WidgetTree->FindWidget(*ParentComponentName);
+	
+	// Check if we need to create the parent
+	bool CreateParentIfMissing = false;
+	Params->TryGetBoolField(TEXT("create_parent_if_missing"), CreateParentIfMissing);
+	
+	if (!ParentWidget && CreateParentIfMissing)
+	{
+		// Get parent component type
+		FString ParentComponentType = TEXT("Border");
+		Params->TryGetStringField(TEXT("parent_component_type"), ParentComponentType);
+		
+		// Get position and size for new parent
+		FVector2D Position(0.0f, 0.0f);
+		if (Params->HasField(TEXT("parent_position")))
+		{
+			const TArray<TSharedPtr<FJsonValue>>* PosArray;
+			if (Params->TryGetArrayField(TEXT("parent_position"), PosArray) && PosArray->Num() >= 2)
+			{
+				Position.X = (*PosArray)[0]->AsNumber();
+				Position.Y = (*PosArray)[1]->AsNumber();
+			}
+		}
+		
+		FVector2D Size(300.0f, 200.0f);
+		if (Params->HasField(TEXT("parent_size")))
+		{
+			const TArray<TSharedPtr<FJsonValue>>* SizeArray;
+			if (Params->TryGetArrayField(TEXT("parent_size"), SizeArray) && SizeArray->Num() >= 2)
+			{
+				Size.X = (*SizeArray)[0]->AsNumber();
+				Size.Y = (*SizeArray)[1]->AsNumber();
+			}
+		}
+		
+		// Create the parent based on the specified type
+		if (ParentComponentType == TEXT("Border"))
+		{
+			UBorder* Border = WidgetBlueprint->WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), *ParentComponentName);
+			ParentWidget = Border;
+		}
+		else if (ParentComponentType == TEXT("VerticalBox"))
+		{
+			UVerticalBox* VerticalBox = WidgetBlueprint->WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), *ParentComponentName);
+			ParentWidget = VerticalBox;
+		}
+		else if (ParentComponentType == TEXT("HorizontalBox"))
+		{
+			UHorizontalBox* HorizontalBox = WidgetBlueprint->WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), *ParentComponentName);
+			ParentWidget = HorizontalBox;
+		}
+		else if (ParentComponentType == TEXT("ScrollBox"))
+		{
+			UScrollBox* ScrollBox = WidgetBlueprint->WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), *ParentComponentName);
+			ParentWidget = ScrollBox;
+		}
+		else if (ParentComponentType == TEXT("WidgetSwitcher"))
+		{
+			UWidgetSwitcher* Switcher = WidgetBlueprint->WidgetTree->ConstructWidget<UWidgetSwitcher>(UWidgetSwitcher::StaticClass(), *ParentComponentName);
+			ParentWidget = Switcher;
+		}
+		else if (ParentComponentType == TEXT("Overlay"))
+		{
+			UOverlay* Overlay = WidgetBlueprint->WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), *ParentComponentName);
+			ParentWidget = Overlay;
+		}
+		else if (ParentComponentType == TEXT("SizeBox"))
+		{
+			USizeBox* SizeBox = WidgetBlueprint->WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), *ParentComponentName);
+			ParentWidget = SizeBox;
+		}
+		else
+		{
+			// Default to a Border if the parent component type is not recognized
+			UBorder* Border = WidgetBlueprint->WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), *ParentComponentName);
+			ParentWidget = Border;
+		}
+		
+		// If we created a new parent widget, add it to the root canvas panel
+		if (ParentWidget)
+		{
+			UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetBlueprint->WidgetTree->RootWidget);
+			if (RootCanvas)
+			{
+				UCanvasPanelSlot* PanelSlot = RootCanvas->AddChildToCanvas(ParentWidget);
+				if (PanelSlot)
+				{
+					PanelSlot->SetPosition(Position);
+					PanelSlot->SetSize(Size);
+				}
+			}
+		}
+	}
+	
+	// Check that we have a valid parent widget now
+	if (!ParentWidget)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Parent widget '%s' not found and wasn't created"), *ParentComponentName));
+	}
+	
+	// Check for circular reference - IMPORTANT: This prevents the recursion depth error
+	// Check if the parent is a descendant of the child (which would create a cycle)
+	UWidget* TestWidget = ParentWidget;
+	while (TestWidget)
+	{
+		if (TestWidget == ChildWidget)
+		{
+			// Circular reference detected
+			return FUnrealMCPCommonUtils::CreateErrorResponse(
+				FString::Printf(TEXT("Cannot add '%s' as child of '%s' because it would create a circular reference"),
+				*ChildComponentName, *ParentComponentName));
+		}
+		
+		UPanelWidget* TestParent = TestWidget->GetParent();
+		if (TestParent)
+		{
+			TestWidget = TestParent;
+		}
+		else
+		{
+			break;
+		}
+	}
+	
+	// Get child's current parent if any
+	UPanelWidget* CurrentParent = ChildWidget->GetParent();
+	if (CurrentParent)
+	{
+		// Remove from current parent first (this prevents crashes)
+		CurrentParent->RemoveChild(ChildWidget);
+	}
+	
+	// Add child to the new parent
+	UPanelWidget* ParentPanel = Cast<UPanelWidget>(ParentWidget);
+	if (ParentPanel)
+	{
+		ParentPanel->AddChild(ChildWidget);
+		
+		// Save the Widget Blueprint
+		WidgetBlueprint->MarkPackageDirty();
+		FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+		UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
+		
+		// Create success response
+		Response->SetBoolField(TEXT("success"), true);
+		Response->SetStringField(TEXT("parent_component_name"), ParentComponentName);
+		Response->SetStringField(TEXT("child_component_name"), ChildComponentName);
+		return Response;
+	}
+	else
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Parent widget '%s' is not a panel widget that can have children"), *ParentComponentName));
+	}
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateWidgetComponentWithChild(const TSharedPtr<FJsonObject>& Params)
+{
+	TSharedPtr<FJsonObject> Response = MakeShared<FJsonObject>();
+
+	// Get required parameters
+	FString BlueprintName;
+	if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+	}
+
+	FString ParentComponentName;
+	if (!Params->TryGetStringField(TEXT("parent_component_name"), ParentComponentName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'parent_component_name' parameter"));
+	}
+
+	FString ChildComponentName;
+	if (!Params->TryGetStringField(TEXT("child_component_name"), ChildComponentName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'child_component_name' parameter"));
+	}
+
+	// Load the Widget Blueprint using our helper function
+	UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
+	if (!WidgetBlueprint)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Widget Blueprint '%s' not found"), *BlueprintName));
+	}
+
+	// Get parent and child component types
+	FString ParentComponentType = TEXT("Border");
+	Params->TryGetStringField(TEXT("parent_component_type"), ParentComponentType);
+	
+	FString ChildComponentType = TEXT("TextBlock");
+	Params->TryGetStringField(TEXT("child_component_type"), ChildComponentType);
+	
+	// Get position and size for parent
+	FVector2D Position(0.0f, 0.0f);
+	if (Params->HasField(TEXT("parent_position")))
+	{
+		const TArray<TSharedPtr<FJsonValue>>* PosArray;
+		if (Params->TryGetArrayField(TEXT("parent_position"), PosArray) && PosArray->Num() >= 2)
+		{
+			Position.X = (*PosArray)[0]->AsNumber();
+			Position.Y = (*PosArray)[1]->AsNumber();
+		}
+	}
+	
+	FVector2D Size(300.0f, 200.0f);
+	if (Params->HasField(TEXT("parent_size")))
+	{
+		const TArray<TSharedPtr<FJsonValue>>* SizeArray;
+		if (Params->TryGetArrayField(TEXT("parent_size"), SizeArray) && SizeArray->Num() >= 2)
+		{
+			Size.X = (*SizeArray)[0]->AsNumber();
+			Size.Y = (*SizeArray)[1]->AsNumber();
+		}
+	}
+	
+	// Check if any components with these names already exist
+	UWidget* ExistingParent = WidgetBlueprint->WidgetTree->FindWidget(*ParentComponentName);
+	if (ExistingParent)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("A widget named '%s' already exists"), *ParentComponentName));
+	}
+	
+	UWidget* ExistingChild = WidgetBlueprint->WidgetTree->FindWidget(*ChildComponentName);
+	if (ExistingChild)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("A widget named '%s' already exists"), *ChildComponentName));
+	}
+	
+	// Create the parent widget based on the specified type
+	UPanelWidget* ParentWidget = nullptr;
+	
+	if (ParentComponentType == TEXT("Border"))
+	{
+		UBorder* Border = WidgetBlueprint->WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), *ParentComponentName);
+		ParentWidget = Border;
+	}
+	else if (ParentComponentType == TEXT("VerticalBox"))
+	{
+		UVerticalBox* VerticalBox = WidgetBlueprint->WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), *ParentComponentName);
+		ParentWidget = VerticalBox;
+	}
+	else if (ParentComponentType == TEXT("HorizontalBox"))
+	{
+		UHorizontalBox* HorizontalBox = WidgetBlueprint->WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), *ParentComponentName);
+		ParentWidget = HorizontalBox;
+	}
+	else if (ParentComponentType == TEXT("ScrollBox"))
+	{
+		UScrollBox* ScrollBox = WidgetBlueprint->WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), *ParentComponentName);
+		ParentWidget = ScrollBox;
+	}
+	else if (ParentComponentType == TEXT("WidgetSwitcher"))
+	{
+		UWidgetSwitcher* Switcher = WidgetBlueprint->WidgetTree->ConstructWidget<UWidgetSwitcher>(UWidgetSwitcher::StaticClass(), *ParentComponentName);
+		ParentWidget = Switcher;
+	}
+	else if (ParentComponentType == TEXT("Overlay"))
+	{
+		UOverlay* Overlay = WidgetBlueprint->WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), *ParentComponentName);
+		ParentWidget = Overlay;
+	}
+	else if (ParentComponentType == TEXT("SizeBox"))
+	{
+		USizeBox* SizeBox = WidgetBlueprint->WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), *ParentComponentName);
+		ParentWidget = SizeBox;
+	}
+	else
+	{
+		// Default to a Border if the parent component type is not recognized
+		UBorder* Border = WidgetBlueprint->WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), *ParentComponentName);
+		ParentWidget = Border;
+	}
+	
+	// Create the child widget based on the specified type
+	UWidget* ChildWidget = nullptr;
+	
+	if (ChildComponentType == TEXT("TextBlock"))
+	{
+		UTextBlock* TextBlock = WidgetBlueprint->WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), *ChildComponentName);
+		ChildWidget = TextBlock;
+		
+		// Check for text attribute
+		const TSharedPtr<FJsonObject>* ChildAttributes;
+		if (Params->TryGetObjectField(TEXT("child_attributes"), ChildAttributes))
+		{
+			FString Text;
+			if ((*ChildAttributes)->TryGetStringField(TEXT("text"), Text))
+			{
+				TextBlock->SetText(FText::FromString(Text));
+			}
+			
+			int32 FontSize = 12;
+			(*ChildAttributes)->TryGetNumberField(TEXT("font_size"), FontSize);
+			
+			// Set font size property if provided
+			// In UE 5.5, we can't directly set the font size with a simple method,
+			// but for a complete implementation we would need to use FSlateFontInfo
+		}
+	}
+	else if (ChildComponentType == TEXT("Button"))
+	{
+		UButton* Button = WidgetBlueprint->WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), *ChildComponentName);
+		ChildWidget = Button;
+		
+		// Check if we need to add text to the button
+		const TSharedPtr<FJsonObject>* ChildAttributes;
+		if (Params->TryGetObjectField(TEXT("child_attributes"), ChildAttributes))
+		{
+			FString ButtonText;
+			if ((*ChildAttributes)->TryGetStringField(TEXT("text"), ButtonText))
+			{
+				// Create text block for the button
+				UTextBlock* ButtonTextBlock = WidgetBlueprint->WidgetTree->ConstructWidget<UTextBlock>(
+					UTextBlock::StaticClass(), 
+					*(ChildComponentName + TEXT("_Text"))
+				);
+				
+				if (ButtonTextBlock)
+				{
+					ButtonTextBlock->SetText(FText::FromString(ButtonText));
+					Button->AddChild(ButtonTextBlock);
+				}
+			}
+		}
+	}
+	else if (ChildComponentType == TEXT("Image"))
+	{
+		UImage* Image = WidgetBlueprint->WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), *ChildComponentName);
+		ChildWidget = Image;
+		
+		// Check for brush asset path
+		const TSharedPtr<FJsonObject>* ChildAttributes;
+		if (Params->TryGetObjectField(TEXT("child_attributes"), ChildAttributes))
+		{
+			FString BrushAssetPath;
+			if ((*ChildAttributes)->TryGetStringField(TEXT("brush_asset_path"), BrushAssetPath) && !BrushAssetPath.IsEmpty())
+			{
+				UObject* BrushAsset = UEditorAssetLibrary::LoadAsset(BrushAssetPath);
+				if (BrushAsset && BrushAsset->IsA<UTexture2D>())
+				{
+					UTexture2D* Texture = Cast<UTexture2D>(BrushAsset);
+					FSlateBrush Brush;
+					Brush.SetResourceObject(Texture);
+					Brush.ImageSize = FVector2D(Texture->GetSizeX(), Texture->GetSizeY());
+					Image->SetBrush(Brush);
+				}
+			}
+		}
+	}
+	else if (ChildComponentType == TEXT("VerticalBox"))
+	{
+		UVerticalBox* VerticalBox = WidgetBlueprint->WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), *ChildComponentName);
+		ChildWidget = VerticalBox;
+	}
+	else if (ChildComponentType == TEXT("HorizontalBox"))
+	{
+		UHorizontalBox* HorizontalBox = WidgetBlueprint->WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), *ChildComponentName);
+		ChildWidget = HorizontalBox;
+	}
+	else
+	{
+		// Default to a TextBlock if the child component type is not recognized or implemented
+		UTextBlock* TextBlock = WidgetBlueprint->WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), *ChildComponentName);
+		ChildWidget = TextBlock;
+		TextBlock->SetText(FText::FromString(TEXT("Default Text")));
+	}
+	
+	// Add the parent to the root canvas panel
+	if (ParentWidget)
+	{
+		UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetBlueprint->WidgetTree->RootWidget);
+		if (RootCanvas)
+		{
+			UCanvasPanelSlot* PanelSlot = RootCanvas->AddChildToCanvas(ParentWidget);
+			if (PanelSlot)
+			{
+				PanelSlot->SetPosition(Position);
+				PanelSlot->SetSize(Size);
+			}
+		}
+	}
+	else
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create parent widget"));
+	}
+	
+	// Add the child to the parent
+	if (ChildWidget && ParentWidget)
+	{
+		ParentWidget->AddChild(ChildWidget);
+		
+		// Save the Widget Blueprint
+		WidgetBlueprint->MarkPackageDirty();
+		FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+		UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
+		
+		// Create success response
+		Response->SetBoolField(TEXT("success"), true);
+		Response->SetStringField(TEXT("parent_component_name"), ParentComponentName);
+		Response->SetStringField(TEXT("child_component_name"), ChildComponentName);
+		Response->SetStringField(TEXT("parent_component_type"), ParentComponentType);
+		Response->SetStringField(TEXT("child_component_type"), ChildComponentType);
+		return Response;
+	}
+	else
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create child widget or add it to parent"));
+	}
 }
