@@ -235,6 +235,7 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("set_actor_transform"),
                     TEXT("get_actor_properties"),
                     TEXT("set_actor_property"),
+                    TEXT("set_light_property"),
                     TEXT("spawn_blueprint_actor"),
                     TEXT("focus_viewport"), 
                     TEXT("take_screenshot")
