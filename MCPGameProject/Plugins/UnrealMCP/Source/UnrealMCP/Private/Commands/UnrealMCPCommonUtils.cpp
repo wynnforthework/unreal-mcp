@@ -181,10 +181,28 @@ UBlueprint* FUnrealMCPCommonUtils::FindBlueprintByName(const FString& BlueprintN
         {
             return Blueprint;
         }
+        
+        // Log that we couldn't find the blueprint at the explicit path
+        UE_LOG(LogTemp, Warning, TEXT("Blueprint not found at explicit path: %s"), *AssetPath);
+        
+        // Instead of returning null, we'll continue with other searches but with safeguards
     }
 
-    // If no path separator, first try in default Blueprints folder
-    FString DefaultPath = TEXT("/Game/Blueprints/") + BlueprintName;
+    // Normalize the blueprint name to avoid double slashes when combining with default paths
+    FString NormalizedName = BlueprintName;
+    
+    // If the blueprint name already starts with /Game/, extract just the part after it
+    if (NormalizedName.StartsWith(TEXT("/Game/")))
+    {
+        NormalizedName = NormalizedName.RightChop(6); // Remove /Game/
+        UE_LOG(LogTemp, Display, TEXT("Normalized blueprint name to: %s"), *NormalizedName);
+    }
+    
+    // Now we can safely combine with default paths without creating double slashes
+    
+    // Try in default Blueprints folder
+    FString DefaultPath = TEXT("/Game/Blueprints/") + NormalizedName;
+    UE_LOG(LogTemp, Display, TEXT("Trying blueprint at path: %s"), *DefaultPath);
     UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *DefaultPath);
     if (Blueprint)
     {
@@ -192,7 +210,8 @@ UBlueprint* FUnrealMCPCommonUtils::FindBlueprintByName(const FString& BlueprintN
     }
     
     // Next try in Success folder if that's where it might be
-    FString SuccessPath = TEXT("/Game/Success/") + BlueprintName;
+    FString SuccessPath = TEXT("/Game/Success/") + NormalizedName;
+    UE_LOG(LogTemp, Display, TEXT("Trying blueprint at path: %s"), *SuccessPath);
     Blueprint = LoadObject<UBlueprint>(nullptr, *SuccessPath);
     if (Blueprint)
     {
@@ -200,7 +219,8 @@ UBlueprint* FUnrealMCPCommonUtils::FindBlueprintByName(const FString& BlueprintN
     }
     
     // If still not found, search in Content root
-    FString RootPath = TEXT("/Game/") + BlueprintName;
+    FString RootPath = TEXT("/Game/") + NormalizedName;
+    UE_LOG(LogTemp, Display, TEXT("Trying blueprint at path: %s"), *RootPath);
     Blueprint = LoadObject<UBlueprint>(nullptr, *RootPath);
     if (Blueprint)
     {
