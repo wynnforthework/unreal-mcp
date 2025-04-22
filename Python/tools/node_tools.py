@@ -8,14 +8,14 @@ import logging
 from typing import Dict, List, Any
 from mcp.server.fastmcp import FastMCP, Context
 from utils.nodes.node_operations import (
-    add_event_node,
-    add_input_action_node,
-    add_function_node,
-    connect_nodes,
-    add_variable,
-    add_self_component_reference,
-    add_self_reference,
-    find_nodes
+    add_event_node as add_event_node_impl,
+    add_input_action_node as add_input_action_node_impl,
+    add_function_node as add_function_node_impl,
+    connect_nodes_impl,
+    add_variable as add_variable_impl,
+    add_self_component_reference as add_self_component_reference_impl,
+    add_self_reference as add_self_reference_impl,
+    find_nodes as find_nodes_impl
 )
 
 # Get logger
@@ -45,7 +45,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
         Returns:
             Response containing the node ID and success status
         """
-        return add_event_node(ctx, blueprint_name, event_name, node_position)
+        return add_event_node_impl(ctx, blueprint_name, event_name, node_position)
     
     @mcp.tool()
     def add_blueprint_input_action_node(
@@ -65,7 +65,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
         Returns:
             Response containing the node ID and success status
         """
-        return add_input_action_node(ctx, blueprint_name, action_name, node_position)
+        return add_input_action_node_impl(ctx, blueprint_name, action_name, node_position)
     
     @mcp.tool()
     def add_blueprint_function_node(
@@ -89,7 +89,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
         Returns:
             Response containing the node ID and success status
         """
-        return add_function_node(ctx, blueprint_name, target, function_name, params, node_position)
+        return add_function_node_impl(ctx, blueprint_name, target, function_name, params, node_position)
             
     @mcp.tool()
     def connect_blueprint_nodes(
@@ -113,7 +113,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
         Returns:
             Response indicating success or failure
         """
-        return connect_nodes(ctx, blueprint_name, source_node_id, source_pin, target_node_id, target_pin)
+        return connect_nodes_impl(ctx, blueprint_name, source_node_id, source_pin, target_node_id, target_pin)
     
     @mcp.tool()
     def add_blueprint_variable(
@@ -135,7 +135,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
         Returns:
             Response indicating success or failure
         """
-        return add_variable(ctx, blueprint_name, variable_name, variable_type, is_exposed)
+        return add_variable_impl(ctx, blueprint_name, variable_name, variable_type, is_exposed)
     
     @mcp.tool()
     def add_blueprint_get_self_component_reference(
@@ -156,7 +156,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
         Returns:
             Response containing the node ID and success status
         """
-        return add_self_component_reference(ctx, blueprint_name, component_name, node_position)
+        return add_self_component_reference_impl(ctx, blueprint_name, component_name, node_position)
     
     @mcp.tool()
     def add_blueprint_self_reference(
@@ -174,7 +174,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
         Returns:
             Response containing the node ID and success status
         """
-        return add_self_reference(ctx, blueprint_name, node_position)
+        return add_self_reference_impl(ctx, blueprint_name, node_position)
     
     @mcp.tool()
     def find_blueprint_nodes(
@@ -194,6 +194,6 @@ def register_blueprint_node_tools(mcp: FastMCP):
         Returns:
             Response containing array of found node IDs and success status
         """
-        return find_nodes(ctx, blueprint_name, node_type, event_type)
+        return find_nodes_impl(ctx, blueprint_name, node_type, event_type)
     
     logger.info("Blueprint node tools registered successfully")

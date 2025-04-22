@@ -5,18 +5,19 @@ This module provides tools for controlling the Unreal Editor viewport and other 
 """
 
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from mcp.server.fastmcp import FastMCP, Context
 from utils.editor.editor_operations import (
-    get_actors_in_level,
-    find_actors_by_name,
-    spawn_actor,
-    delete_actor,
-    set_actor_transform,
-    get_actor_properties,
-    set_actor_property,
-    focus_viewport,
-    spawn_blueprint_actor
+    get_actors_in_level as get_actors_in_level_impl,
+    find_actors_by_name as find_actors_by_name_impl,
+    spawn_actor as spawn_actor_impl,
+    delete_actor as delete_actor_impl,
+    set_actor_transform as set_actor_transform_impl,
+    get_actor_properties as get_actor_properties_impl,
+    set_actor_property as set_actor_property_impl,
+    set_light_property as set_light_property_impl,
+    focus_viewport as focus_viewport_impl,
+    spawn_blueprint_actor as spawn_blueprint_actor_impl
 )
 
 # Get logger
@@ -39,7 +40,7 @@ def register_editor_tools(mcp: FastMCP):
             for actor in actors:
                 print(actor["name"])
         """
-        return get_actors_in_level(ctx)
+        return get_actors_in_level_impl(ctx)
 
     @mcp.tool()
     def find_actors_by_name(ctx: Context, pattern: str) -> List[str]:
@@ -59,7 +60,7 @@ def register_editor_tools(mcp: FastMCP):
             # Find a specific actor
             player = find_actors_by_name("Player*")
         """
-        return find_actors_by_name(ctx, pattern)
+        return find_actors_by_name_impl(ctx, pattern)
     
     @mcp.tool()
     def spawn_actor(
@@ -90,7 +91,7 @@ def register_editor_tools(mcp: FastMCP):
                        location=[100, 200, 50], 
                        rotation=[0, 45, 0])
         """
-        return spawn_actor(ctx, name, type, location, rotation)
+        return spawn_actor_impl(ctx, name, type, location, rotation)
     
     @mcp.tool()
     def delete_actor(ctx: Context, name: str) -> Dict[str, Any]:
@@ -107,7 +108,7 @@ def register_editor_tools(mcp: FastMCP):
             # Delete an actor named "MyCube"
             delete_actor(name="MyCube")
         """
-        return delete_actor(ctx, name)
+        return delete_actor_impl(ctx, name)
     
     @mcp.tool()
     def set_actor_transform(
@@ -147,7 +148,7 @@ def register_editor_tools(mcp: FastMCP):
                 scale=[2.0, 2.0, 2.0]
             )
         """
-        return set_actor_transform(ctx, name, location, rotation, scale)
+        return set_actor_transform_impl(ctx, name, location, rotation, scale)
     
     @mcp.tool()
     def get_actor_properties(ctx: Context, name: str) -> Dict[str, Any]:
@@ -167,22 +168,31 @@ def register_editor_tools(mcp: FastMCP):
             # Print location
             print(props["transform"]["location"])
         """
-        return get_actor_properties(ctx, name)
+        return get_actor_properties_impl(ctx, name)
 
     @mcp.tool()
     def set_actor_property(
         ctx: Context,
         name: str,
         property_name: str,
-        property_value: Any
+        property_value
     ) -> Dict[str, Any]:
         """
         Set a property on an actor.
         
+        Note: Currently there's a limitation with the property_value parameter type.
+        Please contact the MCP system administrator for proper usage.
+        
         Args:
             name: Name of the actor
             property_name: Name of the property to set
-            property_value: Value to set the property to
+            property_value: Value to set the property to. Different property types accept different value formats:
+                - For boolean properties: True/False
+                - For numeric properties: int or float values
+                - For string properties: string values
+                - For color properties: [R, G, B, A] list (0-255 values)
+                - For vector properties: [X, Y, Z] list
+                - For enum properties: String name of the enum value or integer index
             
         Returns:
             Dict containing response information
@@ -201,8 +211,72 @@ def register_editor_tools(mcp: FastMCP):
                 property_name="Mobility",
                 property_value="Movable"  # "Static", "Stationary", or "Movable"
             )
+            
+            # Set a boolean property
+            set_actor_property(
+                name="MyCube",
+                property_name="bHidden",
+                property_value=True
+            )
+            
+            # Set a numeric property
+            set_actor_property(
+                name="PointLightTest",
+                property_name="Intensity",
+                property_value=5000.0
+            )
         """
-        return set_actor_property(ctx, name, property_name, property_value)
+        return set_actor_property_impl(ctx, name, property_name, property_value)
+
+    @mcp.tool()
+    def set_light_property(
+        ctx: Context,
+        name: str,
+        property_name: str,
+        property_value
+    ) -> Dict[str, Any]:
+        """
+        Set a property on a light component.
+        
+        This function accesses the LightComponent of a light actor and sets properties on it.
+        
+        Args:
+            name: Name of the light actor
+            property_name: Property to set, one of:
+                - "Intensity": Brightness of the light (float)
+                - "LightColor": Color of the light (array [R, G, B] with values 0-1)
+                - "AttenuationRadius": How far the light reaches (float)
+                - "SourceRadius": Size of the light source (float)
+                - "SoftSourceRadius": Size of the soft light source border (float)
+                - "CastShadows": Whether the light casts shadows (boolean)
+            property_value: Value to set the property to
+            
+        Returns:
+            Dict containing response information
+            
+        Examples:
+            # Set light intensity
+            set_light_property(
+                name="MyPointLight",
+                property_name="Intensity",
+                property_value=5000.0
+            )
+            
+            # Set light color to red
+            set_light_property(
+                name="MyPointLight",
+                property_name="LightColor",
+                property_value=[1.0, 0.0, 0.0]
+            )
+            
+            # Set light attenuation radius
+            set_light_property(
+                name="MyPointLight",
+                property_name="AttenuationRadius",
+                property_value=500.0
+            )
+        """
+        return set_light_property_impl(ctx, name, property_name, property_value)
 
     # @mcp.tool() commented out because it's buggy
     def focus_viewport(
@@ -234,7 +308,7 @@ def register_editor_tools(mcp: FastMCP):
             # Focus on an actor from a specific orientation
             focus_viewport(target="MyCube", orientation=[45, 0, 0])
         """
-        return focus_viewport(ctx, target, location, distance, orientation)
+        return focus_viewport_impl(ctx, target, location, distance, orientation)
 
     @mcp.tool()
     def spawn_blueprint_actor(
@@ -248,8 +322,9 @@ def register_editor_tools(mcp: FastMCP):
         Spawn an actor from a Blueprint.
         
         Args:
-            blueprint_name: Name of the Blueprint to spawn from
-            actor_name: Name to give the spawned actor
+            blueprint_name: Path to the Blueprint to spawn from (e.g., "/Game/Blueprints/BP_Character")
+                           Can be absolute ("/Game/...") or relative ("BP_Character" will be prefixed with "/Game/Blueprints/")
+            actor_name: Name to give the spawned actor (must be unique)
             location: The [x, y, z] world location to spawn at
             rotation: The [pitch, yaw, roll] rotation in degrees
             
@@ -257,20 +332,27 @@ def register_editor_tools(mcp: FastMCP):
             Dict containing the spawned actor's properties
             
         Examples:
-            # Spawn a blueprint actor at origin
+            # Spawn a blueprint actor with a relative path (looks in /Game/Blueprints/)
             spawn_blueprint_actor(
-                blueprint_name="/Game/Blueprints/MyActor",
-                actor_name="MyActor_1"
+                blueprint_name="BP_Character",
+                actor_name="MyCharacter_1"
             )
             
-            # Spawn a blueprint actor at a specific location and rotation
+            # Spawn a blueprint actor with a full path
             spawn_blueprint_actor(
-                blueprint_name="/Game/Blueprints/MyActor",
-                actor_name="MyActor_2",
+                blueprint_name="/Game/Characters/BP_Enemy",
+                actor_name="Enemy_1",
                 location=[100, 200, 50],
                 rotation=[0, 45, 0]
             )
+            
+            # For ThirdPerson template project character
+            spawn_blueprint_actor(
+                blueprint_name="/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter",
+                actor_name="Player1",
+                location=[0, 0, 100]
+            )
         """
-        return spawn_blueprint_actor(ctx, blueprint_name, actor_name, location, rotation)
+        return spawn_blueprint_actor_impl(ctx, blueprint_name, actor_name, location, rotation)
 
     logger.info("Editor tools registered successfully")

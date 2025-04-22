@@ -1056,78 +1056,39 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCompileBlueprint(cons
     return ResultObj;
 }
 
-// Helper function to write debug logs to a file
-void WriteDebugToFile(const FString& Message)
-{
-    FString LogFilePath = FPaths::ProjectLogDir() / TEXT("UnrealMCP_BlueprintSpawn_Debug.log");
-    FString TimeStamp = FDateTime::Now().ToString(TEXT("%Y-%m-%d %H:%M:%S"));
-    FString FormattedMessage = FString::Printf(TEXT("[%s] %s\n"), *TimeStamp, *Message);
-    
-    if (FFileHelper::SaveStringToFile(FormattedMessage, *LogFilePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Debug log written to: %s"), *LogFilePath);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("Failed to write debug log to file: %s"), *LogFilePath);
-    }
-}
-
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSpawnBlueprintActor(const TSharedPtr<FJsonObject>& Params)
 {
-    // Start debug logging to file
-    WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Starting"));
     
     // Get required parameters
     FString BlueprintName;
     if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
     {
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Missing 'blueprint_name' parameter"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
     }
-    WriteDebugToFile(FString::Printf(TEXT("HandleSpawnBlueprintActor: blueprint_name = %s"), *BlueprintName));
 
     FString ActorName;
     if (!Params->TryGetStringField(TEXT("actor_name"), ActorName))
     {
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Missing 'actor_name' parameter"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'actor_name' parameter"));
     }
-    WriteDebugToFile(FString::Printf(TEXT("HandleSpawnBlueprintActor: actor_name = %s"), *ActorName));
 
     // Find the blueprint
-    WriteDebugToFile(FString::Printf(TEXT("HandleSpawnBlueprintActor: Attempting to find blueprint: %s"), *BlueprintName));
     UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
     if (!Blueprint)
     {
-        WriteDebugToFile(FString::Printf(TEXT("HandleSpawnBlueprintActor: Blueprint not found: %s"), *BlueprintName));
         return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
     }
-    WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Blueprint found"));
     
-    // Debug blueprint details
-    WriteDebugToFile(FString::Printf(TEXT("Blueprint object: 0x%p"), Blueprint));
-    WriteDebugToFile(FString::Printf(TEXT("Blueprint path: %s"), *Blueprint->GetPathName()));
-    WriteDebugToFile(FString::Printf(TEXT("Blueprint status - ParentClass: %s"), 
-        Blueprint->ParentClass ? *Blueprint->ParentClass->GetName() : TEXT("NULL")));
-    WriteDebugToFile(FString::Printf(TEXT("Blueprint status - GeneratedClass: %s"), 
-        Blueprint->GeneratedClass ? *Blueprint->GeneratedClass->GetName() : TEXT("NULL")));
     
     // Try to compile the blueprint if needed
     if (!Blueprint->GeneratedClass)
     {
-        WriteDebugToFile(TEXT("Blueprint has no GeneratedClass, attempting to compile..."));
         FKismetEditorUtilities::CompileBlueprint(Blueprint);
         
         // Check again after compilation
         if (!Blueprint->GeneratedClass)
         {
-            WriteDebugToFile(TEXT("Blueprint compilation failed - still no GeneratedClass"));
             return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint compilation failed"));
-        }
-        else
-        {
-            WriteDebugToFile(TEXT("Blueprint compilation succeeded"));
         }
     }
 
@@ -1137,122 +1098,76 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSpawnBlueprintActor(c
 
     if (Params->HasField(TEXT("location")))
     {
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Parsing location parameter"));
         Location = FUnrealMCPCommonUtils::GetVectorFromJson(Params, TEXT("location"));
-        WriteDebugToFile(FString::Printf(TEXT("HandleSpawnBlueprintActor: Location = (%f, %f, %f)"), Location.X, Location.Y, Location.Z));
     }
     if (Params->HasField(TEXT("rotation")))
     {
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Parsing rotation parameter"));
         Rotation = FUnrealMCPCommonUtils::GetRotatorFromJson(Params, TEXT("rotation"));
-        WriteDebugToFile(FString::Printf(TEXT("HandleSpawnBlueprintActor: Rotation = (%f, %f, %f)"), Rotation.Pitch, Rotation.Yaw, Rotation.Roll));
     }
 
     // Spawn the actor
-    WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Getting editor world"));
     UWorld* World = GEditor->GetEditorWorldContext().World();
     if (!World)
     {
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Failed to get editor world"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get editor world"));
     }
-    WriteDebugToFile(FString::Printf(TEXT("HandleSpawnBlueprintActor: Got editor world: %s"), *World->GetName()));
 
     FTransform SpawnTransform;
     SpawnTransform.SetLocation(Location);
     SpawnTransform.SetRotation(FQuat(Rotation));
-    WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Set spawn transform"));
-
-    WriteDebugToFile(FString::Printf(TEXT("HandleSpawnBlueprintActor: Blueprint class: %s"), 
-        Blueprint->GeneratedClass ? *Blueprint->GeneratedClass->GetName() : TEXT("NULL")));
-    WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Attempting to spawn actor"));
     
     // Extra validation of GeneratedClass
     if (!Blueprint->GeneratedClass)
     {
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Blueprint's GeneratedClass is null"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint's GeneratedClass is null"));
     }
     
     // Check if the blueprint is properly compiled
     if (!Blueprint->GeneratedClass->IsValidLowLevel())
     {
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Blueprint GeneratedClass is not valid"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint GeneratedClass is not valid"));
     }
     
     // Additional checks for blueprint class properties
     UBlueprintGeneratedClass* BPGenClass = Cast<UBlueprintGeneratedClass>(Blueprint->GeneratedClass);
-    if (BPGenClass)
-    {
-        WriteDebugToFile(FString::Printf(TEXT("Blueprint generated class: %s"), *BPGenClass->GetName()));
-        WriteDebugToFile(FString::Printf(TEXT("Blueprint parent class: %s"), 
-            BPGenClass->GetSuperClass() ? *BPGenClass->GetSuperClass()->GetName() : TEXT("NULL")));
-        WriteDebugToFile(FString::Printf(TEXT("Blueprint class full path: %s"), 
-            *BPGenClass->GetPathName()));
-    }
-    else
-    {
-        WriteDebugToFile(TEXT("Blueprint's GeneratedClass is not a UBlueprintGeneratedClass"));
-    }
 
     // Try spawning with SpawnActorDeferred first for better diagnostics
     AActor* NewActor = nullptr;
     try
     {
-        WriteDebugToFile(TEXT("Attempting to spawn with SpawnActorDeferred"));
         
         // Capture actual class pointer before spawning
         UClass* ClassToSpawn = Blueprint->GeneratedClass;
-        WriteDebugToFile(FString::Printf(TEXT("Class to spawn: 0x%p, Name: %s"), 
-            ClassToSpawn, *ClassToSpawn->GetName()));
         
         // First try with deferred spawning
         NewActor = World->SpawnActorDeferred<AActor>(ClassToSpawn, SpawnTransform);
         if (NewActor)
         {
-            WriteDebugToFile(TEXT("SpawnActorDeferred succeeded, finalizing actor"));
             UGameplayStatics::FinishSpawningActor(NewActor, SpawnTransform);
-            WriteDebugToFile(TEXT("Actor finalized successfully"));
         }
         else
         {
-            WriteDebugToFile(TEXT("SpawnActorDeferred returned NULL, falling back to SpawnActor"));
             
             // Fallback to regular spawn
             NewActor = World->SpawnActor<AActor>(ClassToSpawn, SpawnTransform);
-            if (NewActor)
-            {
-                WriteDebugToFile(TEXT("SpawnActor succeeded as fallback"));
-            }
-            else
-            {
-                WriteDebugToFile(TEXT("Both spawn methods failed - actor is NULL"));
-            }
         }
     }
     catch (const std::exception& e)
     {
-        WriteDebugToFile(FString::Printf(TEXT("HandleSpawnBlueprintActor: Exception during spawn: %s"), 
-            UTF8_TO_TCHAR(e.what())));
         return FUnrealMCPCommonUtils::CreateErrorResponse(
             FString::Printf(TEXT("Exception during spawn: %s"), UTF8_TO_TCHAR(e.what())));
     }
     catch (...)
     {
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Unknown exception during spawn"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Unknown exception during spawn"));
     }
 
     if (NewActor)
     {
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Actor spawned successfully, setting label"));
         NewActor->SetActorLabel(*ActorName);
-        WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Returning result"));
         return FUnrealMCPCommonUtils::ActorToJsonObject(NewActor, true);
     }
 
-    WriteDebugToFile(TEXT("HandleSpawnBlueprintActor: Failed to spawn blueprint actor"));
     return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to spawn blueprint actor"));
 }
 

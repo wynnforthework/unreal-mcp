@@ -61,7 +61,7 @@ def connect_nodes(
         "target_pin_name": target_pin_name
     }
     
-    return send_unreal_command("connect_nodes", params)
+    return send_unreal_command("connect_blueprint_nodes", params)
 
 def add_variable_get(
     ctx: Context,
@@ -283,7 +283,7 @@ def add_event_node(
     if node_position is not None:
         params["node_position"] = node_position
         
-    return send_unreal_command("add_event_node", params)
+    return send_unreal_command("add_blueprint_event_node", params)
 
 def add_input_action_node(
     ctx: Context,
@@ -300,7 +300,7 @@ def add_input_action_node(
     if node_position is not None:
         params["node_position"] = node_position
         
-    return send_unreal_command("add_input_action_node", params)
+    return send_unreal_command("add_blueprint_input_action_node", params)
 
 def add_function_node(
     ctx: Context,
@@ -323,7 +323,7 @@ def add_function_node(
     if node_position is not None:
         command_params["node_position"] = node_position
         
-    return send_unreal_command("add_function_node", command_params)
+    return send_unreal_command("add_blueprint_function_node", command_params)
 
 def add_variable(
     ctx: Context,
@@ -340,7 +340,7 @@ def add_variable(
         "is_exposed": is_exposed
     }
     
-    return send_unreal_command("add_variable", params)
+    return send_unreal_command("add_blueprint_variable", params)
 
 def add_self_component_reference(
     ctx: Context,
@@ -357,7 +357,7 @@ def add_self_component_reference(
     if node_position is not None:
         params["node_position"] = node_position
         
-    return send_unreal_command("add_self_component_reference", params)
+    return send_unreal_command("add_blueprint_get_self_component_reference", params)
 
 def add_self_reference(
     ctx: Context,
@@ -372,7 +372,7 @@ def add_self_reference(
     if node_position is not None:
         params["node_position"] = node_position
         
-    return send_unreal_command("add_self_reference", params)
+    return send_unreal_command("add_blueprint_self_reference", params)
 
 def find_nodes(
     ctx: Context,
@@ -382,13 +382,30 @@ def find_nodes(
 ) -> Dict[str, Any]:
     """Implementation for finding nodes in a Blueprint's event graph."""
     params = {
-        "blueprint_name": blueprint_name
+        "blueprint_name": blueprint_name,
+        "node_type": node_type if node_type is not None else "All"
     }
     
-    if node_type is not None:
-        params["node_type"] = node_type
-        
     if event_type is not None:
-        params["event_type"] = event_type
+        params["event_name"] = event_type
         
-    return send_unreal_command("find_nodes", params)
+    return send_unreal_command("find_blueprint_nodes", params)
+
+def connect_nodes_impl(
+    ctx: Context,
+    blueprint_name: str,
+    source_node_id: str,
+    source_pin: str,
+    target_node_id: str,
+    target_pin: str
+) -> Dict[str, Any]:
+    """Implementation for connecting two nodes in a Blueprint's event graph."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "source_node_id": source_node_id,
+        "source_pin": source_pin,
+        "target_node_id": target_node_id,
+        "target_pin": target_pin
+    }
+    
+    return send_unreal_command("connect_blueprint_nodes", params)

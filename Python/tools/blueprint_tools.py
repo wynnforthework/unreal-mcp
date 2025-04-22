@@ -8,14 +8,14 @@ import logging
 from typing import Dict, List, Any
 from mcp.server.fastmcp import FastMCP, Context
 from utils.blueprints.blueprint_operations import (
-    create_blueprint,
-    add_component_to_blueprint,
-    set_static_mesh_properties,
-    set_component_property,
-    set_physics_properties,
-    compile_blueprint,
-    set_blueprint_property,
-    set_pawn_properties
+    create_blueprint as create_blueprint_impl,
+    add_component_to_blueprint as add_component_to_blueprint_impl,
+    set_static_mesh_properties as set_static_mesh_properties_impl,
+    set_component_property as set_component_property_impl,
+    set_physics_properties as set_physics_properties_impl,
+    compile_blueprint as compile_blueprint_impl,
+    set_blueprint_property as set_blueprint_property_impl,
+    set_pawn_properties as set_pawn_properties_impl
 )
 
 # Get logger
@@ -54,7 +54,7 @@ def register_blueprint_tools(mcp: FastMCP):
             # Create blueprint in Content/Success folder
             create_blueprint(name="MyBlueprint", parent_class="Actor", folder_path="Success")
         """
-        return create_blueprint(ctx, name, parent_class, folder_path)
+        return create_blueprint_impl(ctx, name, parent_class, folder_path)
     
     @mcp.tool()
     def add_component_to_blueprint(
@@ -82,7 +82,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Returns:
             Information about the added component
         """
-        return add_component_to_blueprint(
+        return add_component_to_blueprint_impl(
             ctx, 
             blueprint_name, 
             component_type, 
@@ -111,7 +111,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Returns:
             Response indicating success or failure
         """
-        return set_static_mesh_properties(ctx, blueprint_name, component_name, static_mesh)
+        return set_static_mesh_properties_impl(ctx, blueprint_name, component_name, static_mesh)
     
     @mcp.tool()
     def set_component_property(
@@ -133,7 +133,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Returns:
             Response indicating success or failure
         """
-        return set_component_property(ctx, blueprint_name, component_name, property_name, property_value)
+        return set_component_property_impl(ctx, blueprint_name, component_name, property_name, property_value)
     
     @mcp.tool()
     def set_physics_properties(
@@ -161,7 +161,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Returns:
             Response indicating success or failure
         """
-        return set_physics_properties(
+        return set_physics_properties_impl(
             ctx, 
             blueprint_name, 
             component_name, 
@@ -186,7 +186,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Returns:
             Response indicating success or failure
         """
-        return compile_blueprint(ctx, blueprint_name)
+        return compile_blueprint_impl(ctx, blueprint_name)
 
     @mcp.tool()
     def set_blueprint_property(
@@ -206,7 +206,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Returns:
             Response indicating success or failure
         """
-        return set_blueprint_property(ctx, blueprint_name, property_name, property_value)
+        return set_blueprint_property_impl(ctx, blueprint_name, property_name, property_value)
 
     # @mcp.tool() commented out, just use set_component_property instead
     def set_pawn_properties(
@@ -233,7 +233,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Returns:
             Response indicating success or failure with detailed results for each property
         """
-        return set_pawn_properties(
+        return set_pawn_properties_impl(
             ctx, 
             blueprint_name, 
             auto_possess_player,

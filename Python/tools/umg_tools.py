@@ -8,27 +8,27 @@ import logging
 from typing import Dict, List, Any
 from mcp.server.fastmcp import FastMCP, Context
 from utils.widgets.widget_components import (
-    create_widget_blueprint,
-    add_text_block,
-    add_button,
-    add_image,
-    add_check_box,
-    bind_event,
-    add_to_viewport,
-    set_text_binding,
-    add_slider,
-    add_progress_bar,
-    add_border,
-    add_scroll_box,
-    add_spacer,
-    add_widget_switcher,
-    add_throbber,
-    add_expandable_area,
-    add_rich_text_block,
-    add_multi_line_editable_text,
-    add_widget_as_child,
-    create_widget_component_with_child,
-    check_component_exists
+    create_widget_blueprint as create_widget_blueprint_impl,
+    add_text_block as add_text_block_impl,
+    add_button as add_button_impl,
+    add_image as add_image_impl,
+    add_check_box as add_check_box_impl,
+    bind_event as bind_event_impl,
+    add_to_viewport as add_to_viewport_impl,
+    set_text_binding as set_text_binding_impl,
+    add_slider as add_slider_impl,
+    add_progress_bar as add_progress_bar_impl,
+    add_border as add_border_impl,
+    add_scroll_box as add_scroll_box_impl,
+    add_spacer as add_spacer_impl,
+    add_widget_switcher as add_widget_switcher_impl,
+    add_throbber as add_throbber_impl,
+    add_expandable_area as add_expandable_area_impl,
+    add_rich_text_block as add_rich_text_block_impl,
+    add_multi_line_editable_text as add_multi_line_editable_text_impl,
+    add_widget_as_child as add_widget_as_child_impl,
+    create_widget_component_with_child as create_widget_component_with_child_impl,
+    check_component_exists as check_component_exists_impl
 )
 
 # Get logger
@@ -65,7 +65,7 @@ def register_umg_tools(mcp: FastMCP):
             # Create a widget in a custom folder
             create_umg_widget_blueprint(widget_name="MyWidget", path="/Game/UI/Widgets")
         """
-        return create_widget_blueprint(ctx, widget_name, parent_class, path)
+        return create_widget_blueprint_impl(ctx, widget_name, parent_class, path)
 
     @mcp.tool()
     def add_text_block_to_widget(
@@ -108,7 +108,7 @@ def register_umg_tools(mcp: FastMCP):
                 color=[1.0, 0.8, 0.2, 1.0]  # Gold color
             )
         """
-        return add_text_block(ctx, widget_name, text_block_name, text, position, size, font_size, color)
+        return add_text_block_impl(ctx, widget_name, text_block_name, text, position, size, font_size, color)
 
     @mcp.tool()
     def add_button_to_widget(
@@ -154,7 +154,7 @@ def register_umg_tools(mcp: FastMCP):
                 background_color=[0.2, 0.4, 0.8, 1.0]  # Blue color
             )
         """
-        return add_button(ctx, widget_name, button_name, text, position, size, font_size, color, background_color)
+        return add_button_impl(ctx, widget_name, button_name, text, position, size, font_size, color, background_color)
 
     @mcp.tool()
     def add_image_to_widget(
@@ -194,7 +194,7 @@ def register_umg_tools(mcp: FastMCP):
                 size=[64.0, 64.0]
             )
         """
-        return add_image(ctx, widget_name, image_name, brush_asset_path, position, size)
+        return add_image_impl(ctx, widget_name, image_name, brush_asset_path, position, size)
 
     @mcp.tool()
     def add_check_box_to_widget(
@@ -234,7 +234,7 @@ def register_umg_tools(mcp: FastMCP):
                 is_checked=True
             )
         """
-        return add_check_box(ctx, widget_name, checkbox_name, position, size, is_checked)
+        return add_check_box_impl(ctx, widget_name, checkbox_name, position, size, is_checked)
 
     @mcp.tool()
     def bind_widget_event(
@@ -272,7 +272,7 @@ def register_umg_tools(mcp: FastMCP):
                 function_name="ExitApplication"
             )
         """
-        return bind_event(ctx, widget_name, widget_component_name, event_name, function_name)
+        return bind_event_impl(ctx, widget_name, widget_component_name, event_name, function_name)
 
     @mcp.tool()
     def add_widget_to_viewport(
@@ -297,7 +297,7 @@ def register_umg_tools(mcp: FastMCP):
             # Add widget with specific z-order (higher number appears on top)
             add_widget_to_viewport(widget_name="NotificationWidget", z_order=10)
         """
-        return add_to_viewport(ctx, widget_name, z_order)
+        return add_to_viewport_impl(ctx, widget_name, z_order)
 
     @mcp.tool()
     def set_text_block_binding(
@@ -335,7 +335,7 @@ def register_umg_tools(mcp: FastMCP):
                 binding_type="Text"
             )
         """
-        return set_text_binding(ctx, widget_name, text_block_name, binding_property, binding_type)
+        return set_text_binding_impl(ctx, widget_name, text_block_name, binding_property, binding_type)
 
     @mcp.tool()
     def add_slider_to_widget(
@@ -387,7 +387,7 @@ def register_umg_tools(mcp: FastMCP):
                 handle_color=[0.8, 0.8, 0.8, 1.0]
             )
         """
-        return add_slider(ctx, widget_name, slider_name, min_value, max_value, value, position, size, orientation, bar_color, handle_color)
+        return add_slider_impl(ctx, widget_name, slider_name, min_value, max_value, value, position, size, orientation, bar_color, handle_color)
 
     @mcp.tool()
     def add_progress_bar_to_widget(
@@ -430,7 +430,7 @@ def register_umg_tools(mcp: FastMCP):
                 background_color=[0.2, 0.0, 0.0, 0.8]
             )
         """
-        return add_progress_bar(ctx, widget_name, progress_bar_name, percent, position, size, fill_color, background_color)
+        return add_progress_bar_impl(ctx, widget_name, progress_bar_name, percent, position, size, fill_color, background_color)
 
     @mcp.tool()
     def add_border_to_widget(
@@ -470,7 +470,7 @@ def register_umg_tools(mcp: FastMCP):
                 brush_thickness=2.0
             )
         """
-        return add_border(ctx, widget_name, border_name, position, size, brush_color, brush_thickness)
+        return add_border_impl(ctx, widget_name, border_name, position, size, brush_color, brush_thickness)
 
     @mcp.tool()
     def add_scroll_box_to_widget(
@@ -510,7 +510,7 @@ def register_umg_tools(mcp: FastMCP):
                 scroll_bar_visibility="Auto"
             )
         """
-        return add_scroll_box(ctx, widget_name, scroll_box_name, position, size, orientation, scroll_bar_visibility)
+        return add_scroll_box_impl(ctx, widget_name, scroll_box_name, position, size, orientation, scroll_bar_visibility)
 
     @mcp.tool()
     def add_spacer_to_widget(
@@ -544,7 +544,7 @@ def register_umg_tools(mcp: FastMCP):
                 size=[300.0, 20.0]
             )
         """
-        return add_spacer(ctx, widget_name, spacer_name, position, size)
+        return add_spacer_impl(ctx, widget_name, spacer_name, position, size)
 
     @mcp.tool()
     def add_widget_switcher_to_widget(
@@ -583,7 +583,7 @@ def register_umg_tools(mcp: FastMCP):
                 active_widget_index=1
             )
         """
-        return add_widget_switcher(ctx, widget_name, switcher_name, position, size, active_widget_index)
+        return add_widget_switcher_impl(ctx, widget_name, switcher_name, position, size, active_widget_index)
 
     @mcp.tool()
     def add_throbber_to_widget(
@@ -625,7 +625,7 @@ def register_umg_tools(mcp: FastMCP):
                 animate=True
             )
         """
-        return add_throbber(ctx, widget_name, throbber_name, position, size, num_pieces, animate)
+        return add_throbber_impl(ctx, widget_name, throbber_name, position, size, num_pieces, animate)
 
     @mcp.tool()
     def add_expandable_area_to_widget(
@@ -671,7 +671,7 @@ def register_umg_tools(mcp: FastMCP):
                 is_expanded=True
             )
         """
-        return add_expandable_area(ctx, widget_name, expandable_area_name, header_text, position, size, is_expanded)
+        return add_expandable_area_impl(ctx, widget_name, expandable_area_name, header_text, position, size, is_expanded)
 
     @mcp.tool()
     def add_rich_text_block_to_widget(
@@ -722,7 +722,7 @@ def register_umg_tools(mcp: FastMCP):
                 default_color=[0.9, 0.9, 0.9, 1.0]
             )
         """
-        return add_rich_text_block(ctx, widget_name, rich_text_name, text, position, size, font_size, default_color, auto_wrap_text)
+        return add_rich_text_block_impl(ctx, widget_name, rich_text_name, text, position, size, font_size, default_color, auto_wrap_text)
 
     @mcp.tool()
     def add_multi_line_editable_text_to_widget(
@@ -770,7 +770,7 @@ def register_umg_tools(mcp: FastMCP):
                 size=[400.0, 200.0]
             )
         """
-        return add_multi_line_editable_text(ctx, widget_name, text_box_name, hint_text, text, position, size, allows_multiline)
+        return add_multi_line_editable_text_impl(ctx, widget_name, text_box_name, hint_text, text, position, size, allows_multiline)
 
     @mcp.tool()
     def add_widget_as_child(
@@ -821,7 +821,7 @@ def register_umg_tools(mcp: FastMCP):
                 parent_size=[300.0, 400.0]
             )
         """
-        return add_widget_as_child(
+        return add_widget_as_child_impl(
             ctx, 
             widget_name, 
             parent_component_name, 
@@ -892,7 +892,7 @@ def register_umg_tools(mcp: FastMCP):
         if child_attributes is None:
             child_attributes = {}
             
-        return create_widget_component_with_child(
+        return create_widget_component_with_child_impl(
             ctx, 
             widget_name, 
             parent_component_name, 
@@ -927,6 +927,6 @@ def register_umg_tools(mcp: FastMCP):
                 component_name="HeaderText"
             )
         """
-        return check_component_exists(ctx, widget_name, component_name)
+        return check_component_exists_impl(ctx, widget_name, component_name)
 
     logger.info("UMG tools registered successfully")
