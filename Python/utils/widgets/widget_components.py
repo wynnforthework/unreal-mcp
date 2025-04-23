@@ -511,3 +511,43 @@ def get_widget_container_dimensions(
     }
     
     return send_unreal_command("get_widget_container_dimensions", params)
+
+def add_widget_component(
+    ctx: Context,
+    widget_name: str,
+    component_name: str,
+    component_type: str,
+    position: List[float] = None,
+    size: List[float] = None,
+    **kwargs
+) -> Dict[str, Any]:
+    """Implementation for the unified widget component creation function.
+    
+    This function can create any supported UMG widget component type.
+    
+    Args:
+        ctx: The MCP context
+        widget_name: Name of the target Widget Blueprint
+        component_name: Name to give the new component
+        component_type: Type of component to add (e.g., "TextBlock", "Button", etc.)
+        position: Optional [X, Y] position in the canvas panel
+        size: Optional [Width, Height] of the component
+        **kwargs: Additional parameters specific to the component type
+        
+    Returns:
+        Dict containing success status and component properties
+    """
+    params = {
+        "blueprint_name": widget_name,
+        "component_name": component_name,
+        "component_type": component_type,
+        "kwargs": kwargs  # Pass all additional parameters
+    }
+    
+    if position is not None:
+        params["position"] = position
+        
+    if size is not None:
+        params["size"] = size
+    
+    return send_unreal_command("add_widget_component", params)

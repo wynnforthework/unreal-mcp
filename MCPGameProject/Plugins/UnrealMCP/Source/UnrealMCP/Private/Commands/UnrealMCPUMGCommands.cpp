@@ -49,6 +49,24 @@
 #include "Components/VerticalBox.h"
 #include "Components/HorizontalBox.h"
 #include "Components/Overlay.h"
+#include "Components/GridPanel.h"
+#include "Components/ComboBoxString.h"
+#include "Components/EditableText.h"
+#include "Components/EditableTextBox.h"
+#include "Components/CircularThrobber.h"
+#include "Components/SpinBox.h"
+#include "Components/WrapBox.h"
+#include "Components/ScaleBox.h"
+#include "Components/NamedSlot.h"
+#include "Components/RadialSlider.h"
+#include "Components/NativeWidgetHost.h"
+#include "Components/BackgroundBlur.h"
+#include "Components/SafeZone.h"
+#include "Components/MenuAnchor.h"
+#include "Components/ListView.h"
+#include "Components/TileView.h"
+#include "Components/TreeView.h"
+#include "Components/UniformGridPanel.h"
 
 // Helper function to find a Widget Blueprint by name
 UWidgetBlueprint* FindWidgetBlueprint(const FString& BlueprintNameOrPath)
@@ -138,6 +156,21 @@ UWidgetBlueprint* FindWidgetBlueprint(const FString& BlueprintNameOrPath)
     UE_LOG(LogTemp, Warning, TEXT("UMG: Widget Blueprint not found: %s"), *BlueprintNameOrPath);
     return nullptr;
 }
+
+// Helper function to safely get an array from a JSON object
+bool GetJsonArray(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName, TArray<TSharedPtr<FJsonValue>>& OutArray)
+{
+	const TArray<TSharedPtr<FJsonValue>>* ArrayPtr = nullptr;
+	if (JsonObject->TryGetArrayField(TCHAR_TO_ANSI(*FieldName), ArrayPtr) && ArrayPtr)
+	{
+		OutArray = *ArrayPtr;
+		return true;
+	}
+	return false;
+}
+
+// Define log category if it doesn't exist
+DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
 
 FUnrealMCPUMGCommands::FUnrealMCPUMGCommands()
 {
@@ -256,6 +289,10 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCommand(const FString& Comm
 	else if (CommandName == TEXT("get_widget_container_dimensions"))
 	{
 		return HandleGetWidgetContainerDimensions(Params);
+	}
+	else if (CommandName == TEXT("add_widget_component"))
+	{
+		return HandleAddWidgetComponent(Params);
 	}
 	
 	return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Unknown command: %s"), *CommandName));
@@ -3272,4 +3309,911 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleGetWidgetContainerDimension
 
     ResponseJson->SetBoolField(TEXT("success"), true);
     return ResponseJson;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetComponent(const TSharedPtr<FJsonObject>& Params)
+{
+	TSharedPtr<FJsonObject> Response = MakeShared<FJsonObject>();
+
+	// Get required parameters
+	FString BlueprintName;
+	if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+	}
+
+	FString ComponentName;
+	if (!Params->TryGetStringField(TEXT("component_name"), ComponentName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'component_name' parameter"));
+	}
+
+	FString ComponentType;
+	if (!Params->TryGetStringField(TEXT("component_type"), ComponentType))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'component_type' parameter"));
+	}
+
+	// Find the Widget Blueprint
+	UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
+	if (!WidgetBlueprint)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Widget Blueprint '%s' not found"), *BlueprintName));
+	}
+
+	// Get position parameter if it exists
+	FVector2D Position(0.0f, 0.0f);
+	if (Params->HasField(TEXT("position")))
+	{
+		TArray<TSharedPtr<FJsonValue>> PosArray;
+		if (GetJsonArray(Params, TEXT("position"), PosArray) && PosArray.Num() >= 2)
+		{
+			Position.X = PosArray[0]->AsNumber();
+			Position.Y = PosArray[1]->AsNumber();
+		}
+	}
+
+	// Get size parameter if it exists
+	FVector2D Size(100.0f, 100.0f);
+	if (Params->HasField(TEXT("size")))
+	{
+		TArray<TSharedPtr<FJsonValue>> SizeArray;
+		if (GetJsonArray(Params, TEXT("size"), SizeArray) && SizeArray.Num() >= 2)
+		{
+			Size.X = SizeArray[0]->AsNumber();
+			Size.Y = SizeArray[1]->AsNumber();
+		}
+	}
+
+	// Get kwargs object if it exists
+	const TSharedPtr<FJsonObject>* KwargsObject;
+	TSharedPtr<FJsonObject> KwargsObjectRef;
+	if (Params->TryGetObjectField(TEXT("kwargs"), KwargsObject))
+	{
+		KwargsObjectRef = *KwargsObject;
+	}
+	else
+	{
+		KwargsObjectRef = MakeShared<FJsonObject>(); // Create empty object if not present
+	}
+
+	// Create the appropriate widget based on component type
+	UWidget* CreatedWidget = nullptr;
+
+	// TextBlock
+	if (ComponentType.Equals(TEXT("TextBlock"), ESearchCase::IgnoreCase))
+	{
+		UTextBlock* TextBlock = WidgetBlueprint->WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), *ComponentName);
+		CreatedWidget = TextBlock;
+		
+		// Apply text block specific properties
+		FString Text;
+		if (KwargsObjectRef->TryGetStringField(TEXT("text"), Text))
+		{
+			TextBlock->SetText(FText::FromString(Text));
+		}
+		
+		// Apply font size if provided
+		int32 FontSize = 12;
+		KwargsObjectRef->TryGetNumberField(TEXT("font_size"), FontSize);
+		
+		// Apply text color if provided
+		TArray<TSharedPtr<FJsonValue>> ColorArray;
+		if (GetJsonArray(KwargsObjectRef, TEXT("color"), ColorArray) && ColorArray.Num() >= 3)
+		{
+			float R = ColorArray[0]->AsNumber();
+			float G = ColorArray[1]->AsNumber();
+			float B = ColorArray[2]->AsNumber();
+			float A = ColorArray.Num() >= 4 ? ColorArray[3]->AsNumber() : 1.0f;
+			
+			FSlateColor TextColor(FLinearColor(R, G, B, A));
+			TextBlock->SetColorAndOpacity(TextColor);
+		}
+	}
+	// Button
+	else if (ComponentType.Equals(TEXT("Button"), ESearchCase::IgnoreCase))
+	{
+		UButton* Button = WidgetBlueprint->WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), *ComponentName);
+		CreatedWidget = Button;
+		
+		// Apply button specific properties
+		FString ButtonText;
+		if (KwargsObjectRef->TryGetStringField(TEXT("text"), ButtonText))
+		{
+			// Create text block for the button
+			UTextBlock* ButtonTextBlock = WidgetBlueprint->WidgetTree->ConstructWidget<UTextBlock>(
+				UTextBlock::StaticClass(), 
+				*(ComponentName + TEXT("_Text"))
+			);
+			
+			if (ButtonTextBlock)
+			{
+				ButtonTextBlock->SetText(FText::FromString(ButtonText));
+				
+				// Apply font size to button text if provided
+				int32 FontSize = 12;
+				KwargsObjectRef->TryGetNumberField(TEXT("font_size"), FontSize);
+				
+				// Apply text color to button text if provided
+				TArray<TSharedPtr<FJsonValue>> ColorArray;
+				if (GetJsonArray(KwargsObjectRef, TEXT("color"), ColorArray) && ColorArray.Num() >= 3)
+				{
+					float R = ColorArray[0]->AsNumber();
+					float G = ColorArray[1]->AsNumber();
+					float B = ColorArray[2]->AsNumber();
+					float A = ColorArray.Num() >= 4 ? ColorArray[3]->AsNumber() : 1.0f;
+					
+					FSlateColor TextColor(FLinearColor(R, G, B, A));
+					ButtonTextBlock->SetColorAndOpacity(TextColor);
+				}
+				
+				Button->AddChild(ButtonTextBlock);
+			}
+		}
+		
+		// Apply background color if provided
+		TArray<TSharedPtr<FJsonValue>> BgColorArray;
+		if (GetJsonArray(KwargsObjectRef, TEXT("background_color"), BgColorArray) && BgColorArray.Num() >= 3)
+		{
+			float R = BgColorArray[0]->AsNumber();
+			float G = BgColorArray[1]->AsNumber();
+			float B = BgColorArray[2]->AsNumber();
+			float A = BgColorArray.Num() >= 4 ? BgColorArray[3]->AsNumber() : 1.0f;
+			
+			// This is a simplified approach; in a full implementation you would
+			// use UButton's style properties to set the background color
+		}
+	}
+	// Image
+	else if (ComponentType.Equals(TEXT("Image"), ESearchCase::IgnoreCase))
+	{
+		UImage* Image = WidgetBlueprint->WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), *ComponentName);
+		CreatedWidget = Image;
+		
+		// Apply image specific properties
+		FString BrushAssetPath;
+		if (KwargsObjectRef->TryGetStringField(TEXT("brush_asset_path"), BrushAssetPath) && !BrushAssetPath.IsEmpty())
+		{
+			// Set the brush asset if provided
+			// In a full implementation, you would load the asset and set it as the image brush
+		}
+	}
+	// CheckBox
+	else if (ComponentType.Equals(TEXT("CheckBox"), ESearchCase::IgnoreCase))
+	{
+		UCheckBox* CheckBox = WidgetBlueprint->WidgetTree->ConstructWidget<UCheckBox>(UCheckBox::StaticClass(), *ComponentName);
+		CreatedWidget = CheckBox;
+		
+		// Apply checkbox specific properties
+		bool IsChecked = false;
+		if (KwargsObjectRef->TryGetBoolField(TEXT("is_checked"), IsChecked))
+		{
+			CheckBox->SetIsChecked(IsChecked);
+		}
+	}
+	// Slider
+	else if (ComponentType.Equals(TEXT("Slider"), ESearchCase::IgnoreCase))
+	{
+		USlider* Slider = WidgetBlueprint->WidgetTree->ConstructWidget<USlider>(USlider::StaticClass(), *ComponentName);
+		CreatedWidget = Slider;
+		
+		// Apply slider specific properties
+		float MinValue = 0.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("min_value"), MinValue);
+		Slider->SetMinValue(MinValue);
+		
+		float MaxValue = 1.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("max_value"), MaxValue);
+		Slider->SetMaxValue(MaxValue);
+		
+		float Value = 0.5f;
+		KwargsObjectRef->TryGetNumberField(TEXT("value"), Value);
+		Slider->SetValue(Value);
+		
+		FString Orientation;
+		if (KwargsObjectRef->TryGetStringField(TEXT("orientation"), Orientation))
+		{
+			Slider->SetOrientation(Orientation.Equals(TEXT("Horizontal"), ESearchCase::IgnoreCase) 
+				? Orient_Horizontal : Orient_Vertical);
+		}
+	}
+	// ProgressBar
+	else if (ComponentType.Equals(TEXT("ProgressBar"), ESearchCase::IgnoreCase))
+	{
+		UProgressBar* ProgressBar = WidgetBlueprint->WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), *ComponentName);
+		CreatedWidget = ProgressBar;
+		
+		// Apply progress bar specific properties
+		float Percent = 0.5f;
+		KwargsObjectRef->TryGetNumberField(TEXT("percent"), Percent);
+		ProgressBar->SetPercent(Percent);
+		
+		// Apply fill color if provided
+		TArray<TSharedPtr<FJsonValue>> FillColorArray;
+		if (GetJsonArray(KwargsObjectRef, TEXT("fill_color"), FillColorArray) && FillColorArray.Num() >= 3)
+		{
+			float R = FillColorArray[0]->AsNumber();
+			float G = FillColorArray[1]->AsNumber();
+			float B = FillColorArray[2]->AsNumber();
+			float A = FillColorArray.Num() >= 4 ? FillColorArray[3]->AsNumber() : 1.0f;
+			
+			FLinearColor FillColor(R, G, B, A);
+			ProgressBar->SetFillColorAndOpacity(FillColor);
+		}
+	}
+	// Border
+	else if (ComponentType.Equals(TEXT("Border"), ESearchCase::IgnoreCase))
+	{
+		UBorder* Border = WidgetBlueprint->WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), *ComponentName);
+		CreatedWidget = Border;
+		
+		// Apply border specific properties
+		TArray<TSharedPtr<FJsonValue>> BrushColorArray;
+		if (GetJsonArray(KwargsObjectRef, TEXT("brush_color"), BrushColorArray) && BrushColorArray.Num() >= 3)
+		{
+			float R = BrushColorArray[0]->AsNumber();
+			float G = BrushColorArray[1]->AsNumber();
+			float B = BrushColorArray[2]->AsNumber();
+			float A = BrushColorArray.Num() >= 4 ? BrushColorArray[3]->AsNumber() : 1.0f;
+			
+			FLinearColor BrushColor(R, G, B, A);
+			Border->SetBrushColor(BrushColor);
+		}
+	}
+	// ScrollBox
+	else if (ComponentType.Equals(TEXT("ScrollBox"), ESearchCase::IgnoreCase))
+	{
+		UScrollBox* ScrollBox = WidgetBlueprint->WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), *ComponentName);
+		CreatedWidget = ScrollBox;
+		
+		// Apply scroll box specific properties
+		FString Orientation;
+		if (KwargsObjectRef->TryGetStringField(TEXT("orientation"), Orientation))
+		{
+			ScrollBox->SetOrientation(Orientation.Equals(TEXT("Horizontal"), ESearchCase::IgnoreCase) 
+				? Orient_Horizontal : Orient_Vertical);
+		}
+		
+		FString ScrollBarVisibility;
+		if (KwargsObjectRef->TryGetStringField(TEXT("scroll_bar_visibility"), ScrollBarVisibility))
+		{
+			// Set scroll bar visibility based on string value
+			// In a full implementation, you would map string values to ESlateVisibility enum
+		}
+	}
+	// Spacer
+	else if (ComponentType.Equals(TEXT("Spacer"), ESearchCase::IgnoreCase))
+	{
+		USpacer* Spacer = WidgetBlueprint->WidgetTree->ConstructWidget<USpacer>(USpacer::StaticClass(), *ComponentName);
+		CreatedWidget = Spacer;
+		// No special properties for spacer beyond size
+	}
+	// WidgetSwitcher
+	else if (ComponentType.Equals(TEXT("WidgetSwitcher"), ESearchCase::IgnoreCase))
+	{
+		UWidgetSwitcher* Switcher = WidgetBlueprint->WidgetTree->ConstructWidget<UWidgetSwitcher>(UWidgetSwitcher::StaticClass(), *ComponentName);
+		CreatedWidget = Switcher;
+		
+		// Apply widget switcher specific properties
+		int32 ActiveIndex = 0;
+		KwargsObjectRef->TryGetNumberField(TEXT("active_widget_index"), ActiveIndex);
+		Switcher->SetActiveWidgetIndex(ActiveIndex);
+	}
+	// Throbber
+	else if (ComponentType.Equals(TEXT("Throbber"), ESearchCase::IgnoreCase))
+	{
+		UThrobber* Throbber = WidgetBlueprint->WidgetTree->ConstructWidget<UThrobber>(UThrobber::StaticClass(), *ComponentName);
+		CreatedWidget = Throbber;
+		
+		// Apply throbber specific properties
+		int32 NumPieces = 3;
+		KwargsObjectRef->TryGetNumberField(TEXT("num_pieces"), NumPieces);
+		Throbber->SetNumberOfPieces(NumPieces);
+		
+		bool Animate = true;
+		KwargsObjectRef->TryGetBoolField(TEXT("animate"), Animate);
+		Throbber->SetAnimateHorizontally(Animate);
+		Throbber->SetAnimateVertically(Animate);
+	}
+	// ExpandableArea
+	else if (ComponentType.Equals(TEXT("ExpandableArea"), ESearchCase::IgnoreCase))
+	{
+		// Create the ExpandableArea without trying to set header content
+		UExpandableArea* ExpandableArea = WidgetBlueprint->WidgetTree->ConstructWidget<UExpandableArea>(UExpandableArea::StaticClass(), *ComponentName);
+		
+		// Create a text block for the header text separately
+		FString HeaderText;
+		UTextBlock* HeaderTextBlock = nullptr;
+		if (KwargsObjectRef->TryGetStringField(TEXT("header_text"), HeaderText))
+		{
+			// We'll create a separate text block with the header text
+			HeaderTextBlock = WidgetBlueprint->WidgetTree->ConstructWidget<UTextBlock>(
+				UTextBlock::StaticClass(), 
+				*(ComponentName + TEXT("_HeaderText"))
+			);
+			HeaderTextBlock->SetText(FText::FromString(HeaderText));
+		}
+		
+		// Set expansion state
+		bool IsExpanded = false;
+		KwargsObjectRef->TryGetBoolField(TEXT("is_expanded"), IsExpanded);
+		ExpandableArea->SetIsExpanded(IsExpanded);
+		
+		// Use both widgets - let the user arrange them in the Blueprint editor
+		// We won't try to set one as the header of the other
+		CreatedWidget = ExpandableArea;
+		
+		// Just log that the user will need to set up the header content manually
+		UE_LOG(LogTemp, Warning, TEXT("Created ExpandableArea '%s'. In UE 5.5, you'll need to manually set the header content in the Widget Blueprint."), *ComponentName);
+	}
+	// RichTextBlock
+	else if (ComponentType.Equals(TEXT("RichTextBlock"), ESearchCase::IgnoreCase))
+	{
+		URichTextBlock* RichTextBlock = WidgetBlueprint->WidgetTree->ConstructWidget<URichTextBlock>(URichTextBlock::StaticClass(), *ComponentName);
+		CreatedWidget = RichTextBlock;
+		
+		// Apply rich text block specific properties
+		FString Text;
+		if (KwargsObjectRef->TryGetStringField(TEXT("text"), Text))
+		{
+			RichTextBlock->SetText(FText::FromString(Text));
+		}
+		
+		bool AutoWrapText = true;
+		KwargsObjectRef->TryGetBoolField(TEXT("auto_wrap_text"), AutoWrapText);
+		RichTextBlock->SetAutoWrapText(AutoWrapText);
+	}
+	// MultiLineEditableText
+	else if (ComponentType.Equals(TEXT("MultiLineEditableText"), ESearchCase::IgnoreCase))
+	{
+		UMultiLineEditableText* TextBox = WidgetBlueprint->WidgetTree->ConstructWidget<UMultiLineEditableText>(UMultiLineEditableText::StaticClass(), *ComponentName);
+		CreatedWidget = TextBox;
+		
+		// Apply text box specific properties
+		FString Text;
+		if (KwargsObjectRef->TryGetStringField(TEXT("text"), Text))
+		{
+			TextBox->SetText(FText::FromString(Text));
+		}
+		
+		FString HintText;
+		if (KwargsObjectRef->TryGetStringField(TEXT("hint_text"), HintText))
+		{
+			TextBox->SetHintText(FText::FromString(HintText));
+		}
+	}
+	// Vertical Box
+	else if (ComponentType.Equals(TEXT("VerticalBox"), ESearchCase::IgnoreCase))
+	{
+		UVerticalBox* VerticalBox = WidgetBlueprint->WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), *ComponentName);
+		CreatedWidget = VerticalBox;
+		// No special properties for vertical box beyond children
+	}
+	// Horizontal Box
+	else if (ComponentType.Equals(TEXT("HorizontalBox"), ESearchCase::IgnoreCase))
+	{
+		UHorizontalBox* HorizontalBox = WidgetBlueprint->WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), *ComponentName);
+		CreatedWidget = HorizontalBox;
+		// No special properties for horizontal box beyond children
+	}
+	// Overlay
+	else if (ComponentType.Equals(TEXT("Overlay"), ESearchCase::IgnoreCase))
+	{
+		UOverlay* Overlay = WidgetBlueprint->WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), *ComponentName);
+		CreatedWidget = Overlay;
+		// No special properties for overlay beyond children
+	}
+	// GridPanel
+	else if (ComponentType.Equals(TEXT("GridPanel"), ESearchCase::IgnoreCase))
+	{
+		UGridPanel* GridPanel = WidgetBlueprint->WidgetTree->ConstructWidget<UGridPanel>(UGridPanel::StaticClass(), *ComponentName);
+		CreatedWidget = GridPanel;
+		
+		// Get column and row fill properties if provided
+		int32 ColumnCount = 2;
+		KwargsObjectRef->TryGetNumberField(TEXT("column_count"), ColumnCount);
+		
+		int32 RowCount = 2;
+		KwargsObjectRef->TryGetNumberField(TEXT("row_count"), RowCount);
+		
+		// In a more complete implementation, you might set up initial columns/rows
+		// but this requires more complex setup that's usually done when children are added
+	}
+	// SizeBox
+	else if (ComponentType.Equals(TEXT("SizeBox"), ESearchCase::IgnoreCase))
+	{
+		USizeBox* SizeBox = WidgetBlueprint->WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), *ComponentName);
+		CreatedWidget = SizeBox;
+		
+		// Apply size box specific properties
+		float MinWidth = 0.0f;
+		if (KwargsObjectRef->TryGetNumberField(TEXT("min_width"), MinWidth) && MinWidth > 0.0f)
+		{
+			SizeBox->SetMinDesiredWidth(MinWidth);
+		}
+		
+		float MinHeight = 0.0f;
+		if (KwargsObjectRef->TryGetNumberField(TEXT("min_height"), MinHeight) && MinHeight > 0.0f)
+		{
+			SizeBox->SetMinDesiredHeight(MinHeight);
+		}
+		
+		float MaxWidth = 0.0f;
+		if (KwargsObjectRef->TryGetNumberField(TEXT("max_width"), MaxWidth) && MaxWidth > 0.0f)
+		{
+			SizeBox->SetMaxDesiredWidth(MaxWidth);
+		}
+		
+		float MaxHeight = 0.0f;
+		if (KwargsObjectRef->TryGetNumberField(TEXT("max_height"), MaxHeight) && MaxHeight > 0.0f)
+		{
+			SizeBox->SetMaxDesiredHeight(MaxHeight);
+		}
+	}
+	// CanvasPanel
+	else if (ComponentType.Equals(TEXT("CanvasPanel"), ESearchCase::IgnoreCase))
+	{
+		UCanvasPanel* CanvasPanel = WidgetBlueprint->WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), *ComponentName);
+		CreatedWidget = CanvasPanel;
+		// No special properties for canvas panel beyond children
+	}
+	// ComboBox
+	else if (ComponentType.Equals(TEXT("ComboBox"), ESearchCase::IgnoreCase))
+	{
+		UComboBoxString* ComboBox = WidgetBlueprint->WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), *ComponentName);
+		CreatedWidget = ComboBox;
+		
+		// Set options if provided
+		TArray<TSharedPtr<FJsonValue>> Options;
+		if (GetJsonArray(KwargsObjectRef, TEXT("options"), Options))
+		{
+			for (const TSharedPtr<FJsonValue>& Option : Options)
+			{
+				FString OptionText = Option->AsString();
+				ComboBox->AddOption(OptionText);
+			}
+		}
+		
+		// Default selected option
+		FString DefaultOption;
+		if (KwargsObjectRef->TryGetStringField(TEXT("default_option"), DefaultOption))
+		{
+			ComboBox->SetSelectedOption(DefaultOption);
+		}
+	}
+	// EditableText (single line)
+	else if (ComponentType.Equals(TEXT("EditableText"), ESearchCase::IgnoreCase))
+	{
+		UEditableText* TextEdit = WidgetBlueprint->WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass(), *ComponentName);
+		CreatedWidget = TextEdit;
+		
+		// Apply editable text specific properties
+		FString Text;
+		if (KwargsObjectRef->TryGetStringField(TEXT("text"), Text))
+		{
+			TextEdit->SetText(FText::FromString(Text));
+		}
+		
+		FString HintText;
+		if (KwargsObjectRef->TryGetStringField(TEXT("hint_text"), HintText))
+		{
+			TextEdit->SetHintText(FText::FromString(HintText));
+		}
+		
+		bool IsPassword = false;
+		if (KwargsObjectRef->TryGetBoolField(TEXT("is_password"), IsPassword))
+		{
+			TextEdit->SetIsPassword(IsPassword);
+		}
+		
+		bool IsReadOnly = false;
+		if (KwargsObjectRef->TryGetBoolField(TEXT("is_read_only"), IsReadOnly))
+		{
+			TextEdit->SetIsReadOnly(IsReadOnly);
+		}
+	}
+	// EditableTextBox (single line with styling)
+	else if (ComponentType.Equals(TEXT("EditableTextBox"), ESearchCase::IgnoreCase))
+	{
+		UEditableTextBox* TextBox = WidgetBlueprint->WidgetTree->ConstructWidget<UEditableTextBox>(UEditableTextBox::StaticClass(), *ComponentName);
+		CreatedWidget = TextBox;
+		
+		// Apply editable text box specific properties
+		FString Text;
+		if (KwargsObjectRef->TryGetStringField(TEXT("text"), Text))
+		{
+			TextBox->SetText(FText::FromString(Text));
+		}
+		
+		FString HintText;
+		if (KwargsObjectRef->TryGetStringField(TEXT("hint_text"), HintText))
+		{
+			TextBox->SetHintText(FText::FromString(HintText));
+		}
+		
+		bool IsPassword = false;
+		if (KwargsObjectRef->TryGetBoolField(TEXT("is_password"), IsPassword))
+		{
+			TextBox->SetIsPassword(IsPassword);
+		}
+		
+		bool IsReadOnly = false;
+		if (KwargsObjectRef->TryGetBoolField(TEXT("is_read_only"), IsReadOnly))
+		{
+			TextBox->SetIsReadOnly(IsReadOnly);
+		}
+	}
+	// CircularThrobber
+	else if (ComponentType.Equals(TEXT("CircularThrobber"), ESearchCase::IgnoreCase))
+	{
+		UCircularThrobber* Throbber = WidgetBlueprint->WidgetTree->ConstructWidget<UCircularThrobber>(UCircularThrobber::StaticClass(), *ComponentName);
+		CreatedWidget = Throbber;
+		
+		// Apply circular throbber specific properties
+		int32 NumPieces = 8;
+		KwargsObjectRef->TryGetNumberField(TEXT("num_pieces"), NumPieces);
+		Throbber->SetNumberOfPieces(NumPieces);
+		
+		float Period = 0.75f;
+		KwargsObjectRef->TryGetNumberField(TEXT("period"), Period);
+		Throbber->SetPeriod(Period);
+		
+		float Radius = 16.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("radius"), Radius);
+		Throbber->SetRadius(Radius);
+	}
+	// SpinBox
+	else if (ComponentType.Equals(TEXT("SpinBox"), ESearchCase::IgnoreCase))
+	{
+		USpinBox* SpinBox = WidgetBlueprint->WidgetTree->ConstructWidget<USpinBox>(USpinBox::StaticClass(), *ComponentName);
+		CreatedWidget = SpinBox;
+		
+		// Apply spin box specific properties
+		float MinValue = 0.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("min_value"), MinValue);
+		SpinBox->SetMinValue(MinValue);
+		
+		float MaxValue = 100.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("max_value"), MaxValue);
+		SpinBox->SetMaxValue(MaxValue);
+		
+		float Value = 0.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("value"), Value);
+		SpinBox->SetValue(Value);
+		
+		float StepSize = 1.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("step_size"), StepSize);
+		SpinBox->SetMinSliderValue(StepSize);
+	}
+	// WrapBox
+	else if (ComponentType.Equals(TEXT("WrapBox"), ESearchCase::IgnoreCase))
+	{
+		UWrapBox* WrapBox = WidgetBlueprint->WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass(), *ComponentName);
+		CreatedWidget = WrapBox;
+		
+		// Apply wrap box specific properties
+		float WrapWidth = 500.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("wrap_width"), WrapWidth);
+		// Note: In UE5.5, SetWrapWidth is not available - wrap width needs to be configured in the Widget Editor
+		
+		// Apply wrap horizontal/vertical alignment
+		FString HorizontalAlignment;
+		if (KwargsObjectRef->TryGetStringField(TEXT("horizontal_alignment"), HorizontalAlignment))
+		{
+			if (HorizontalAlignment.Equals(TEXT("Left"), ESearchCase::IgnoreCase))
+				WrapBox->SetHorizontalAlignment(EHorizontalAlignment::HAlign_Left);
+			else if (HorizontalAlignment.Equals(TEXT("Center"), ESearchCase::IgnoreCase))
+				WrapBox->SetHorizontalAlignment(EHorizontalAlignment::HAlign_Center);
+			else if (HorizontalAlignment.Equals(TEXT("Right"), ESearchCase::IgnoreCase))
+				WrapBox->SetHorizontalAlignment(EHorizontalAlignment::HAlign_Right);
+		}
+	}
+	// ScaleBox
+	else if (ComponentType.Equals(TEXT("ScaleBox"), ESearchCase::IgnoreCase))
+	{
+		UScaleBox* ScaleBox = WidgetBlueprint->WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass(), *ComponentName);
+		CreatedWidget = ScaleBox;
+		
+		// Apply scale box specific properties
+		FString StretchDirection;
+		if (KwargsObjectRef->TryGetStringField(TEXT("stretch_direction"), StretchDirection))
+		{
+			if (StretchDirection.Equals(TEXT("Both"), ESearchCase::IgnoreCase))
+				ScaleBox->SetStretchDirection(EStretchDirection::Both);
+			else if (StretchDirection.Equals(TEXT("DownOnly"), ESearchCase::IgnoreCase))
+				ScaleBox->SetStretchDirection(EStretchDirection::DownOnly);
+			else if (StretchDirection.Equals(TEXT("UpOnly"), ESearchCase::IgnoreCase))
+				ScaleBox->SetStretchDirection(EStretchDirection::UpOnly);
+		}
+		
+		FString Stretch;
+		if (KwargsObjectRef->TryGetStringField(TEXT("stretch"), Stretch))
+		{
+			if (Stretch.Equals(TEXT("None"), ESearchCase::IgnoreCase))
+				ScaleBox->SetStretch(EStretch::None);
+			else if (Stretch.Equals(TEXT("Fill"), ESearchCase::IgnoreCase))
+				ScaleBox->SetStretch(EStretch::Fill);
+			else if (Stretch.Equals(TEXT("ScaleToFit"), ESearchCase::IgnoreCase))
+				ScaleBox->SetStretch(EStretch::ScaleToFit);
+			else if (Stretch.Equals(TEXT("ScaleToFitX"), ESearchCase::IgnoreCase))
+				ScaleBox->SetStretch(EStretch::ScaleToFitX);
+			else if (Stretch.Equals(TEXT("ScaleToFitY"), ESearchCase::IgnoreCase))
+				ScaleBox->SetStretch(EStretch::ScaleToFitY);
+		}
+		
+		float UserSpecifiedScale = 1.0f;
+		if (KwargsObjectRef->TryGetNumberField(TEXT("scale"), UserSpecifiedScale))
+		{
+			ScaleBox->SetUserSpecifiedScale(UserSpecifiedScale);
+		}
+	}
+	// NamedSlot
+	else if (ComponentType.Equals(TEXT("NamedSlot"), ESearchCase::IgnoreCase))
+	{
+		UNamedSlot* NamedSlot = WidgetBlueprint->WidgetTree->ConstructWidget<UNamedSlot>(UNamedSlot::StaticClass(), *ComponentName);
+		CreatedWidget = NamedSlot;
+		// No special properties for named slot beyond standard widget properties
+	}
+	// RadialSlider
+	else if (ComponentType.Equals(TEXT("RadialSlider"), ESearchCase::IgnoreCase))
+	{
+		URadialSlider* RadialSlider = WidgetBlueprint->WidgetTree->ConstructWidget<URadialSlider>(URadialSlider::StaticClass(), *ComponentName);
+		CreatedWidget = RadialSlider;
+		
+		// Apply radial slider specific properties
+		float Value = 0.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("value"), Value);
+		RadialSlider->SetValue(Value);
+		
+		float MinValue = 0.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("min_value"), MinValue);
+		// RadialSlider->MinValue = MinValue; // Directly setting the member variable - Caused compilation error
+		UE_LOG(LogTemp, Warning, TEXT("URadialSlider: MinValue cannot be set directly via code in this UE version. Please set it in the Widget Blueprint editor."));
+		
+		float MaxValue = 1.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("max_value"), MaxValue);
+		// RadialSlider->MaxValue = MaxValue; // Directly setting the member variable - Caused compilation error
+		UE_LOG(LogTemp, Warning, TEXT("URadialSlider: MaxValue cannot be set directly via code in this UE version. Please set it in the Widget Blueprint editor."));
+		
+		// Set slider colors if provided
+		TArray<TSharedPtr<FJsonValue>> SliderBarColorArray;
+		if (GetJsonArray(KwargsObjectRef, TEXT("slider_bar_color"), SliderBarColorArray) && SliderBarColorArray.Num() >= 3)
+		{
+			float R = SliderBarColorArray[0]->AsNumber();
+			float G = SliderBarColorArray[1]->AsNumber();
+			float B = SliderBarColorArray[2]->AsNumber();
+			float A = SliderBarColorArray.Num() >= 4 ? SliderBarColorArray[3]->AsNumber() : 1.0f;
+			
+			FLinearColor SliderBarColor(R, G, B, A);
+			// RadialSlider doesn't have a SetSliderBarColor method in UE 5.5
+			// We'd need to set widget style properties to change colors
+		}
+	}
+	// TextBox (single line text box with styling)
+	else if (ComponentType.Equals(TEXT("TextBox"), ESearchCase::IgnoreCase))
+	{
+		// Use EditableTextBox directly, since TextBox isn't a standard UE5 component
+		UEditableTextBox* TextBox = WidgetBlueprint->WidgetTree->ConstructWidget<UEditableTextBox>(UEditableTextBox::StaticClass(), *ComponentName);
+		CreatedWidget = TextBox;
+		
+		// Apply text box specific properties
+		FString Text;
+		if (KwargsObjectRef->TryGetStringField(TEXT("text"), Text))
+		{
+			TextBox->SetText(FText::FromString(Text));
+		}
+		
+		FString HintText;
+		if (KwargsObjectRef->TryGetStringField(TEXT("hint_text"), HintText))
+		{
+			TextBox->SetHintText(FText::FromString(HintText));
+		}
+		
+		bool IsReadOnly = false;
+		KwargsObjectRef->TryGetBoolField(TEXT("is_read_only"), IsReadOnly);
+		TextBox->SetIsReadOnly(IsReadOnly);
+		
+		bool IsPassword = false;
+		KwargsObjectRef->TryGetBoolField(TEXT("is_password"), IsPassword);
+		TextBox->SetIsPassword(IsPassword);
+	}
+	// ListView
+	else if (ComponentType.Equals(TEXT("ListView"), ESearchCase::IgnoreCase))
+	{
+		UListView* ListView = WidgetBlueprint->WidgetTree->ConstructWidget<UListView>(UListView::StaticClass(), *ComponentName);
+		CreatedWidget = ListView;
+		
+		// ListView requires more setup in Blueprint for data binding to be useful
+		// We'll create the base widget here, and the user can configure it in the Blueprint editor
+		
+		// Set basic properties if available
+		FString SelectionMode;
+		if (KwargsObjectRef->TryGetStringField(TEXT("selection_mode"), SelectionMode))
+		{
+			if (SelectionMode.Equals(TEXT("Single"), ESearchCase::IgnoreCase))
+				ListView->SetSelectionMode(ESelectionMode::Single);
+			else if (SelectionMode.Equals(TEXT("Multi"), ESearchCase::IgnoreCase))
+				ListView->SetSelectionMode(ESelectionMode::Multi);
+			else if (SelectionMode.Equals(TEXT("None"), ESearchCase::IgnoreCase))
+				ListView->SetSelectionMode(ESelectionMode::None);
+		}
+	}
+	// TileView
+	else if (ComponentType.Equals(TEXT("TileView"), ESearchCase::IgnoreCase))
+	{
+		UTileView* TileView = WidgetBlueprint->WidgetTree->ConstructWidget<UTileView>(UTileView::StaticClass(), *ComponentName);
+		CreatedWidget = TileView;
+		
+		// TileView requires more setup in Blueprint for data binding to be useful
+		// We'll create the base widget here, and the user can configure it in the Blueprint editor
+		
+		// Set basic properties if available
+		float EntryWidth = 128.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("entry_width"), EntryWidth);
+		TileView->SetEntryWidth(EntryWidth);
+		
+		float EntryHeight = 128.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("entry_height"), EntryHeight);
+		TileView->SetEntryHeight(EntryHeight);
+	}
+	// TreeView
+	else if (ComponentType.Equals(TEXT("TreeView"), ESearchCase::IgnoreCase))
+	{
+		UTreeView* TreeView = WidgetBlueprint->WidgetTree->ConstructWidget<UTreeView>(UTreeView::StaticClass(), *ComponentName);
+		CreatedWidget = TreeView;
+		
+		// TreeView requires more setup in Blueprint for data binding to be useful
+		// We'll create the base widget here, and the user can configure it in the Blueprint editor
+	}
+	// SafeZone
+	else if (ComponentType.Equals(TEXT("SafeZone"), ESearchCase::IgnoreCase))
+	{
+		USafeZone* SafeZone = WidgetBlueprint->WidgetTree->ConstructWidget<USafeZone>(USafeZone::StaticClass(), *ComponentName);
+		CreatedWidget = SafeZone;
+		
+		// Apply safe zone specific properties
+		bool IsTitleSafe = true;
+		KwargsObjectRef->TryGetBoolField(TEXT("is_title_safe"), IsTitleSafe);
+		// UE 5.5 doesn't have SetIsTitleSafe method for USafeZone
+		// SafeZone->SetIsTitleSafe(IsTitleSafe);
+		
+		// Set padding scale if provided
+		float PaddingScale = 1.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("padding_scale"), PaddingScale);
+		// UE 5.5 doesn't have SetPadding method for USafeZone
+		// SafeZone->SetPadding(FMargin(PaddingScale));
+	}
+	// MenuAnchor
+	else if (ComponentType.Equals(TEXT("MenuAnchor"), ESearchCase::IgnoreCase))
+	{
+		UMenuAnchor* MenuAnchor = WidgetBlueprint->WidgetTree->ConstructWidget<UMenuAnchor>(UMenuAnchor::StaticClass(), *ComponentName);
+		CreatedWidget = MenuAnchor;
+		
+		// MenuAnchor requires setup in Blueprint to be useful
+		// For the menu content, we'll need to bind a function in Blueprint
+		
+		// Set basic properties if available
+		FString Placement;
+		if (KwargsObjectRef->TryGetStringField(TEXT("placement"), Placement))
+		{
+			if (Placement.Equals(TEXT("ComboBox"), ESearchCase::IgnoreCase))
+				MenuAnchor->SetPlacement(MenuPlacement_ComboBox);
+			else if (Placement.Equals(TEXT("BelowAnchor"), ESearchCase::IgnoreCase))
+				MenuAnchor->SetPlacement(MenuPlacement_BelowAnchor);
+			else if (Placement.Equals(TEXT("CenteredBelowAnchor"), ESearchCase::IgnoreCase))
+				MenuAnchor->SetPlacement(MenuPlacement_CenteredBelowAnchor);
+			else if (Placement.Equals(TEXT("AboveAnchor"), ESearchCase::IgnoreCase))
+				MenuAnchor->SetPlacement(MenuPlacement_AboveAnchor);
+			else if (Placement.Equals(TEXT("CenteredAboveAnchor"), ESearchCase::IgnoreCase))
+				MenuAnchor->SetPlacement(MenuPlacement_CenteredAboveAnchor);
+		}
+	}
+	// NativeWidgetHost
+	else if (ComponentType.Equals(TEXT("NativeWidgetHost"), ESearchCase::IgnoreCase))
+	{
+		UNativeWidgetHost* NativeWidgetHost = WidgetBlueprint->WidgetTree->ConstructWidget<UNativeWidgetHost>(UNativeWidgetHost::StaticClass(), *ComponentName);
+		CreatedWidget = NativeWidgetHost;
+		// NativeWidgetHost requires platform-specific setup to be useful
+		UE_LOG(LogTemp, Warning, TEXT("Created NativeWidgetHost '%s'. Additional platform-specific setup may be required in Blueprint."), *ComponentName);
+	}
+	// BackgroundBlur
+	else if (ComponentType.Equals(TEXT("BackgroundBlur"), ESearchCase::IgnoreCase))
+	{
+		UBackgroundBlur* BackgroundBlur = WidgetBlueprint->WidgetTree->ConstructWidget<UBackgroundBlur>(UBackgroundBlur::StaticClass(), *ComponentName);
+		CreatedWidget = BackgroundBlur;
+		
+		// Apply background blur specific properties
+		float BlurStrength = 5.0f;
+		KwargsObjectRef->TryGetNumberField(TEXT("blur_strength"), BlurStrength);
+		BackgroundBlur->SetBlurStrength(BlurStrength);
+		
+		bool ApplyAlphaToBlur = true;
+		KwargsObjectRef->TryGetBoolField(TEXT("apply_alpha_to_blur"), ApplyAlphaToBlur);
+		BackgroundBlur->SetApplyAlphaToBlur(ApplyAlphaToBlur);
+		
+		// Set blur background color if provided
+		TArray<TSharedPtr<FJsonValue>> ColorArray;
+		if (GetJsonArray(KwargsObjectRef, TEXT("background_color"), ColorArray) && ColorArray.Num() >= 3)
+		{
+			float R = ColorArray[0]->AsNumber();
+			float G = ColorArray[1]->AsNumber();
+			float B = ColorArray[2]->AsNumber();
+			float A = ColorArray.Num() >= 4 ? ColorArray[3]->AsNumber() : 1.0f;
+			
+			// UE 5.5 doesn't have SetBackgroundColor method for UBackgroundBlur
+			// BackgroundBlur->SetBackgroundColor(FLinearColor(R, G, B, A));
+		}
+	}
+	// StackBox
+	else if (ComponentType.Equals(TEXT("StackBox"), ESearchCase::IgnoreCase))
+	{
+		// UStackBox doesn't exist in standard UE5, we'll use UVerticalBox as a fallback
+		UVerticalBox* StackBox = WidgetBlueprint->WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), *ComponentName);
+		CreatedWidget = StackBox;
+		
+		// Log a warning that we're using VerticalBox instead
+		UE_LOG(LogTemp, Warning, TEXT("StackBox is not available in this UE version. Using VerticalBox instead for '%s'."), *ComponentName);
+	}
+	// UniformGridPanel
+	else if (ComponentType.Equals(TEXT("UniformGridPanel"), ESearchCase::IgnoreCase))
+	{
+		UUniformGridPanel* UniformGrid = WidgetBlueprint->WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass(), *ComponentName);
+		CreatedWidget = UniformGrid;
+		
+		// Apply uniform grid panel specific properties
+		int32 SlotPadding = 0;
+		KwargsObjectRef->TryGetNumberField(TEXT("slot_padding"), SlotPadding);
+		UniformGrid->SetSlotPadding(FVector2D(SlotPadding, SlotPadding));
+		
+		int32 MinDesiredSlotWidth = 0;
+		KwargsObjectRef->TryGetNumberField(TEXT("min_desired_slot_width"), MinDesiredSlotWidth);
+		UniformGrid->SetMinDesiredSlotWidth(MinDesiredSlotWidth);
+		
+		int32 MinDesiredSlotHeight = 0;
+		KwargsObjectRef->TryGetNumberField(TEXT("min_desired_slot_height"), MinDesiredSlotHeight);
+		UniformGrid->SetMinDesiredSlotHeight(MinDesiredSlotHeight);
+	}
+	// Default/Unknown case
+	else
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unsupported component type: %s"), *ComponentType));
+	}
+
+	// Make sure widget was created
+	if (!CreatedWidget)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create widget component"));
+	}
+
+	// Add to canvas panel
+	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetBlueprint->WidgetTree->RootWidget);
+	if (!RootCanvas)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Root Canvas Panel not found"));
+	}
+
+	UCanvasPanelSlot* PanelSlot = RootCanvas->AddChildToCanvas(CreatedWidget);
+	PanelSlot->SetPosition(Position);
+	PanelSlot->SetSize(Size);
+
+	// Mark the package dirty and compile
+	WidgetBlueprint->MarkPackageDirty();
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WidgetBlueprint);
+
+	// Build success response
+	Response->SetStringField(TEXT("status"), TEXT("success"));
+	Response->SetStringField(TEXT("component_name"), ComponentName);
+	Response->SetStringField(TEXT("component_type"), ComponentType);
+	
+	TArray<TSharedPtr<FJsonValue>> PosArray;
+	PosArray.Add(MakeShared<FJsonValueNumber>(Position.X));
+	PosArray.Add(MakeShared<FJsonValueNumber>(Position.Y));
+	Response->SetArrayField(TEXT("position"), PosArray);
+	
+	TArray<TSharedPtr<FJsonValue>> SizeArray;
+	SizeArray.Add(MakeShared<FJsonValueNumber>(Size.X));
+	SizeArray.Add(MakeShared<FJsonValueNumber>(Size.Y));
+	Response->SetArrayField(TEXT("size"), SizeArray);
+
+	return Response;
 }
