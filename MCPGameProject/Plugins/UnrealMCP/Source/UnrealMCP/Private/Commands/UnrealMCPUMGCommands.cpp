@@ -249,8 +249,16 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCommand(const FString& Comm
 	{
 		return HandleCreateWidgetComponentWithChild(Params);
 	}
-
-	return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown UMG command: %s"), *CommandName));
+	else if (CommandName == TEXT("set_widget_component_placement"))
+	{
+		return HandleSetWidgetPlacement(Params);
+	}
+	else if (CommandName == TEXT("get_widget_container_dimensions"))
+	{
+		return HandleGetWidgetContainerDimensions(Params);
+	}
+	
+	return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Unknown command: %s"), *CommandName));
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateUMGWidgetBlueprint(const TSharedPtr<FJsonObject>& Params)
@@ -3040,4 +3048,228 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateWidgetComponentWithCh
 	{
 		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create child widget or add it to parent"));
 	}
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetWidgetPlacement(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get required parameters
+    FString WidgetName;
+    if (!Params->TryGetStringField(TEXT("widget_name"), WidgetName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing required parameter: widget_name"));
+    }
+
+    FString ComponentName;
+    if (!Params->TryGetStringField(TEXT("component_name"), ComponentName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing required parameter: component_name"));
+    }
+
+    // Find the widget blueprint
+    UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(WidgetName);
+    if (!WidgetBlueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Widget blueprint not found: %s"), *WidgetName));
+    }
+
+    // Find the specified widget
+    UWidget* TargetWidget = nullptr;
+    
+    // Only search if we have a valid widget tree
+    if (WidgetBlueprint->WidgetTree)
+    {
+        WidgetBlueprint->WidgetTree->ForEachWidget([&TargetWidget, &ComponentName](UWidget* Widget) {
+            if (Widget && Widget->GetName() == ComponentName)
+            {
+                TargetWidget = Widget;
+                // Early out once we've found it
+                return false;
+            }
+            return true;
+        });
+    }
+
+    if (!TargetWidget)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Widget component not found: %s"), *ComponentName));
+    }
+
+    // Get the parent slot (likely a Canvas Panel Slot)
+    UPanelSlot* ParentSlot = TargetWidget->Slot;
+    UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(ParentSlot);
+    
+    if (!CanvasSlot)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Widget is not in a Canvas Panel or doesn't have a valid slot"));
+    }
+
+    // Get optional parameters
+    const TArray<TSharedPtr<FJsonValue>>* PositionArray;
+    if (Params->TryGetArrayField(TEXT("position"), PositionArray) && PositionArray->Num() == 2)
+    {
+        float X = (*PositionArray)[0]->AsNumber();
+        float Y = (*PositionArray)[1]->AsNumber();
+        CanvasSlot->SetPosition(FVector2D(X, Y));
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* SizeArray;
+    if (Params->TryGetArrayField(TEXT("size"), SizeArray) && SizeArray->Num() == 2)
+    {
+        float Width = (*SizeArray)[0]->AsNumber();
+        float Height = (*SizeArray)[1]->AsNumber();
+        CanvasSlot->SetSize(FVector2D(Width, Height));
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* AlignmentArray;
+    if (Params->TryGetArrayField(TEXT("alignment"), AlignmentArray) && AlignmentArray->Num() == 2)
+    {
+        float HorizontalAlignment = (*AlignmentArray)[0]->AsNumber();
+        float VerticalAlignment = (*AlignmentArray)[1]->AsNumber();
+        CanvasSlot->SetAlignment(FVector2D(HorizontalAlignment, VerticalAlignment));
+    }
+
+    // Save the Widget Blueprint
+    WidgetBlueprint->MarkPackageDirty();
+    FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+    UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
+
+    // Create success response with current values
+    TSharedPtr<FJsonObject> Response = MakeShared<FJsonObject>();
+    Response->SetBoolField(TEXT("success"), true);
+    Response->SetStringField(TEXT("widget_name"), ComponentName);
+
+    // Include current position in response
+    TArray<TSharedPtr<FJsonValue>> CurrentPosition;
+    CurrentPosition.Add(MakeShared<FJsonValueNumber>(CanvasSlot->GetPosition().X));
+    CurrentPosition.Add(MakeShared<FJsonValueNumber>(CanvasSlot->GetPosition().Y));
+    Response->SetArrayField(TEXT("position"), CurrentPosition);
+
+    // Include current size in response
+    TArray<TSharedPtr<FJsonValue>> CurrentSize;
+    CurrentSize.Add(MakeShared<FJsonValueNumber>(CanvasSlot->GetSize().X));
+    CurrentSize.Add(MakeShared<FJsonValueNumber>(CanvasSlot->GetSize().Y));
+    Response->SetArrayField(TEXT("size"), CurrentSize);
+
+    // Include current alignment in response
+    TArray<TSharedPtr<FJsonValue>> CurrentAlignment;
+    CurrentAlignment.Add(MakeShared<FJsonValueNumber>(CanvasSlot->GetAlignment().X));
+    CurrentAlignment.Add(MakeShared<FJsonValueNumber>(CanvasSlot->GetAlignment().Y));
+    Response->SetArrayField(TEXT("alignment"), CurrentAlignment);
+
+    return Response;
+}
+
+// Helper function to create error response
+TSharedPtr<FJsonObject> CreateErrorResponse(const FString& ErrorMessage)
+{
+    TSharedPtr<FJsonObject> Response = MakeShared<FJsonObject>();
+    Response->SetBoolField(TEXT("success"), false);
+    Response->SetStringField(TEXT("error"), ErrorMessage);
+    return Response;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleGetWidgetContainerDimensions(const TSharedPtr<FJsonObject>& InJson)
+{
+    // Get the widget name and container name from the input JSON
+    FString WidgetName;
+    FString ContainerName;
+    if (!InJson->TryGetStringField(TEXT("widget_name"), WidgetName) ||
+        !InJson->TryGetStringField(TEXT("container_name"), ContainerName))
+    {
+        return MakeShared<FJsonObject>();
+    }
+
+    // Find the widget blueprint
+    UWidgetBlueprint* WidgetBP = FindWidgetBlueprint(WidgetName);
+    if (!WidgetBP || !WidgetBP->WidgetTree)
+    {
+        return CreateErrorResponse(TEXT("Widget not found"));
+    }
+
+    // Find the container widget
+    UWidget* ContainerWidget = WidgetBP->WidgetTree->FindWidget(FName(*ContainerName));
+    if (!ContainerWidget)
+    {
+        return CreateErrorResponse(TEXT("Container widget not found: ") + ContainerName);
+    }
+
+    // Create response JSON
+    TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
+    
+    // Force layout prepass to ensure sizes are computed
+    ContainerWidget->ForceLayoutPrepass();
+
+    // Get the desired size of the container
+    FVector2D DesiredSize = ContainerWidget->GetDesiredSize();
+    
+    // Try to get dimensions from canvas panel slot
+    if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(ContainerWidget->Slot))
+    {
+        FVector2D Position = CanvasSlot->GetPosition();
+        FVector2D Size = CanvasSlot->GetSize();
+        
+        ResponseJson->SetNumberField(TEXT("x"), Position.X);
+        ResponseJson->SetNumberField(TEXT("y"), Position.Y);
+        ResponseJson->SetNumberField(TEXT("width"), Size.X);
+        ResponseJson->SetNumberField(TEXT("height"), Size.Y);
+        ResponseJson->SetBoolField(TEXT("from_slot"), true);
+        
+        // Also include the desired size
+        ResponseJson->SetNumberField(TEXT("desired_width"), DesiredSize.X);
+        ResponseJson->SetNumberField(TEXT("desired_height"), DesiredSize.Y);
+    }
+    else
+    {
+        // No canvas slot, use desired size
+        ResponseJson->SetNumberField(TEXT("x"), 0);
+        ResponseJson->SetNumberField(TEXT("y"), 0);
+        ResponseJson->SetNumberField(TEXT("width"), DesiredSize.X);
+        ResponseJson->SetNumberField(TEXT("height"), DesiredSize.Y);
+        ResponseJson->SetBoolField(TEXT("from_slot"), false);
+    }
+
+    // Get parent widget dimensions
+    UWidget* ParentWidget = ContainerWidget->GetParent();
+    if (ParentWidget)
+    {
+        // Force layout prepass on parent
+        ParentWidget->ForceLayoutPrepass();
+        FVector2D ParentSize = ParentWidget->GetDesiredSize();
+        
+        // If parent is a canvas panel, use its actual size
+        if (UCanvasPanel* ParentCanvas = Cast<UCanvasPanel>(ParentWidget))
+        {
+            if (UCanvasPanelSlot* ParentSlot = Cast<UCanvasPanelSlot>(ParentCanvas->Slot))
+            {
+                ParentSize = ParentSlot->GetSize();
+            }
+        }
+        
+        ResponseJson->SetNumberField(TEXT("parent_width"), ParentSize.X);
+        ResponseJson->SetNumberField(TEXT("parent_height"), ParentSize.Y);
+        ResponseJson->SetBoolField(TEXT("has_parent_size"), true);
+    }
+    else 
+    {
+        ResponseJson->SetBoolField(TEXT("has_parent_size"), false);
+    }
+
+    // Get viewport size if this is the root widget
+    if (ContainerName.Equals(TEXT("RootCanvas")))
+    {
+        if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
+        {
+            FIntPoint ViewportSize = GEngine->GameViewport->Viewport->GetSizeXY();
+            ResponseJson->SetNumberField(TEXT("viewport_width"), ViewportSize.X);
+            ResponseJson->SetNumberField(TEXT("viewport_height"), ViewportSize.Y);
+            ResponseJson->SetBoolField(TEXT("has_viewport_size"), true);
+        }
+        else
+        {
+            ResponseJson->SetBoolField(TEXT("has_viewport_size"), false);
+        }
+    }
+
+    ResponseJson->SetBoolField(TEXT("success"), true);
+    return ResponseJson;
 }

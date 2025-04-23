@@ -28,7 +28,9 @@ from utils.widgets.widget_components import (
     add_multi_line_editable_text as add_multi_line_editable_text_impl,
     add_widget_as_child as add_widget_as_child_impl,
     create_widget_component_with_child as create_widget_component_with_child_impl,
-    check_component_exists as check_component_exists_impl
+    check_component_exists as check_component_exists_impl,
+    set_widget_component_placement as set_widget_component_placement_impl,
+    get_widget_container_dimensions as get_widget_container_dimensions_impl
 )
 
 # Get logger
@@ -928,5 +930,91 @@ def register_umg_tools(mcp: FastMCP):
             )
         """
         return check_component_exists_impl(ctx, widget_name, component_name)
+
+    @mcp.tool()
+    def set_widget_component_placement(
+        ctx: Context,
+        widget_name: str,
+        component_name: str,
+        position: List[float] = None,
+        size: List[float] = None,
+        alignment: List[float] = None
+    ) -> Dict[str, object]:
+        """
+        Change the placement (position/size) of a widget component.
+        
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            component_name: Name of the component to modify
+            position: Optional [X, Y] new position in the canvas panel
+            size: Optional [Width, Height] new size for the component
+            alignment: Optional [X, Y] alignment values (0.0 to 1.0)
+            
+        Returns:
+            Dict containing success status and updated placement information
+            
+        Examples:
+            # Change just the position of a component
+            set_widget_component_placement(
+                widget_name="MainMenu",
+                component_name="TitleText",
+                position=[350.0, 75.0]
+            )
+            
+            # Change both position and size
+            set_widget_component_placement(
+                widget_name="HUD",
+                component_name="HealthBar",
+                position=[50.0, 25.0],
+                size=[250.0, 30.0]
+            )
+            
+            # Change alignment (center-align)
+            set_widget_component_placement(
+                widget_name="Inventory",
+                component_name="ItemName",
+                alignment=[0.5, 0.5]
+            )
+        """
+        return set_widget_component_placement_impl(ctx, widget_name, component_name, position, size, alignment)
+
+    @mcp.tool()
+    def get_widget_container_dimensions(
+        ctx: Context,
+        widget_name: str,
+        container_name: str = "CanvasPanel_0"
+    ) -> Dict[str, object]:
+        """
+        Get the dimensions of a container widget in a UMG Widget Blueprint.
+        
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            container_name: Name of the container widget (defaults to "CanvasPanel_0" for the root canvas panel)
+            
+        Returns:
+            Dict containing the container dimensions and position
+            
+        Examples:
+            # Get dimensions of the root canvas
+            dimensions = get_widget_container_dimensions(
+                widget_name="MainMenu"
+            )
+            
+            # Get dimensions of a specific container
+            dimensions = get_widget_container_dimensions(
+                widget_name="InventoryScreen",
+                container_name="ItemsContainer"
+            )
+            
+            # Use the dimensions to place a widget in the top-right corner with a 10px margin
+            dimensions = get_widget_container_dimensions(widget_name="HUD")
+            set_widget_component_placement(
+                widget_name="HUD",
+                component_name="CloseButton",
+                position=[dimensions["width"] - 10, 10],
+                alignment=[1.0, 0.0]
+            )
+        """
+        return get_widget_container_dimensions_impl(ctx, widget_name, container_name)
 
     logger.info("UMG tools registered successfully")

@@ -171,6 +171,15 @@ private:
     TSharedPtr<FJsonObject> HandleAddSizeBoxToWidget(const TSharedPtr<FJsonObject>& Params);
 
     /**
+     * Get the dimensions of a container widget in a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "widget_name" - Name of the target Widget Blueprint
+     *                "container_name" - Name of the container widget (optional, defaults to root canvas)
+     * @return JSON response with the container dimensions
+     */
+    TSharedPtr<FJsonObject> HandleGetWidgetContainerDimensions(const TSharedPtr<FJsonObject>& Params);
+
+    /**
      * Add an Image widget to a UMG Widget Blueprint
      * @param Params - Must include:
      *                "blueprint_name" - Name of the target Widget Blueprint
@@ -243,6 +252,18 @@ private:
      * @return JSON response with existence status of the component
      */
     TSharedPtr<FJsonObject> HandleCheckComponentExists(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Set the placement (position/size) of a widget component in a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "widget_name" - Name of the component to modify
+     *                "position" - [X, Y] new position in the canvas panel (optional)
+     *                "size" - [Width, Height] new size for the component (optional)
+     *                "alignment" - [X, Y] alignment values (0.0 to 1.0) (optional)
+     * @return JSON response with updated placement information
+     */
+    TSharedPtr<FJsonObject> HandleSetWidgetPlacement(const TSharedPtr<FJsonObject>& Params);
 
     /**
      * Add a widget component as a child to another component
