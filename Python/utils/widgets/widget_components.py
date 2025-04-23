@@ -444,10 +444,70 @@ def check_component_exists(
     widget_name: str,
     component_name: str
 ) -> Dict[str, Any]:
-    """Implementation for checking if a component exists in the specified widget blueprint."""
+    """Implementation for checking if a component exists in a widget blueprint."""
     params = {
         "blueprint_name": widget_name,
         "component_name": component_name
     }
     
     return send_unreal_command("check_component_exists", params)
+
+def set_widget_component_placement(
+    ctx: Context,
+    widget_name: str,
+    component_name: str,
+    position: List[float] = None,
+    size: List[float] = None,
+    alignment: List[float] = None
+) -> Dict[str, Any]:
+    """Implementation for changing the placement (position/size) of a widget component.
+    
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        component_name: Name of the component to modify
+        position: Optional [X, Y] new position in the canvas panel
+        size: Optional [Width, Height] new size for the component
+        alignment: Optional [X, Y] alignment values (0.0 to 1.0)
+        
+    Returns:
+        Dict containing success status and updated placement information
+    """
+    params = {
+        "widget_name": widget_name,
+        "component_name": component_name
+    }
+    
+    # Only add parameters that are actually provided
+    if position is not None:
+        params["position"] = position
+    
+    if size is not None:
+        params["size"] = size
+        
+    if alignment is not None:
+        params["alignment"] = alignment
+    
+    return send_unreal_command("set_widget_component_placement", params)
+
+def get_widget_container_dimensions(
+    ctx: Context,
+    widget_name: str,
+    container_name: str = "RootCanvas"
+) -> Dict[str, Any]:
+    """Implementation for getting the dimensions of a container widget in a UMG Widget Blueprint.
+    
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        container_name: Name of the container widget (defaults to "RootCanvas" for the root canvas panel)
+        
+    Returns:
+        Dict containing the container dimensions (width, height) and its position
+    """
+    params = {
+        "widget_name": widget_name,
+        "container_name": container_name
+    }
+    
+    return send_unreal_command("get_widget_container_dimensions", params)

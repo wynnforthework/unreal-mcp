@@ -293,7 +293,12 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("add_progress_bar_to_widget"),
                     TEXT("add_border_to_widget"),
                     TEXT("add_scroll_box_to_widget"),
-                    TEXT("add_spacer_to_widget")
+                    TEXT("add_spacer_to_widget"),
+                    TEXT("create_widget_component_with_child"),
+                    TEXT("add_widget_as_child"),
+                    TEXT("check_component_exists"),
+                    TEXT("set_widget_component_placement"),
+                    TEXT("get_widget_container_dimensions")
                 };
                 
                 // Route to the appropriate handler
