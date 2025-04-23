@@ -293,4 +293,17 @@ private:
      * @return JSON response with the component creation details
      */
     TSharedPtr<FJsonObject> HandleCreateWidgetComponentWithChild(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Unified function to add any type of widget component to a UMG Widget Blueprint
+     * @param Params - Must include:
+     *                "blueprint_name" - Name of the target Widget Blueprint
+     *                "component_name" - Name for the new component
+     *                "component_type" - Type of component to add (e.g., "TextBlock", "Button")
+     *                "position" - Optional [X, Y] position in the canvas panel
+     *                "size" - Optional [Width, Height] of the component
+     *                "kwargs" - Additional component-specific parameters
+     * @return JSON response with the added widget details
+     */
+    TSharedPtr<FJsonObject> HandleAddWidgetComponent(const TSharedPtr<FJsonObject>& Params);
 };

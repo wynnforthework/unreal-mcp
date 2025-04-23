@@ -30,7 +30,8 @@ from utils.widgets.widget_components import (
     create_widget_component_with_child as create_widget_component_with_child_impl,
     check_component_exists as check_component_exists_impl,
     set_widget_component_placement as set_widget_component_placement_impl,
-    get_widget_container_dimensions as get_widget_container_dimensions_impl
+    get_widget_container_dimensions as get_widget_container_dimensions_impl,
+    add_widget_component as add_widget_component_impl
 )
 
 # Get logger
@@ -1016,5 +1017,54 @@ def register_umg_tools(mcp: FastMCP):
             )
         """
         return get_widget_container_dimensions_impl(ctx, widget_name, container_name)
+
+    @mcp.tool()
+    def add_widget_component(
+        ctx: Context,
+        widget_name: str,
+        component_name: str,
+        component_type: str,
+        position: List[float] = None,
+        size: List[float] = None,
+        **kwargs
+    ) -> Dict[str, object]:
+        """
+        Unified function to add any type of widget component to a UMG Widget Blueprint.
+        
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            component_name: Name to give the new component
+            component_type: Type of component to add (e.g., "TextBlock", "Button", etc.)
+            position: Optional [X, Y] position in the canvas panel
+            size: Optional [Width, Height] of the component
+            **kwargs: Additional parameters specific to the component type
+            
+        Returns:
+            Dict containing success status and component properties
+            
+        Examples:
+            # Add a text block
+            add_widget_component(
+                widget_name="MyWidget",
+                component_name="HeaderText",
+                component_type="TextBlock",
+                position=[100, 50],
+                size=[200, 50],
+                text="Hello World",
+                font_size=24
+            )
+            
+            # Add a button
+            add_widget_component(
+                widget_name="MyWidget",
+                component_name="SubmitButton",
+                component_type="Button",
+                position=[100, 100],
+                size=[200, 50],
+                text="Submit",
+                background_color=[0.2, 0.4, 0.8, 1.0]
+            )
+        """
+        return add_widget_component_impl(ctx, widget_name, component_name, component_type, position, size, **kwargs)
 
     logger.info("UMG tools registered successfully")
