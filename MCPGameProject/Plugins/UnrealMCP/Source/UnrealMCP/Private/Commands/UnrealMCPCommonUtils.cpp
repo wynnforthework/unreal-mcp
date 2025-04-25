@@ -1,6 +1,7 @@
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "GameFramework/Actor.h"
 #include "Engine/Blueprint.h"
+#include "WidgetBlueprint.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
@@ -229,23 +230,50 @@ UBlueprint* FUnrealMCPCommonUtils::FindBlueprintByName(const FString& BlueprintN
 
     // If still not found, try to find it using asset registry
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-    TArray<FAssetData> AssetData;
+    TArray<FAssetData> AllBlueprintAssetData;
     
-    // Create a filter to search for blueprints with the specified name
+    // Create a filter to get ALL blueprints and widget blueprints within the Content directory recursively
     FARFilter Filter;
     Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
-    Filter.PackageNames.Add(FName(*BlueprintName));
+    Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
+    Filter.PackagePaths.Add(TEXT("/Game")); // Start search from /Game (Content folder)
+    Filter.bRecursivePaths = true; // Search all subfolders
+
+    // Add logging for the filter being used
+    UE_LOG(LogTemp, Display, TEXT("Searching Asset Registry for Blueprints and WidgetBlueprints under /Game recursively..."));
+
+    // Get all blueprint assets matching the filter
+    AssetRegistryModule.Get().GetAssets(Filter, AllBlueprintAssetData);
     
-    // Get all blueprints matching the filter
-    AssetRegistryModule.Get().GetAssets(Filter, AssetData);
-    
-    // If we found any assets, load the first one
-    if (AssetData.Num() > 0)
+    // Log how many total blueprint assets were found
+    UE_LOG(LogTemp, Display, TEXT("Asset Registry search found %d total blueprint/widget assets."), AllBlueprintAssetData.Num());
+
+    // Now, iterate through the results and find the one matching the NormalizedName
+    FName TargetAssetName(*NormalizedName);
+    for (const FAssetData& Asset : AllBlueprintAssetData)
     {
-        return Cast<UBlueprint>(AssetData[0].GetAsset());
+        if (Asset.AssetName == TargetAssetName)
+        {
+            // Found a match!
+            UE_LOG(LogTemp, Display, TEXT("Found matching asset via Asset Registry iteration: %s (Class: %s)"), 
+                   *Asset.GetObjectPathString(), *Asset.AssetClassPath.ToString());
+            // Attempt to load and return the asset
+            // Use LoadObject for potentially unloaded assets
+            UBlueprint* FoundBlueprint = LoadObject<UBlueprint>(nullptr, *Asset.GetObjectPathString());
+            if (FoundBlueprint)
+            {
+                return FoundBlueprint;
+            }
+            else
+            {
+                // Log if loading failed for some reason
+                UE_LOG(LogTemp, Warning, TEXT("Found matching asset data for %s, but failed to load the UBlueprint/UWidgetBlueprint object."), *NormalizedName);
+            }
+        }
     }
     
-    // Blueprint not found
+    // If we looped through everything and didn't find it
+    UE_LOG(LogTemp, Error, TEXT("Blueprint/WidgetBlueprint '%s' (Normalized: '%s') not found in standard paths or via Asset Registry search iteration."), *BlueprintName, *NormalizedName);
     return nullptr;
 }
 
