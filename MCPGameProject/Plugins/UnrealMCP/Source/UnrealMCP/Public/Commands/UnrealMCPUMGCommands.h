@@ -287,4 +287,11 @@ private:
      * @return JSON response with the added widget details
      */
     TSharedPtr<FJsonObject> HandleAddWidgetComponent(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Set a property on a specific component within a UMG Widget Blueprint.
+     * @param Params - JSON object containing widgetName, componentName, propertyName, and propertyValue.
+     * @return JSON response indicating success or failure.
+     */
+    TSharedPtr<FJsonObject> HandleSetWidgetComponentProperty(const TSharedPtr<FJsonObject>& Params);
 };

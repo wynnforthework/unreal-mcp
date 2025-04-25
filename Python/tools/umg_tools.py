@@ -18,7 +18,8 @@ from utils.widgets.widget_components import (
     check_widget_component_exists as check_widget_component_exists_impl,
     set_widget_component_placement as set_widget_component_placement_impl,
     get_widget_container_component_dimensions as get_widget_container_component_dimensions_impl,
-    add_widget_component_to_widget as add_widget_component_to_widget_impl
+    add_widget_component_to_widget as add_widget_component_to_widget_impl,
+    set_widget_component_property as set_widget_component_property_impl
 )
 
 # Get logger
@@ -458,6 +459,55 @@ def register_umg_tools(mcp: FastMCP):
         """
         # Call aliased implementation
         return add_widget_component_to_widget_impl(ctx, widget_name, component_name, component_type, position, size, **kwargs)
+
+    @mcp.tool()
+    def set_widget_component_property(
+        ctx: Context,
+        widget_name: str,
+        component_name: str,
+        property_name: str,
+        # Explicitly type as str for now, although SetPropertyFromJson handles others
+        property_value: str 
+    ) -> Dict[str, object]:
+        """
+        Set a property on a specific component within a UMG Widget Blueprint.
+
+        Args:
+            widget_name: Name of the target Widget Blueprint.
+            component_name: Name of the component within the widget (e.g., "MyButton", "ScoreTextBlock").
+            property_name: Name of the property to set on the component (e.g., "Text", "Visibility", "ToolTipText").
+            property_value: The value to set the property to. Type should match the property's expected type.
+
+        Returns:
+            Dict containing success status.
+
+        Examples:
+            # Set the text of a TextBlock
+            set_widget_component_property(
+                widget_name="PlayerHUD", 
+                component_name="ScoreText", 
+                property_name="Text", 
+                property_value="Score: 100"
+            )
+
+            # Change the visibility of a Border
+            set_widget_component_property(
+                widget_name="MainMenu",
+                component_name="LoginErrorBorder",
+                property_name="Visibility",
+                property_value="Hidden" # Common visibility values: Visible, Hidden, Collapsed, HitTestInvisible
+            )
+
+            # Set the ToolTip text for a Button
+            set_widget_component_property(
+                widget_name="OptionsMenu",
+                component_name="ApplyButton",
+                property_name="ToolTipText",
+                property_value="Apply graphics settings"
+            )
+        """
+        # Call aliased implementation
+        return set_widget_component_property_impl(ctx, widget_name, component_name, property_name, property_value)
 
 logger.info("UMG tools registered successfully")
 

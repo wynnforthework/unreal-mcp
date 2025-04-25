@@ -27,6 +27,9 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "K2Node_Event.h"
 #include "Misc/Paths.h"
+#include "UObject/TextProperty.h" // For FText
+#include "UObject/EnumProperty.h" // For Enum properties
+#include "Serialization/JsonSerializer.h" // For parsing JSON property values
 
 // Include additional widget components
 #include "Components/WidgetSwitcher.h"
@@ -69,6 +72,9 @@
 #include "Components/UniformGridPanel.h"
 
 #include "Services/UMG/WidgetComponentService.h"
+
+// Define log category if it doesn't exist
+DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCPUMG, Log, All);
 
 // Helper function to find a Widget Blueprint by name
 UWidgetBlueprint* FindWidgetBlueprint(const FString& BlueprintNameOrPath)
@@ -171,9 +177,6 @@ bool GetJsonArray(const TSharedPtr<FJsonObject>& JsonObject, const FString& Fiel
 	return false;
 }
 
-// Define log category if it doesn't exist
-DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
-
 FUnrealMCPUMGCommands::FUnrealMCPUMGCommands()
 {
 }
@@ -219,6 +222,10 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCommand(const FString& Comm
 	else if (CommandName == TEXT("add_widget_component_to_widget"))
 	{
 		return HandleAddWidgetComponent(Params);
+	}
+	else if (CommandName == TEXT("set_widget_component_property"))
+	{
+		return HandleSetWidgetComponentProperty(Params);
 	}
 	
 	return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Unknown UMG command: %s"), *CommandName));
@@ -1573,4 +1580,100 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetComponent(const TS
 	Response->SetArrayField(TEXT("size"), SizeArray);
 
 	return Response;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetWidgetComponentProperty(const TSharedPtr<FJsonObject>& Params)
+{
+    FString WidgetName;
+    if (!Params->TryGetStringField(TEXT("widget_name"), WidgetName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing parameter: widget_name"));
+    }
+
+    FString ComponentName;
+    if (!Params->TryGetStringField(TEXT("component_name"), ComponentName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing parameter: component_name"));
+    }
+
+    FString PropertyName;
+    if (!Params->TryGetStringField(TEXT("property_name"), PropertyName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing parameter: property_name"));
+    }
+
+    // Use snake_case to match Python tool
+    const TSharedPtr<FJsonValue>* PropertyValueJsonPtr = Params->Values.Find(TEXT("property_value")); 
+
+    // Check if the field exists and the value it points to is valid
+    if (!PropertyValueJsonPtr || !(*PropertyValueJsonPtr).IsValid())
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing or invalid parameter: property_value"));
+    }
+
+    // Get a reference to the actual value
+    const TSharedPtr<FJsonValue>& PropertyValueJsonValueRef = *PropertyValueJsonPtr;
+
+    // Use the defined log category
+    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Setting property '%s' on component '%s' in widget '%s'"), *PropertyName, *ComponentName, *WidgetName);
+
+    UWidgetBlueprint* WidgetBP = FindWidgetBlueprint(WidgetName);
+    if (!WidgetBP)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Widget Blueprint not found: %s"), *WidgetName));
+    }
+
+    // Ensure the blueprint is loaded and has a valid widget tree
+    WidgetBP->Modify(); // Mark for modification
+    if (!WidgetBP->WidgetTree)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Widget Blueprint '%s' has no WidgetTree"), *WidgetName));
+    }
+
+    // Find the component within the widget tree
+    UWidget* TargetWidget = WidgetBP->WidgetTree->FindWidget(FName(*ComponentName));
+    if (!TargetWidget)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Component '%s' not found in Widget Blueprint '%s'"), *ComponentName, *WidgetName));
+    }
+
+    // Find the property on the component's class
+    FProperty* Property = FindFProperty<FProperty>(TargetWidget->GetClass(), FName(*PropertyName));
+    if (!Property)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Property '%s' not found on component '%s' (Class: %s)"), *PropertyName, *ComponentName, *TargetWidget->GetClass()->GetName()));
+    }
+
+    // Pointer to the property's data within the widget instance
+    void* PropertyData = Property->ContainerPtrToValuePtr<void>(TargetWidget);
+
+    // Set the property value based on its type and the JSON input
+    FString ErrorMessage;
+    
+    // Use the helper function with the reference to the JSON value
+    // This helper needs to be implemented in UnrealMCPCommonUtils or similar
+    if (!FUnrealMCPCommonUtils::SetPropertyFromJson(Property, PropertyData, PropertyValueJsonValueRef))
+    {
+        ErrorMessage = FString::Printf(TEXT("Failed to set property '%s'. Check value type/format."), *PropertyName);
+        // Use the defined log category
+        UE_LOG(LogUnrealMCPUMG, Warning, TEXT("%s"), *ErrorMessage);
+        return FUnrealMCPCommonUtils::CreateErrorResponse(ErrorMessage);
+    }
+    
+    // Use the defined log category
+    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Successfully set property '%s' on component '%s'"), *PropertyName, *ComponentName);
+
+    // Notify the asset system that the blueprint has changed
+    FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
+    // Recompile the blueprint to ensure changes are visually reflected immediately
+    FKismetEditorUtilities::CompileBlueprint(WidgetBP);
+
+    TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
+    Response->SetStringField(TEXT("widget_name"), WidgetName);
+    Response->SetStringField(TEXT("component_name"), ComponentName);
+    Response->SetStringField(TEXT("property_name"), PropertyName);
+    // Consider returning the actual set value if conversion occurred
+    // Response->SetField(TEXT("set_value"), PropertyValueJsonValueRef); 
+
+    return Response;
 }

@@ -3,7 +3,7 @@ Widget Components List
 TextBlock ✓
 Supported kwargs: text, font_size, color, justification
 Button ✓
-Supported kwargs: text, background_color
+Supported kwargs: background_color
 Image ✓
 Supported kwargs: image_path, brush_color
 CheckBox ✓
@@ -16,17 +16,17 @@ Border ✓
 Supported kwargs: background_color, padding
 ScrollBox ✓
 Supported kwargs: scroll_bar_visibility
-Spacer
+Spacer ✓
 Supported kwargs: size
-WidgetSwitcher
+WidgetSwitcher ✓
 Supported kwargs: active_widget_index
-Throbber
+Throbber ✓
 Supported kwargs: number_of_pieces
-ExpandableArea
+ExpandableArea ✓
 Supported kwargs: header_text, is_expanded
-RichTextBlock
+RichTextBlock ✓
 Supported kwargs: text, auto_wrap_text
-MultiLineEditableText
+MultiLineEditableText ✓
 Supported kwargs: text, hint_text
 VerticalBox
 Container that stacks widgets vertically
@@ -40,15 +40,15 @@ SizeBox
 Container that enforces size constraints
 CanvasPanel
 Container with free positioning
-ComboBox
+ComboBox ✓
 Supported kwargs: options, selected_option
-EditableText
+EditableText ✓
 Supported kwargs: text, hint_text, is_password, is_read_only
-EditableTextBox
+EditableTextBox ✓
 Supported kwargs: text, hint_text, is_password, is_read_only
-CircularThrobber
+CircularThrobber ✗
 Supported kwargs: number_of_pieces
-SpinBox
+SpinBox ✓
 Supported kwargs: min_value, max_value, value, delta
 WrapBox
 Container that wraps child widgets
@@ -56,7 +56,7 @@ ScaleBox
 Container that scales its child
 NamedSlot
 Container for named content
-RadialSlider
+RadialSlider ✗
 Supported kwargs: value, min_angle, max_angle
 ListView
 List-based container
@@ -66,11 +66,11 @@ TreeView
 Hierarchical container
 SafeZone
 Container that respects device safe zones
-MenuAnchor
+MenuAnchor ✗
 Supported kwargs: menu_placement
 NativeWidgetHost
 Container for native widgets
-BackgroundBlur
+BackgroundBlur ✓
 Supported kwargs: blur_strength
 UniformGridPanel
 Container with uniform cells

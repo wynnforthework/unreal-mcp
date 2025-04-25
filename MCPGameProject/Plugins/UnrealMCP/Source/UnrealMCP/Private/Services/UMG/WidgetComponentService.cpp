@@ -52,6 +52,12 @@ UWidget* FWidgetComponentService::CreateWidgetComponent(
     const FVector2D& Size,
     const TSharedPtr<FJsonObject>& KwargsObject)
 {
+    // Log the received KwargsObject
+    FString JsonString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+    FJsonSerializer::Serialize(KwargsObject.ToSharedRef(), Writer);
+    UE_LOG(LogTemp, Log, TEXT("FWidgetComponentService::CreateWidgetComponent Received Kwargs for %s (%s): %s"), *ComponentName, *ComponentType, *JsonString);
+    
     // Create the appropriate widget based on component type
     UWidget* CreatedWidget = nullptr;
 
@@ -266,7 +272,8 @@ bool FWidgetComponentService::GetJsonArray(const TSharedPtr<FJsonObject>& JsonOb
 
     // In UE 5.5, TryGetArrayField API has changed
     const TArray<TSharedPtr<FJsonValue>>* ArrayPtr;
-    if (JsonObject->TryGetArrayField(FStringView(*FieldName), ArrayPtr))
+    bool bSuccess = JsonObject->TryGetArrayField(FStringView(*FieldName), ArrayPtr);
+    if (bSuccess)
     {
         OutArray = *ArrayPtr;
         return true;
@@ -730,15 +737,15 @@ UWidget* FWidgetComponentService::CreateThrobber(UWidgetBlueprint* WidgetBluepri
     UThrobber* Throbber = WidgetBlueprint->WidgetTree->ConstructWidget<UThrobber>(UThrobber::StaticClass(), *ComponentName);
     
     // Apply throbber specific properties
-    int32 NumPieces = 3;
-    KwargsObject->TryGetNumberField(TEXT("num_pieces"), NumPieces);
+    int32 NumPieces = 3; // Default value
+    bool bFoundNumPieces = KwargsObject->TryGetNumberField(TEXT("number_of_pieces"), NumPieces);
     Throbber->SetNumberOfPieces(NumPieces);
-    
-    bool Animate = true;
-    KwargsObject->TryGetBoolField(TEXT("animate"), Animate);
+
+    bool Animate = true; // Default value
+    bool bFoundAnimate = KwargsObject->TryGetBoolField(TEXT("animate"), Animate);
     Throbber->SetAnimateHorizontally(Animate);
     Throbber->SetAnimateVertically(Animate);
-    
+
     return Throbber;
 }
 
@@ -913,22 +920,27 @@ UWidget* FWidgetComponentService::CreateComboBox(UWidgetBlueprint* WidgetBluepri
 {
     UComboBoxString* ComboBox = WidgetBlueprint->WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), *ComponentName);
     
-    // Set options if provided
+    // NOTE: Setting options via kwargs only affects the runtime instance.
+    // The 'Default Options' array in the editor details panel is not populated by this method,
+    // likely because UComboBoxString::DefaultOptions is a private/protected member or intended for editor-only modification.
+
+    // Set runtime options if provided
     TArray<TSharedPtr<FJsonValue>> Options;
     if (GetJsonArray(KwargsObject, TEXT("options"), Options))
     {
-        for (const TSharedPtr<FJsonValue>& Option : Options)
+        // ComboBox->ClearOptions(); // Optional: Clear existing runtime options first
+        for (const TSharedPtr<FJsonValue>& OptionJson : Options)
         {
-            FString OptionText = Option->AsString();
-            ComboBox->AddOption(OptionText);
+            FString OptionText = OptionJson->AsString();
+            ComboBox->AddOption(OptionText); 
         }
     }
     
-    // Default selected option
-    FString DefaultOption;
-    if (KwargsObject->TryGetStringField(TEXT("default_option"), DefaultOption))
+    // Set runtime selected option if provided
+    FString SelectedOptionString;
+    if (KwargsObject->TryGetStringField(TEXT("selected_option"), SelectedOptionString) && !SelectedOptionString.IsEmpty())
     {
-        ComboBox->SetSelectedOption(DefaultOption);
+        ComboBox->SetSelectedOption(SelectedOptionString);
     }
     
     return ComboBox;
@@ -1010,7 +1022,7 @@ UWidget* FWidgetComponentService::CreateCircularThrobber(UWidgetBlueprint* Widge
     
     // Apply circular throbber specific properties
     int32 NumPieces = 8;
-    KwargsObject->TryGetNumberField(TEXT("num_pieces"), NumPieces);
+    KwargsObject->TryGetNumberField(TEXT("number_of_pieces"), NumPieces);
     Throbber->SetNumberOfPieces(NumPieces);
     
     float Period = 0.75f;

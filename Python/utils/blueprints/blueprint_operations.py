@@ -54,9 +54,11 @@ def create_blank_blueprint(
     }
     return send_unreal_command("create_blank_blueprint", params)
 
-def compile_blueprint(ctx: Context, blueprint_path: str) -> Dict[str, Any]:
+def compile_blueprint(ctx: Context, blueprint_name: str) -> Dict[str, Any]:
     """Implementation for compiling a blueprint."""
-    params = {"blueprint_path": blueprint_path}
+    # The C++ side will handle finding the path from the name, 
+    # assuming it expects the 'blueprint_name' key.
+    params = {"blueprint_name": blueprint_name} 
     return send_unreal_command("compile_blueprint", params)
 
 def save_blueprint(ctx: Context, blueprint_path: str) -> Dict[str, Any]:

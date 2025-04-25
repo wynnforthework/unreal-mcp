@@ -254,3 +254,17 @@ def add_widget_component_to_widget(
     params.update(kwargs) # Add dynamic kwargs to params
     logger.info(f"Adding widget component '{component_name}' ({component_type}) to widget '{widget_name}'...")
     return send_unreal_command("add_widget_component_to_widget", params)
+
+# Implementation for the new function (fixed)
+def set_widget_component_property(ctx: Context, widget_name: str, component_name: str, property_name: str, property_value: Any):
+    """Set property on a widget component."""
+    logger.info(f"Setting property '{property_name}' on component '{component_name}' in widget '{widget_name}'")
+    params = {
+        "widget_name": widget_name,        # Use snake_case
+        "component_name": component_name,   # Use snake_case
+        "property_name": property_name,     # Use snake_case
+        "property_value": property_value    # Use snake_case (send original value)
+    }
+    # Use send_unreal_command helper and correct command name
+    response = send_unreal_command("set_widget_component_property", params)
+    return response
