@@ -26,6 +26,13 @@
 #include "BlueprintActionDatabase.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "EngineUtils.h"
+#include "JsonObjectConverter.h"
+#include "UObject/EnumProperty.h"
+#include "UObject/TextProperty.h"
+#include "UObject/StructOnScope.h"
 
 // JSON Utilities
 TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateErrorResponse(const FString& Message)
@@ -36,14 +43,14 @@ TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateErrorResponse(const FString
     return ResponseObject;
 }
 
-TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateSuccessResponse(const TSharedPtr<FJsonObject>& Data)
+TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateSuccessResponse(const FString& Message /* = TEXT("") */)
 {
     TSharedPtr<FJsonObject> ResponseObject = MakeShared<FJsonObject>();
     ResponseObject->SetBoolField(TEXT("success"), true);
     
-    if (Data.IsValid())
+    if (!Message.IsEmpty())
     {
-        ResponseObject->SetObjectField(TEXT("data"), Data);
+        ResponseObject->SetStringField(TEXT("message"), Message);
     }
     
     return ResponseObject;
@@ -923,4 +930,224 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
     OutErrorMessage = FString::Printf(TEXT("Unsupported property type: %s for property %s"), 
                                     *Property->GetClass()->GetName(), *PropertyName);
     return false;
+}
+
+// Implementation for the new helper function
+bool FUnrealMCPCommonUtils::SetPropertyFromJson(FProperty* Property, void* ContainerPtr, const TSharedPtr<FJsonValue>& JsonValue)
+{
+    if (!Property || !ContainerPtr || !JsonValue.IsValid())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson: Invalid input parameter(s)."));
+        return false;
+    }
+
+    // Handle different property types
+    if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+    {
+        bool Value;
+        if (JsonValue->TryGetBool(Value))
+        {
+            BoolProperty->SetPropertyValue(ContainerPtr, Value);
+            return true;
+        }
+    }
+    else if (FIntProperty* IntProperty = CastField<FIntProperty>(Property))
+    {
+        int32 Value;
+        if (JsonValue->TryGetNumber(Value))
+        {
+            IntProperty->SetPropertyValue(ContainerPtr, Value);
+            return true;
+        }
+    }
+    else if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
+    {
+        double Value; // JSON numbers are doubles
+        if (JsonValue->TryGetNumber(Value))
+        {
+            FloatProperty->SetPropertyValue(ContainerPtr, static_cast<float>(Value));
+            return true;
+        }
+    }
+     else if (FDoubleProperty* DoubleProperty = CastField<FDoubleProperty>(Property))
+    {
+        double Value;
+        if (JsonValue->TryGetNumber(Value))
+        {
+            DoubleProperty->SetPropertyValue(ContainerPtr, Value);
+            return true;
+        }
+    }
+    else if (FStrProperty* StrProperty = CastField<FStrProperty>(Property))
+    {
+        FString Value;
+        if (JsonValue->TryGetString(Value))
+        {
+            StrProperty->SetPropertyValue(ContainerPtr, Value);
+            return true;
+        }
+    }
+    else if (FNameProperty* NameProperty = CastField<FNameProperty>(Property))
+    {
+        FString Value;
+        if (JsonValue->TryGetString(Value))
+        {
+            NameProperty->SetPropertyValue(ContainerPtr, FName(*Value));
+            return true;
+        }
+    }
+    else if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
+    {
+        FString Value;
+        if (JsonValue->TryGetString(Value))
+        {
+            TextProperty->SetPropertyValue(ContainerPtr, FText::FromString(Value));
+            return true;
+        }
+    }
+    else if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+    {
+        UEnum* Enum = EnumProperty->GetEnum();
+        if (!Enum) return false;
+
+        FString StringValue;
+        int64 IntValue;
+
+        if (JsonValue->TryGetString(StringValue)) // Try setting by string name first
+        {
+            IntValue = Enum->GetValueByNameString(StringValue);
+            if (IntValue != INDEX_NONE)
+            {
+                EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(ContainerPtr, IntValue);
+                return true;
+            }
+        }
+        else if (JsonValue->TryGetNumber(IntValue)) // Try setting by integer index
+        {
+             if (Enum->IsValidEnumValue(IntValue))
+             {
+                 EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(ContainerPtr, IntValue);
+                 return true;
+             }
+        }
+    }
+    else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+    {
+        const TSharedPtr<FJsonObject>* JsonObject;
+        if (JsonValue->TryGetObject(JsonObject))
+        {
+            // Use JsonObjectConverter to convert the JSON object to the struct
+            if (FJsonObjectConverter::JsonObjectToUStruct(JsonObject->ToSharedRef(), StructProperty->Struct, ContainerPtr, 0, 0))
+            {
+                return true;
+            }
+        }
+         // Handle common structs specifically if needed (e.g., FVector, FLinearColor from array)
+         else if (StructProperty->Struct == TBaseStructure<FVector>::Get()) 
+         {
+            const TArray<TSharedPtr<FJsonValue>>* JsonArray;
+            if (JsonValue->TryGetArray(JsonArray)) 
+            {
+                FVector VecValue;
+                if (ParseVector(*JsonArray, VecValue))
+                {
+                    *static_cast<FVector*>(ContainerPtr) = VecValue;
+                    return true;
+                }
+            }
+         }
+         else if (StructProperty->Struct == TBaseStructure<FLinearColor>::Get())
+         {
+             const TArray<TSharedPtr<FJsonValue>>* JsonArray;
+             if (JsonValue->TryGetArray(JsonArray))
+             {
+                 FLinearColor ColorValue;
+                 if (ParseLinearColor(*JsonArray, ColorValue))
+                 {
+                     *static_cast<FLinearColor*>(ContainerPtr) = ColorValue;
+                     return true;
+                 }
+             }
+         }
+        // Add more specific struct handlers (FRotator, etc.) if direct JsonObjectConverter fails or array input is preferred
+    }
+    // Add support for Array, Set, Map properties if needed
+
+    // Log failure if no suitable type handler was found
+    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson: Unsupported property type '%s' or invalid JSON value type."), *Property->GetClass()->GetName());
+
+    return false;
+}
+
+// Example implementation for ParseVector (adjust as needed)
+bool FUnrealMCPCommonUtils::ParseVector(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FVector& OutVector)
+{
+    if (JsonArray.Num() == 3) 
+    {
+        double X, Y, Z;
+        if (JsonArray[0]->TryGetNumber(X) && JsonArray[1]->TryGetNumber(Y) && JsonArray[2]->TryGetNumber(Z))
+        {
+            OutVector.X = X;
+            OutVector.Y = Y;
+            OutVector.Z = Z;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Example implementation for ParseLinearColor (adjust as needed)
+bool FUnrealMCPCommonUtils::ParseLinearColor(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FLinearColor& OutColor)
+{
+    if (JsonArray.Num() == 3 || JsonArray.Num() == 4)
+    {
+        double R, G, B, A = 1.0; // Default alpha to 1.0
+        if (JsonArray[0]->TryGetNumber(R) && JsonArray[1]->TryGetNumber(G) && JsonArray[2]->TryGetNumber(B))
+        {
+            if (JsonArray.Num() == 4 && !JsonArray[3]->TryGetNumber(A))
+            {
+                return false; // Failed to parse Alpha
+            }
+            OutColor.R = R;
+            OutColor.G = G;
+            OutColor.B = B;
+            OutColor.A = A;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Placeholder for ParseRotator if needed
+bool FUnrealMCPCommonUtils::ParseRotator(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FRotator& OutRotator)
+{
+    if (JsonArray.Num() == 3) 
+    {
+        double P, Y, R;
+        if (JsonArray[0]->TryGetNumber(P) && JsonArray[1]->TryGetNumber(Y) && JsonArray[2]->TryGetNumber(R))
+        {
+            OutRotator.Pitch = P;
+            OutRotator.Yaw = Y;
+            OutRotator.Roll = R;
+            return true;
+        }
+    }
+    return false;
+}
+
+// FindActorByName implementation might already exist, ensure it's suitable or adapt
+AActor* FUnrealMCPCommonUtils::FindActorByName(const FString& ActorName)
+{
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (!World) return nullptr;
+
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        AActor* Actor = *It;
+        if (Actor && Actor->GetName() == ActorName)
+        {
+            return Actor;
+        }
+    }
+    return nullptr;
 }
