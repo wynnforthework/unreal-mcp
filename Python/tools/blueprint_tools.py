@@ -5,7 +5,7 @@ This module provides tools for creating and manipulating Blueprint assets in Unr
 """
 
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 from mcp.server.fastmcp import FastMCP, Context
 from utils.blueprints.blueprint_operations import (
     create_blueprint as create_blueprint_impl,
@@ -119,7 +119,7 @@ def register_blueprint_tools(mcp: FastMCP):
         blueprint_name: str,
         component_name: str,
         property_name: str,
-        property_value: Any
+        property_value: Union[str, int, float, bool, list]
     ) -> Dict[str, Any]:
         """
         Set a property on a component in a Blueprint.

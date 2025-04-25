@@ -272,34 +272,15 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 
                 static const TArray<FString> UMGCommandsList = {
                     TEXT("create_umg_widget_blueprint"),
-                    TEXT("add_text_block_to_widget"),
-                    TEXT("add_button_to_widget"),
-                    TEXT("bind_widget_event"),
-                    TEXT("set_text_block_binding"),
+                    TEXT("bind_widget_component_event"),
+                    TEXT("set_text_block_widget_component_binding"),
                     TEXT("add_widget_to_viewport"),
-                    TEXT("add_widget_switcher_to_widget"),
-                    TEXT("add_throbber_to_widget"),
-                    TEXT("add_expandable_area_to_widget"),
-                    TEXT("add_menu_anchor_to_widget"),
-                    TEXT("add_rich_text_block_to_widget"),
-                    TEXT("add_safe_zone_to_widget"),
-                    TEXT("add_invalidation_box_to_widget"),
-                    TEXT("add_input_key_selector_to_widget"),
-                    TEXT("add_multi_line_editable_text_to_widget"),
-                    TEXT("add_size_box_to_widget"),
-                    TEXT("add_image_to_widget"),
-                    TEXT("add_check_box_to_widget"),
-                    TEXT("add_slider_to_widget"),
-                    TEXT("add_progress_bar_to_widget"),
-                    TEXT("add_border_to_widget"),
-                    TEXT("add_scroll_box_to_widget"),
-                    TEXT("add_spacer_to_widget"),
-                    TEXT("create_widget_component_with_child"),
-                    TEXT("add_widget_as_child"),
-                    TEXT("check_component_exists"),
+                    TEXT("create_parent_and_child_widget_components"),
+                    TEXT("add_child_widget_component_to_parent"),
+                    TEXT("check_widget_component_exists"),
                     TEXT("set_widget_component_placement"),
-                    TEXT("get_widget_container_dimensions"),
-                    TEXT("add_widget_component")
+                    TEXT("get_widget_container_component_dimensions"),
+                    TEXT("add_widget_component_to_widget")
                 };
                 
                 // Route to the appropriate handler
