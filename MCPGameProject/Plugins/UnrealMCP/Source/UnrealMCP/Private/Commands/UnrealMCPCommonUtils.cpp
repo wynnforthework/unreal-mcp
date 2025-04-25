@@ -794,6 +794,103 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
             }
         }
     }
+    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
+    {
+        if (Value->Type == EJson::Array)
+        {
+            const TArray<TSharedPtr<FJsonValue>>& Arr = Value->AsArray();
+            bool bStructHandled = false;
+
+            // Handle FVector2D
+            if (StructProp->Struct == TBaseStructure<FVector2D>::Get())
+            {
+                if (Arr.Num() == 2)
+                {
+                    FVector2D Vec2D(Arr[0]->AsNumber(), Arr[1]->AsNumber());
+                    StructProp->CopySingleValue(PropertyAddr, &Vec2D);
+                    UE_LOG(LogTemp, Display, TEXT("Setting FVector2D property %s to (%f, %f)"), 
+                          *PropertyName, Vec2D.X, Vec2D.Y);
+                    bStructHandled = true;
+                }
+                else
+                {
+                    OutErrorMessage = FString::Printf(TEXT("FVector2D property requires 2 values, got %d"), Arr.Num());
+                }
+            }
+            // Handle FLinearColor
+            else if (StructProp->Struct == TBaseStructure<FLinearColor>::Get())
+            {
+                if (Arr.Num() == 4) // RGBA
+                {
+                    FLinearColor Color(
+                        Arr[0]->AsNumber(),
+                        Arr[1]->AsNumber(),
+                        Arr[2]->AsNumber(),
+                        Arr[3]->AsNumber()
+                    );
+                    StructProp->CopySingleValue(PropertyAddr, &Color);
+                    UE_LOG(LogTemp, Display, TEXT("Setting FLinearColor property %s to (R=%f, G=%f, B=%f, A=%f)"), 
+                          *PropertyName, Color.R, Color.G, Color.B, Color.A);
+                    bStructHandled = true;
+                }
+                 else if (Arr.Num() == 3) // RGB, assume A=1
+                {
+                    FLinearColor Color(
+                        Arr[0]->AsNumber(),
+                        Arr[1]->AsNumber(),
+                        Arr[2]->AsNumber(),
+                        1.0f // Default Alpha to 1
+                    );
+                    StructProp->CopySingleValue(PropertyAddr, &Color);
+                    UE_LOG(LogTemp, Display, TEXT("Setting FLinearColor property %s to (R=%f, G=%f, B=%f, A=1.0)"), 
+                          *PropertyName, Color.R, Color.G, Color.B);
+                    bStructHandled = true;
+                }
+                else
+                {
+                    OutErrorMessage = FString::Printf(TEXT("FLinearColor property requires 3 (RGB) or 4 (RGBA) values, got %d"), Arr.Num());
+                }
+            }
+            // Handle FRotator
+            else if (StructProp->Struct == TBaseStructure<FRotator>::Get())
+            {
+                if (Arr.Num() == 3) // Pitch, Yaw, Roll
+                {
+                    FRotator Rotator(
+                        Arr[0]->AsNumber(), // Pitch
+                        Arr[1]->AsNumber(), // Yaw
+                        Arr[2]->AsNumber()  // Roll
+                    );
+                    StructProp->CopySingleValue(PropertyAddr, &Rotator);
+                    UE_LOG(LogTemp, Display, TEXT("Setting FRotator property %s to (P=%f, Y=%f, R=%f)"), 
+                          *PropertyName, Rotator.Pitch, Rotator.Yaw, Rotator.Roll);
+                    bStructHandled = true;
+                }
+                else
+                {
+                    OutErrorMessage = FString::Printf(TEXT("FRotator property requires 3 values (Pitch, Yaw, Roll), got %d"), Arr.Num());
+                }
+            }
+            // NOTE: FVector is handled specifically in HandleSetComponentProperty currently, 
+            // but could be moved here for consistency if desired.
+            
+            if (bStructHandled)
+            {
+                return true; // Successfully handled the struct
+            }
+        }
+        else
+        {
+             OutErrorMessage = FString::Printf(TEXT("Struct property %s requires a JSON array value"), *PropertyName);
+        }
+        // If we reach here, the struct type wasn't handled or input was wrong
+        if (OutErrorMessage.IsEmpty())
+        {
+            OutErrorMessage = FString::Printf(TEXT("Unsupported struct type '%s' for property %s"), 
+                StructProp->Struct ? *StructProp->Struct->GetName() : TEXT("Unknown"), *PropertyName);
+        }
+        return false;
+    }
     
     OutErrorMessage = FString::Printf(TEXT("Unsupported property type: %s for property %s"), 
                                     *Property->GetClass()->GetName(), *PropertyName);
