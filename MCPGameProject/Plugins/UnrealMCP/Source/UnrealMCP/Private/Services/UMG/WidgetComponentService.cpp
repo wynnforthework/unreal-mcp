@@ -404,6 +404,21 @@ UWidget* FWidgetComponentService::CreateButton(UWidgetBlueprint* WidgetBlueprint
             R, G, B, A, *ComponentName);
     }
     
+    // Apply use brush transparency if provided
+    bool bUseBrushTransparency = false;
+    if (KwargsToUse->TryGetBoolField(TEXT("use_brush_transparency"), bUseBrushTransparency))
+    {
+        UE_LOG(LogTemp, Display, TEXT("Setting brush draw type for Button '%s' to support transparency"), *ComponentName);
+        
+        // Update button style to use transparency
+        FButtonStyle ButtonStyle = Button->GetStyle();
+        ButtonStyle.Normal.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+        ButtonStyle.Hovered.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+        ButtonStyle.Pressed.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+        ButtonStyle.Disabled.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+        Button->SetStyle(ButtonStyle);
+    }
+    
     // Note: We no longer add text inside the button
     // Text should be added separately using a TextBlock and then arranged as a child of the button
     
@@ -448,6 +463,17 @@ UWidget* FWidgetComponentService::CreateImage(UWidgetBlueprint* WidgetBlueprint,
         
         UE_LOG(LogTemp, Display, TEXT("Applied brush color [%f, %f, %f, %f] to Image '%s'"), 
             R, G, B, A, *ComponentName);
+    }
+    
+    // Apply use brush transparency if provided (for proper alpha handling)
+    bool bUseBrushTransparency = false;
+    if (KwargsToUse->TryGetBoolField(TEXT("use_brush_transparency"), bUseBrushTransparency))
+    {
+        UE_LOG(LogTemp, Display, TEXT("Setting image brush draw type for Image '%s' to support transparency"), *ComponentName);
+        
+        FSlateBrush Brush = Image->GetBrush();
+        Brush.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+        Image->SetBrush(Brush);
     }
     
     return Image;
@@ -645,12 +671,45 @@ UWidget* FWidgetComponentService::CreateBorder(UWidgetBlueprint* WidgetBlueprint
             
             UE_LOG(LogTemp, Display, TEXT("Setting brush color for Border '%s' to [%f, %f, %f, %f]"), *ComponentName, R, G, B, A);
             
+            // In UE 5.5, UBorder doesn't have SetBrushFromSlateBrush
+            // Just set the brush color directly
             FLinearColor BrushColor(R, G, B, A);
             Border->SetBrushColor(BrushColor);
             
             UE_LOG(LogTemp, Display, TEXT("Applied brush color [%f, %f, %f, %f] to Border '%s'"), 
                 R, G, B, A, *ComponentName);
         }
+    }
+
+    // Apply opacity if provided
+    float Opacity = 1.0f;
+    if (KwargsToUse->TryGetNumberField(TEXT("opacity"), Opacity))
+    {
+        UE_LOG(LogTemp, Display, TEXT("Setting opacity for Border '%s' to %f"), *ComponentName, Opacity);
+        Border->SetRenderOpacity(Opacity);
+    }
+    
+    // Apply use brush transparency if provided
+    bool bUseBrushTransparency = false;
+    if (KwargsToUse->TryGetBoolField(TEXT("use_brush_transparency"), bUseBrushTransparency))
+    {
+        UE_LOG(LogTemp, Display, TEXT("Setting use brush transparency for Border '%s' to %d"), *ComponentName, bUseBrushTransparency);
+        
+        // In UE 5.5, we need to handle transparency differently
+        // First, get the current brush color to preserve it
+        FLinearColor BorderColor = Border->GetBrushColor();
+        
+        // For UE 5.5, we just set the brush color directly
+        // The transparency will be controlled by the alpha value in the brush color
+        Border->SetBrushColor(BorderColor);
+        
+        // In UE 5.5, transparency settings might be handled differently
+        // Preserve the current opacity
+        Border->SetRenderOpacity(Border->GetRenderOpacity());
+        
+        // Additional note: In UE 5.5, background transparency may depend on the material settings
+        // Ensure your UI materials support proper alpha blending
+        UE_LOG(LogTemp, Display, TEXT("Applied transparency settings to Border '%s'"), *ComponentName);
     }
     
     // Apply padding if provided

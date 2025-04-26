@@ -281,7 +281,8 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("set_widget_component_placement"),
                     TEXT("get_widget_container_component_dimensions"),
                     TEXT("add_widget_component_to_widget"),
-                    TEXT("set_widget_component_property")
+                    TEXT("set_widget_component_property"),
+                    TEXT("get_widget_component_layout")
                 };
                 
                 // Route to the appropriate handler

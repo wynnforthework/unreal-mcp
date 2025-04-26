@@ -294,4 +294,24 @@ private:
      * @return JSON response indicating success or failure.
      */
     TSharedPtr<FJsonObject> HandleSetWidgetComponentProperty(const TSharedPtr<FJsonObject>& Params);
+
+    /**
+     * Get layout information for all components within a UMG Widget Blueprint.
+     * @param Params - Must include:
+     *                "widget_name" - Name of the target Widget Blueprint
+     * @return JSON response with a list of all widget components and their layout properties.
+     *         Each component object contains:
+     *         - name: Component name
+     *         - type: Component class name
+     *         - slot_properties: Layout information based on slot type:
+     *           - position: [X, Y] (for CanvasPanelSlot)
+     *           - size: [Width, Height] (for CanvasPanelSlot)
+     *           - padding: [Left, Top, Right, Bottom] (for BoxSlot, BorderSlot, etc.)
+     *           - horizontal_alignment: Alignment value (for BoxSlot, BorderSlot, etc.)
+     *           - vertical_alignment: Alignment value (for BoxSlot, BorderSlot, etc.)
+     *           - size_rule: Size rule description (for BoxSlot)
+     *           - size_value: Associated value for size rule (for BoxSlot)
+     *           - z_order: Z-order index (for CanvasPanelSlot)
+     */
+    TSharedPtr<FJsonObject> HandleGetWidgetComponentLayout(const TSharedPtr<FJsonObject>& Params);
 };

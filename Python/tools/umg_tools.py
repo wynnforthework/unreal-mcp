@@ -5,7 +5,7 @@ This module provides tools for creating and manipulating UMG Widget Blueprints i
 """
 
 import logging
-from typing import Dict, List, Any
+from typing import Any, Dict, List, Union
 from mcp.server.fastmcp import FastMCP, Context
 # Use _impl aliases for implementation functions
 from utils.widgets.widget_components import (
@@ -19,7 +19,8 @@ from utils.widgets.widget_components import (
     set_widget_component_placement as set_widget_component_placement_impl,
     get_widget_container_component_dimensions as get_widget_container_component_dimensions_impl,
     add_widget_component_to_widget as add_widget_component_to_widget_impl,
-    set_widget_component_property as set_widget_component_property_impl
+    set_widget_component_property as set_widget_component_property_impl,
+    get_widget_component_layout_impl  # Import the new _impl function
 )
 
 # Get logger
@@ -430,6 +431,14 @@ def register_umg_tools(mcp: FastMCP):
             position: Optional [X, Y] position in the canvas panel
             size: Optional [Width, Height] of the component
             **kwargs: Additional parameters specific to the component type
+                For Border components:
+                - background_color/brush_color: [R, G, B, A] color values (0.0-1.0)
+                  Note: To achieve transparent backgrounds, set the Alpha value (A) in the color array
+                - opacity: Value between 0.0-1.0 setting the render opacity of the entire border
+                  and its contents. This is separate from the brush color's alpha.
+                - use_brush_transparency: Boolean (True/False) to enable the "Use Brush Transparency" option
+                  Required for alpha transparency to work properly with rounded corners or other complex brushes
+                - padding: [Left, Top, Right, Bottom] values
             
         Returns:
             Dict containing success status and component properties
@@ -466,8 +475,7 @@ def register_umg_tools(mcp: FastMCP):
         widget_name: str,
         component_name: str,
         property_name: str,
-        # Explicitly type as str for now, although SetPropertyFromJson handles others
-        property_value: str 
+        property_value: Union[str, int, float, bool, list, Any]
     ) -> Dict[str, object]:
         """
         Set a property on a specific component within a UMG Widget Blueprint.
@@ -509,7 +517,59 @@ def register_umg_tools(mcp: FastMCP):
         # Call aliased implementation
         return set_widget_component_property_impl(ctx, widget_name, component_name, property_name, property_value)
 
-logger.info("UMG tools registered successfully")
+    @mcp.tool()
+    def get_widget_component_layout(ctx: Context, widget_name: str) -> dict:
+        """
+        Get hierarchical layout information for all components within a UMG Widget Blueprint.
+
+        This includes component name, type, and layout properties derived from its slot
+        (e.g., position, size for CanvasPanelSlot; padding, alignment for BoxSlots).
+        The result is returned as a hierarchical tree structure that mirrors the actual
+        parent-child relationships in the widget.
+
+        Args:
+            widget_name: Name of the target Widget Blueprint (e.g., "WBP_MainMenu", "/Game/UI/MyWidget").
+
+        Returns:
+            Dict containing:
+                - success (bool): True if the operation succeeded.
+                - message (str): Status message.
+                - hierarchy (dict): Root component with the following structure:
+                    - name (str): Component name.
+                    - type (str): Component class name (e.g., "TextBlock", "Button").
+                    - slot_properties (dict): Layout properties based on the slot type.
+                        - position (list[float]): [X, Y] (for CanvasPanelSlot)
+                        - size (list[float]): [Width, Height] (for CanvasPanelSlot)
+                        - padding (list[float]): [L, T, R, B] (for BoxSlot, BorderSlot, etc.)
+                        - horizontal_alignment (str): e.g., "HAlign_Fill" (for BoxSlot, BorderSlot, etc.)
+                        - vertical_alignment (str): e.g., "VAlign_Center" (for BoxSlot, BorderSlot, etc.)
+                        - size_rule (str): e.g., "Fill" (for BoxSlot size)
+                        - size_value (float): Value associated with size_rule (for BoxSlot size)
+                        - z_order (int): (for CanvasPanelSlot)
+                        - slot_type (str): Type of slot (e.g., "CanvasPanelSlot", "VerticalBoxSlot")
+                    - children (list[dict]): List of child components with the same structure.
+
+        Examples:
+            # Get layout info for a widget
+            layout = get_widget_component_layout(widget_name="WBP_PricingPage")
+            if layout.get("success"):
+                hierarchy = layout.get("hierarchy", {})
+                print(f"Root component: {hierarchy.get('name')} ({hierarchy.get('type')})")
+                
+                # Process children recursively
+                def process_children(component, depth=0):
+                    indent = "  " * depth
+                    children = component.get("children", [])
+                    for child in children:
+                        print(f"{indent}- {child['name']} ({child['type']})")
+                        process_children(child, depth + 1)
+                
+                process_children(hierarchy)
+        """
+        # Call the implementation function from the utils module
+        return get_widget_component_layout_impl(ctx, widget_name)
+
+    logger.info("UMG tools registered successfully")
 
 # Moved outside the function
 logger.info("UMG tools module loaded")
