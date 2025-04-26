@@ -33,6 +33,7 @@
 
 // Include additional widget components
 #include "Components/WidgetSwitcher.h"
+#include "Components/WidgetSwitcherSlot.h"
 #include "Components/Throbber.h"
 #include "Components/ExpandableArea.h"
 #include "Components/MenuAnchor.h"
@@ -48,8 +49,10 @@
 #include "Components/ProgressBar.h"
 #include "Components/Border.h"
 #include "Components/ScrollBox.h"
+#include "Components/ScrollBoxSlot.h"
 #include "Components/Spacer.h"
 #include "Components/VerticalBox.h"
+#include "Components/VerticalBoxSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/Overlay.h"
 #include "Components/GridPanel.h"
@@ -70,6 +73,12 @@
 #include "Components/TileView.h"
 #include "Components/TreeView.h"
 #include "Components/UniformGridPanel.h"
+#include "Components/HorizontalBoxSlot.h"
+#include "Components/BorderSlot.h"
+#include "Components/OverlaySlot.h"
+#include "Components/GridSlot.h"
+#include "Components/UniformGridSlot.h"
+#include "Components/WrapBoxSlot.h"
 
 #include "Services/UMG/WidgetComponentService.h"
 
@@ -226,6 +235,10 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCommand(const FString& Comm
 	else if (CommandName == TEXT("set_widget_component_property"))
 	{
 		return HandleSetWidgetComponentProperty(Params);
+	}
+	else if (CommandName == TEXT("get_widget_component_layout"))
+	{
+		return HandleGetWidgetComponentLayout(Params);
 	}
 	
 	return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Unknown UMG command: %s"), *CommandName));
@@ -1584,21 +1597,30 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetComponent(const TS
 
 TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetWidgetComponentProperty(const TSharedPtr<FJsonObject>& Params)
 {
+    // Log the entire parameters object for debugging
+    FString ParamsString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ParamsString);
+    FJsonSerializer::Serialize(Params.ToSharedRef(), Writer);
+    UE_LOG(LogUnrealMCPUMG, Log, TEXT("HandleSetWidgetComponentProperty - Raw Input: %s"), *ParamsString);
+
     FString WidgetName;
     if (!Params->TryGetStringField(TEXT("widget_name"), WidgetName))
     {
+        UE_LOG(LogUnrealMCPUMG, Error, TEXT("Missing parameter: widget_name"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing parameter: widget_name"));
     }
 
     FString ComponentName;
     if (!Params->TryGetStringField(TEXT("component_name"), ComponentName))
     {
+        UE_LOG(LogUnrealMCPUMG, Error, TEXT("Missing parameter: component_name"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing parameter: component_name"));
     }
 
     FString PropertyName;
     if (!Params->TryGetStringField(TEXT("property_name"), PropertyName))
     {
+        UE_LOG(LogUnrealMCPUMG, Error, TEXT("Missing parameter: property_name"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing parameter: property_name"));
     }
 
@@ -1608,11 +1630,54 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetWidgetComponentProperty(
     // Check if the field exists and the value it points to is valid
     if (!PropertyValueJsonPtr || !(*PropertyValueJsonPtr).IsValid())
     {
+        UE_LOG(LogUnrealMCPUMG, Error, TEXT("Missing or invalid parameter: property_value"));
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing or invalid parameter: property_value"));
     }
 
     // Get a reference to the actual value
     const TSharedPtr<FJsonValue>& PropertyValueJsonValueRef = *PropertyValueJsonPtr;
+    
+    // Debug the property value type
+    FString PropertyValueType;
+    switch (PropertyValueJsonValueRef->Type)
+    {
+        case EJson::None: PropertyValueType = TEXT("None"); break;
+        case EJson::Null: PropertyValueType = TEXT("Null"); break;
+        case EJson::String: PropertyValueType = TEXT("String"); break;
+        case EJson::Boolean: PropertyValueType = TEXT("Boolean"); break;
+        case EJson::Number: PropertyValueType = TEXT("Number"); break;
+        case EJson::Array: PropertyValueType = TEXT("Array"); break;
+        case EJson::Object: PropertyValueType = TEXT("Object"); break;
+        default: PropertyValueType = TEXT("Unknown"); break;
+    }
+    
+    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Property value type: %s"), *PropertyValueType);
+    
+    // If it's a string value, log the actual string
+    if (PropertyValueJsonValueRef->Type == EJson::String)
+    {
+        UE_LOG(LogUnrealMCPUMG, Log, TEXT("Property string value: '%s'"), *PropertyValueJsonValueRef->AsString());
+    }
+    // If it's an array value, log the array elements
+    else if (PropertyValueJsonValueRef->Type == EJson::Array)
+    {
+        const TArray<TSharedPtr<FJsonValue>>& Array = PropertyValueJsonValueRef->AsArray();
+        FString ArrayContent = TEXT("[");
+        for (int32 i = 0; i < Array.Num(); i++)
+        {
+            if (i > 0) ArrayContent += TEXT(", ");
+            if (Array[i]->Type == EJson::Number)
+                ArrayContent += FString::Printf(TEXT("%f"), Array[i]->AsNumber());
+            else if (Array[i]->Type == EJson::String)
+                ArrayContent += FString::Printf(TEXT("\"%s\""), *Array[i]->AsString());
+            else if (Array[i]->Type == EJson::Boolean)
+                ArrayContent += Array[i]->AsBool() ? TEXT("true") : TEXT("false");
+            else
+                ArrayContent += TEXT("?");
+        }
+        ArrayContent += TEXT("]");
+        UE_LOG(LogUnrealMCPUMG, Log, TEXT("Property array value: %s"), *ArrayContent);
+    }
 
     // Use the defined log category
     UE_LOG(LogUnrealMCPUMG, Log, TEXT("Setting property '%s' on component '%s' in widget '%s'"), *PropertyName, *ComponentName, *WidgetName);
@@ -1650,6 +1715,170 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetWidgetComponentProperty(
     // Set the property value based on its type and the JSON input
     FString ErrorMessage;
     
+    // Special handling for UseBrushTransparency to properly set up brush components
+    if (PropertyName == TEXT("UseBrushTransparency"))
+    {
+        // Check if we have a component that has brush properties
+        if (UBorder* BorderWidget = Cast<UBorder>(TargetWidget))
+        {
+            // Get the value as a boolean
+            bool bUseBrushTransparency = false;
+            if (PropertyValueJsonValueRef->TryGetBool(bUseBrushTransparency))
+            {
+                UE_LOG(LogUnrealMCPUMG, Log, TEXT("Setting UseBrushTransparency to %d for Border '%s'"), 
+                    bUseBrushTransparency, *ComponentName);
+                
+                // In UE 5.5, UBorder doesn't have GetBrush or SetBrushFromSlateBrush
+                // Instead, we'll set brush properties directly
+                if (bUseBrushTransparency)
+                {
+                    // For transparency, set DrawAs to Image through alternative means
+                    // We'll set the brush tint directly, preserving alpha
+                    FLinearColor CurrentColor = BorderWidget->GetBrushColor();
+                    BorderWidget->SetBrushColor(CurrentColor);
+                    
+                    // For UE 5.5, set the appropriate property to enable transparency
+                    // This might be handled through SetContentColorAndOpacity or other properties
+                    BorderWidget->SetRenderOpacity(BorderWidget->GetRenderOpacity()); // Preserve current opacity
+                }
+                else
+                {
+                    // For non-transparent borders, simply set the brush color
+                    FLinearColor CurrentColor = BorderWidget->GetBrushColor();
+                    BorderWidget->SetBrushColor(CurrentColor);
+                }
+                
+                // Mark blueprint modified and return success
+                FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
+                FKismetEditorUtilities::CompileBlueprint(WidgetBP);
+                
+                TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
+                Response->SetStringField(TEXT("widget_name"), WidgetName);
+                Response->SetStringField(TEXT("component_name"), ComponentName);
+                Response->SetStringField(TEXT("property_name"), PropertyName);
+                Response->SetBoolField(TEXT("value"), bUseBrushTransparency);
+                return Response;
+            }
+        }
+        else if (UImage* ImageWidget = Cast<UImage>(TargetWidget))
+        {
+            // For Image components
+            bool bUseBrushTransparency = false;
+            if (PropertyValueJsonValueRef->TryGetBool(bUseBrushTransparency))
+            {
+                UE_LOG(LogUnrealMCPUMG, Log, TEXT("Setting UseBrushTransparency to %d for Image '%s'"), 
+                    bUseBrushTransparency, *ComponentName);
+                // For images, we need to ensure the brush is set up for transparency
+                FSlateBrush Brush = ImageWidget->GetBrush();
+                Brush.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+                ImageWidget->SetBrush(Brush);
+                
+                // Mark blueprint modified and return success
+                FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
+                FKismetEditorUtilities::CompileBlueprint(WidgetBP);
+                
+                TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
+                Response->SetStringField(TEXT("widget_name"), WidgetName);
+                Response->SetStringField(TEXT("component_name"), ComponentName);
+                Response->SetStringField(TEXT("property_name"), PropertyName);
+                Response->SetBoolField(TEXT("value"), bUseBrushTransparency);
+                return Response;
+            }
+        }
+        else if (UButton* ButtonWidget = Cast<UButton>(TargetWidget))
+        {
+            // For Button components
+            bool bUseBrushTransparency = false;
+            if (PropertyValueJsonValueRef->TryGetBool(bUseBrushTransparency))
+            {
+                UE_LOG(LogUnrealMCPUMG, Log, TEXT("Setting UseBrushTransparency to %d for Button '%s'"), 
+                    bUseBrushTransparency, *ComponentName);
+                
+                // Update button style to use transparency
+                FButtonStyle ButtonStyle = ButtonWidget->GetStyle();
+                ButtonStyle.Normal.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+                ButtonStyle.Hovered.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+                ButtonStyle.Pressed.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+                ButtonStyle.Disabled.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+                ButtonWidget->SetStyle(ButtonStyle);
+                
+                // Mark blueprint modified and return success
+                FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
+                FKismetEditorUtilities::CompileBlueprint(WidgetBP);
+                
+                TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
+                Response->SetStringField(TEXT("widget_name"), WidgetName);
+                Response->SetStringField(TEXT("component_name"), ComponentName);
+                Response->SetStringField(TEXT("property_name"), PropertyName);
+                Response->SetBoolField(TEXT("value"), bUseBrushTransparency);
+                return Response;
+            }
+        }
+        // Handle additional brush-using components
+        else
+        {
+            // Check for any component that has a SetUseBrushTransparency method
+            // This covers classes that inherit from Border but might have different class name
+            bool bUseBrushTransparency = false;
+            if (PropertyValueJsonValueRef->TryGetBool(bUseBrushTransparency))
+            {
+                // Using reflection to check for and call common brush transparency methods
+                UE_LOG(LogUnrealMCPUMG, Log, TEXT("Attempting to set UseBrushTransparency on component '%s' of class '%s'"), 
+                    *ComponentName, *TargetWidget->GetClass()->GetName());
+                
+                bool bApplied = false;
+                
+                // Try to call SetUseBrushTransparency if it exists (for Border-like widgets)
+                UFunction* SetUseBrushTransparencyFunc = TargetWidget->FindFunction(FName(TEXT("SetUseBrushTransparency")));
+                if (SetUseBrushTransparencyFunc)
+                {
+                    struct FParams
+                    {
+                        bool bInUseBrushTransparency;
+                    };
+                    FParams Params;
+                    Params.bInUseBrushTransparency = bUseBrushTransparency;
+                    TargetWidget->ProcessEvent(SetUseBrushTransparencyFunc, &Params);
+                    bApplied = true;
+                    
+                    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Applied SetUseBrushTransparency(%d) to component '%s'"), 
+                        bUseBrushTransparency, *ComponentName);
+                }
+                
+                // Try to modify the brush DrawAs property for Image-like widgets
+                UFunction* GetBrushFunc = TargetWidget->FindFunction(FName(TEXT("GetBrush")));
+                UFunction* SetBrushFunc = TargetWidget->FindFunction(FName(TEXT("SetBrush")));
+                if (GetBrushFunc && SetBrushFunc)
+                {
+                    FSlateBrush Brush;
+                    TargetWidget->ProcessEvent(GetBrushFunc, &Brush);
+                    
+                    // Modify the brush for transparency
+                    Brush.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
+                    TargetWidget->ProcessEvent(SetBrushFunc, &Brush);
+                    bApplied = true;
+                    
+                    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Applied brush DrawAs modification to component '%s'"), *ComponentName);
+                }
+                
+                if (bApplied)
+                {
+                    // Mark blueprint modified and return success
+                    FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
+                    FKismetEditorUtilities::CompileBlueprint(WidgetBP);
+                    
+                    TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
+                    Response->SetStringField(TEXT("widget_name"), WidgetName);
+                    Response->SetStringField(TEXT("component_name"), ComponentName);
+                    Response->SetStringField(TEXT("property_name"), PropertyName);
+                    Response->SetBoolField(TEXT("value"), bUseBrushTransparency);
+                    Response->SetBoolField(TEXT("used_reflection"), true);
+                    return Response;
+                }
+            }
+        }
+    }
+    
     // Use the helper function with the reference to the JSON value
     // This helper needs to be implemented in UnrealMCPCommonUtils or similar
     if (!FUnrealMCPCommonUtils::SetPropertyFromJson(Property, PropertyData, PropertyValueJsonValueRef))
@@ -1675,5 +1904,312 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetWidgetComponentProperty(
     // Consider returning the actual set value if conversion occurred
     // Response->SetField(TEXT("set_value"), PropertyValueJsonValueRef); 
 
+    return Response;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleGetWidgetComponentLayout(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get the widget blueprint name parameter
+    FString WidgetBlueprintName;
+    if (!Params->TryGetStringField(TEXT("widget_name"), WidgetBlueprintName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing required 'widget_name' parameter"));
+    }
+
+    // Find the widget blueprint
+    UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(WidgetBlueprintName);
+    if (!WidgetBlueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(
+            FString::Printf(TEXT("Widget Blueprint not found: %s"), *WidgetBlueprintName)
+        );
+    }
+
+    // Check if the WidgetTree exists
+    if (!WidgetBlueprint->WidgetTree)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(
+            FString::Printf(TEXT("Widget Blueprint '%s' has no WidgetTree"), *WidgetBlueprintName)
+        );
+    }
+
+    // Create response object
+    TSharedPtr<FJsonObject> Response = MakeShared<FJsonObject>();
+    Response->SetBoolField(TEXT("success"), true);
+    
+    // Helper function to handle Slot properties differently based on type
+    auto ProcessWidgetSlot = [](UWidget* Widget) -> TSharedPtr<FJsonObject> {
+        TSharedPtr<FJsonObject> SlotProperties = MakeShared<FJsonObject>();
+
+        if (!Widget || !Widget->Slot)
+        {
+            return SlotProperties;
+        }
+
+        // Try each slot type and extract relevant properties
+        if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Widget->Slot))
+        {
+            // Position
+            FVector2D Position = CanvasSlot->GetPosition();
+            TArray<TSharedPtr<FJsonValue>> PositionArray;
+            PositionArray.Add(MakeShared<FJsonValueNumber>(Position.X));
+            PositionArray.Add(MakeShared<FJsonValueNumber>(Position.Y));
+            SlotProperties->SetArrayField(TEXT("position"), PositionArray);
+
+            // Size
+            FVector2D Size = CanvasSlot->GetSize();
+            TArray<TSharedPtr<FJsonValue>> SizeArray;
+            SizeArray.Add(MakeShared<FJsonValueNumber>(Size.X));
+            SizeArray.Add(MakeShared<FJsonValueNumber>(Size.Y));
+            SlotProperties->SetArrayField(TEXT("size"), SizeArray);
+
+            // Alignment
+            FVector2D Alignment = CanvasSlot->GetAlignment();
+            TArray<TSharedPtr<FJsonValue>> AlignmentArray;
+            AlignmentArray.Add(MakeShared<FJsonValueNumber>(Alignment.X));
+            AlignmentArray.Add(MakeShared<FJsonValueNumber>(Alignment.Y));
+            SlotProperties->SetArrayField(TEXT("alignment"), AlignmentArray);
+
+            // Z-Order
+            SlotProperties->SetNumberField(TEXT("z_order"), CanvasSlot->GetZOrder());
+        }
+        else if (UVerticalBoxSlot* VerticalBoxSlot = Cast<UVerticalBoxSlot>(Widget->Slot))
+        {
+            // Padding
+            FMargin Padding = VerticalBoxSlot->GetPadding();
+            TArray<TSharedPtr<FJsonValue>> PaddingArray;
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Left));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Top));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Right));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Bottom));
+            SlotProperties->SetArrayField(TEXT("padding"), PaddingArray);
+
+            // Vertical Alignment
+            SlotProperties->SetStringField(TEXT("vertical_alignment"), 
+                StaticEnum<EVerticalAlignment>()->GetNameStringByValue((int64)VerticalBoxSlot->GetVerticalAlignment()));
+
+            // Size
+            SlotProperties->SetStringField(TEXT("size_rule"), 
+                StaticEnum<ESlateSizeRule::Type>()->GetNameStringByValue((int64)VerticalBoxSlot->GetSize().SizeRule));
+            SlotProperties->SetNumberField(TEXT("size_value"), VerticalBoxSlot->GetSize().Value);
+        }
+        else if (UHorizontalBoxSlot* HorizontalBoxSlot = Cast<UHorizontalBoxSlot>(Widget->Slot))
+        {
+            // Padding
+            FMargin Padding = HorizontalBoxSlot->GetPadding();
+            TArray<TSharedPtr<FJsonValue>> PaddingArray;
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Left));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Top));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Right));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Bottom));
+            SlotProperties->SetArrayField(TEXT("padding"), PaddingArray);
+
+            // Horizontal Alignment
+            SlotProperties->SetStringField(TEXT("horizontal_alignment"), 
+                StaticEnum<EHorizontalAlignment>()->GetNameStringByValue((int64)HorizontalBoxSlot->GetHorizontalAlignment()));
+
+            // Size
+            SlotProperties->SetStringField(TEXT("size_rule"), 
+                StaticEnum<ESlateSizeRule::Type>()->GetNameStringByValue((int64)HorizontalBoxSlot->GetSize().SizeRule));
+            SlotProperties->SetNumberField(TEXT("size_value"), HorizontalBoxSlot->GetSize().Value);
+        }
+        else if (UBorderSlot* BorderSlot = Cast<UBorderSlot>(Widget->Slot))
+        {
+            // Padding
+            FMargin Padding = BorderSlot->GetPadding();
+            TArray<TSharedPtr<FJsonValue>> PaddingArray;
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Left));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Top));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Right));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Bottom));
+            SlotProperties->SetArrayField(TEXT("padding"), PaddingArray);
+
+            // Horizontal and Vertical Alignment
+            SlotProperties->SetStringField(TEXT("horizontal_alignment"), 
+                StaticEnum<EHorizontalAlignment>()->GetNameStringByValue((int64)BorderSlot->GetHorizontalAlignment()));
+            SlotProperties->SetStringField(TEXT("vertical_alignment"), 
+                StaticEnum<EVerticalAlignment>()->GetNameStringByValue((int64)BorderSlot->GetVerticalAlignment()));
+        }
+        else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(Widget->Slot))
+        {
+            // Padding
+            FMargin Padding = OverlaySlot->GetPadding();
+            TArray<TSharedPtr<FJsonValue>> PaddingArray;
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Left));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Top));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Right));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Bottom));
+            SlotProperties->SetArrayField(TEXT("padding"), PaddingArray);
+
+            // Horizontal and Vertical Alignment
+            SlotProperties->SetStringField(TEXT("horizontal_alignment"), 
+                StaticEnum<EHorizontalAlignment>()->GetNameStringByValue((int64)OverlaySlot->GetHorizontalAlignment()));
+            SlotProperties->SetStringField(TEXT("vertical_alignment"), 
+                StaticEnum<EVerticalAlignment>()->GetNameStringByValue((int64)OverlaySlot->GetVerticalAlignment()));
+        }
+        else if (UGridSlot* GridSlot = Cast<UGridSlot>(Widget->Slot))
+        {
+            // Row and Column
+            SlotProperties->SetNumberField(TEXT("row"), GridSlot->GetRow());
+            SlotProperties->SetNumberField(TEXT("column"), GridSlot->GetColumn());
+            
+            // Row and Column Span
+            SlotProperties->SetNumberField(TEXT("row_span"), GridSlot->GetRowSpan());
+            SlotProperties->SetNumberField(TEXT("column_span"), GridSlot->GetColumnSpan());
+            
+            // Padding
+            FMargin Padding = GridSlot->GetPadding();
+            TArray<TSharedPtr<FJsonValue>> PaddingArray;
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Left));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Top));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Right));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Bottom));
+            SlotProperties->SetArrayField(TEXT("padding"), PaddingArray);
+
+            // Horizontal and Vertical Alignment
+            SlotProperties->SetStringField(TEXT("horizontal_alignment"), 
+                StaticEnum<EHorizontalAlignment>()->GetNameStringByValue((int64)GridSlot->GetHorizontalAlignment()));
+            SlotProperties->SetStringField(TEXT("vertical_alignment"), 
+                StaticEnum<EVerticalAlignment>()->GetNameStringByValue((int64)GridSlot->GetVerticalAlignment()));
+        }
+        else if (UUniformGridSlot* UniformGridSlot = Cast<UUniformGridSlot>(Widget->Slot))
+        {
+            // Row and Column
+            SlotProperties->SetNumberField(TEXT("row"), UniformGridSlot->GetRow());
+            SlotProperties->SetNumberField(TEXT("column"), UniformGridSlot->GetColumn());
+            
+            // Horizontal and Vertical Alignment
+            SlotProperties->SetStringField(TEXT("horizontal_alignment"), 
+                StaticEnum<EHorizontalAlignment>()->GetNameStringByValue((int64)UniformGridSlot->GetHorizontalAlignment()));
+            SlotProperties->SetStringField(TEXT("vertical_alignment"), 
+                StaticEnum<EVerticalAlignment>()->GetNameStringByValue((int64)UniformGridSlot->GetVerticalAlignment()));
+        }
+        else if (UWrapBoxSlot* WrapBoxSlot = Cast<UWrapBoxSlot>(Widget->Slot))
+        {
+            // Padding
+            FMargin Padding = WrapBoxSlot->GetPadding();
+            TArray<TSharedPtr<FJsonValue>> PaddingArray;
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Left));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Top));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Right));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Bottom));
+            SlotProperties->SetArrayField(TEXT("padding"), PaddingArray);
+            
+            // Horizontal and Vertical Alignment
+            SlotProperties->SetStringField(TEXT("horizontal_alignment"), 
+                StaticEnum<EHorizontalAlignment>()->GetNameStringByValue((int64)WrapBoxSlot->GetHorizontalAlignment()));
+            SlotProperties->SetStringField(TEXT("vertical_alignment"), 
+                StaticEnum<EVerticalAlignment>()->GetNameStringByValue((int64)WrapBoxSlot->GetVerticalAlignment()));
+        }
+        else if (UScrollBoxSlot* ScrollBoxSlot = Cast<UScrollBoxSlot>(Widget->Slot))
+        {
+            // Padding
+            FMargin Padding = ScrollBoxSlot->GetPadding();
+            TArray<TSharedPtr<FJsonValue>> PaddingArray;
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Left));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Top));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Right));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Bottom));
+            SlotProperties->SetArrayField(TEXT("padding"), PaddingArray);
+
+            // Horizontal and Vertical Alignment
+            SlotProperties->SetStringField(TEXT("horizontal_alignment"), 
+                StaticEnum<EHorizontalAlignment>()->GetNameStringByValue((int64)ScrollBoxSlot->GetHorizontalAlignment()));
+            SlotProperties->SetStringField(TEXT("vertical_alignment"), 
+                StaticEnum<EVerticalAlignment>()->GetNameStringByValue((int64)ScrollBoxSlot->GetVerticalAlignment()));
+        }
+        else if (UWidgetSwitcherSlot* SwitcherSlot = Cast<UWidgetSwitcherSlot>(Widget->Slot))
+        {
+            // Padding
+            FMargin Padding = SwitcherSlot->GetPadding();
+            TArray<TSharedPtr<FJsonValue>> PaddingArray;
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Left));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Top));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Right));
+            PaddingArray.Add(MakeShared<FJsonValueNumber>(Padding.Bottom));
+            SlotProperties->SetArrayField(TEXT("padding"), PaddingArray);
+
+            // Horizontal and Vertical Alignment
+            SlotProperties->SetStringField(TEXT("horizontal_alignment"), 
+                StaticEnum<EHorizontalAlignment>()->GetNameStringByValue((int64)SwitcherSlot->GetHorizontalAlignment()));
+            SlotProperties->SetStringField(TEXT("vertical_alignment"), 
+                StaticEnum<EVerticalAlignment>()->GetNameStringByValue((int64)SwitcherSlot->GetVerticalAlignment()));
+        }
+        // Add generic slot info
+        SlotProperties->SetStringField(TEXT("slot_type"), Widget->Slot->GetClass()->GetName());
+
+        return SlotProperties;
+    };
+
+    // Build a hierarchical representation of the widget tree
+    std::function<TSharedPtr<FJsonObject>(UWidget*)> ProcessWidgetHierarchy = [&ProcessWidgetHierarchy, &ProcessWidgetSlot](UWidget* Widget) -> TSharedPtr<FJsonObject> {
+        if (!Widget)
+        {
+            return nullptr;
+        }
+
+        TSharedPtr<FJsonObject> ComponentObj = MakeShared<FJsonObject>();
+        
+        // Basic component info
+        ComponentObj->SetStringField(TEXT("name"), Widget->GetName());
+        ComponentObj->SetStringField(TEXT("type"), Widget->GetClass()->GetName());
+        
+        // Get slot properties
+        ComponentObj->SetObjectField(TEXT("slot_properties"), ProcessWidgetSlot(Widget));
+        
+        // If this is a panel widget, process its children recursively
+        UPanelWidget* PanelWidget = Cast<UPanelWidget>(Widget);
+        if (PanelWidget && PanelWidget->GetChildrenCount() > 0)
+        {
+            TArray<TSharedPtr<FJsonValue>> ChildrenArray;
+            
+            for (int32 i = 0; i < PanelWidget->GetChildrenCount(); i++)
+            {
+                UWidget* ChildWidget = PanelWidget->GetChildAt(i);
+                if (ChildWidget)
+                {
+                    TSharedPtr<FJsonObject> ChildObj = ProcessWidgetHierarchy(ChildWidget);
+                    if (ChildObj.IsValid())
+                    {
+                        ChildrenArray.Add(MakeShared<FJsonValueObject>(ChildObj));
+                    }
+                }
+            }
+            
+            if (ChildrenArray.Num() > 0)
+            {
+                ComponentObj->SetArrayField(TEXT("children"), ChildrenArray);
+            }
+        }
+        
+        return ComponentObj;
+    };
+
+    // Start at the root widget (usually a Canvas Panel)
+    UWidget* RootWidget = WidgetBlueprint->WidgetTree->RootWidget;
+    TSharedPtr<FJsonObject> RootObj = ProcessWidgetHierarchy(RootWidget);
+    
+    // Create data object with root widget
+    TSharedPtr<FJsonObject> DataObj = MakeShared<FJsonObject>();
+    if (RootObj.IsValid())
+    {
+        // Set the root component
+        DataObj->SetObjectField(TEXT("root"), RootObj);
+        
+        // Serialize to JSON string
+        FString OutputString;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+        FJsonSerializer::Serialize(DataObj.ToSharedRef(), Writer);
+        
+        // Set data field to serialized JSON string
+        Response->SetStringField(TEXT("data"), OutputString);
+        Response->SetStringField(TEXT("message"), FString::Printf(TEXT("Successfully analyzed widget component hierarchy")));
+    }
+    else
+    {
+        Response->SetStringField(TEXT("data"), TEXT("{}"));
+        Response->SetStringField(TEXT("message"), TEXT("No root widget found in blueprint"));
+    }
+    
     return Response;
 }

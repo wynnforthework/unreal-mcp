@@ -941,14 +941,21 @@ bool FUnrealMCPCommonUtils::SetPropertyFromJson(FProperty* Property, void* Conta
         return false;
     }
 
+    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Property Name: %s, Type: %s"), *Property->GetName(), *Property->GetCPPType());
+
     // Handle different property types
     if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
     {
         bool Value;
         if (JsonValue->TryGetBool(Value))
         {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting Bool property to: %s"), Value ? TEXT("true") : TEXT("false"));
             BoolProperty->SetPropertyValue(ContainerPtr, Value);
             return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to set Bool property, incompatible value type"));
         }
     }
     else if (FIntProperty* IntProperty = CastField<FIntProperty>(Property))
@@ -956,8 +963,13 @@ bool FUnrealMCPCommonUtils::SetPropertyFromJson(FProperty* Property, void* Conta
         int32 Value;
         if (JsonValue->TryGetNumber(Value))
         {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting Int property to: %d"), Value);
             IntProperty->SetPropertyValue(ContainerPtr, Value);
             return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to set Int property, incompatible value type"));
         }
     }
     else if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
@@ -965,11 +977,16 @@ bool FUnrealMCPCommonUtils::SetPropertyFromJson(FProperty* Property, void* Conta
         double Value; // JSON numbers are doubles
         if (JsonValue->TryGetNumber(Value))
         {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting Float property to: %f"), static_cast<float>(Value));
             FloatProperty->SetPropertyValue(ContainerPtr, static_cast<float>(Value));
             return true;
         }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to set Float property, incompatible value type"));
+        }
     }
-     else if (FDoubleProperty* DoubleProperty = CastField<FDoubleProperty>(Property))
+    else if (FDoubleProperty* DoubleProperty = CastField<FDoubleProperty>(Property))
     {
         double Value;
         if (JsonValue->TryGetNumber(Value))
@@ -1033,49 +1050,122 @@ bool FUnrealMCPCommonUtils::SetPropertyFromJson(FProperty* Property, void* Conta
     }
     else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
     {
+        UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Found Struct property: %s"), 
+            StructProperty->Struct ? *StructProperty->Struct->GetName() : TEXT("NULL"));
+            
         const TSharedPtr<FJsonObject>* JsonObject;
         if (JsonValue->TryGetObject(JsonObject))
         {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Processing JsonObject for struct"));
             // Use JsonObjectConverter to convert the JSON object to the struct
             if (FJsonObjectConverter::JsonObjectToUStruct(JsonObject->ToSharedRef(), StructProperty->Struct, ContainerPtr, 0, 0))
             {
+                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Successfully converted JsonObject to struct"));
                 return true;
             }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to convert JsonObject to struct"));
+            }
         }
-         // Handle common structs specifically if needed (e.g., FVector, FLinearColor from array)
-         else if (StructProperty->Struct == TBaseStructure<FVector>::Get()) 
-         {
+        // Handle common structs specifically if needed (e.g., FVector, FLinearColor from array)
+        else if (StructProperty->Struct == TBaseStructure<FVector>::Get()) 
+        {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Handling FVector struct"));
             const TArray<TSharedPtr<FJsonValue>>* JsonArray;
             if (JsonValue->TryGetArray(JsonArray)) 
             {
+                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Got array for FVector with %d elements"), JsonArray->Num());
                 FVector VecValue;
                 if (ParseVector(*JsonArray, VecValue))
                 {
+                    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting FVector to (%f, %f, %f)"), 
+                        VecValue.X, VecValue.Y, VecValue.Z);
                     *static_cast<FVector*>(ContainerPtr) = VecValue;
                     return true;
                 }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to parse Vector from array"));
+                }
             }
-         }
-         else if (StructProperty->Struct == TBaseStructure<FLinearColor>::Get())
-         {
-             const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-             if (JsonValue->TryGetArray(JsonArray))
-             {
-                 FLinearColor ColorValue;
-                 if (ParseLinearColor(*JsonArray, ColorValue))
-                 {
-                     *static_cast<FLinearColor*>(ContainerPtr) = ColorValue;
-                     return true;
-                 }
-             }
-         }
-        // Add more specific struct handlers (FRotator, etc.) if direct JsonObjectConverter fails or array input is preferred
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Expected array for Vector but got different type"));
+            }
+        }
+        else if (StructProperty->Struct == TBaseStructure<FLinearColor>::Get())
+        {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Handling FLinearColor struct"));
+            const TArray<TSharedPtr<FJsonValue>>* JsonArray;
+            if (JsonValue->TryGetArray(JsonArray))
+            {
+                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Got array for FLinearColor with %d elements"), JsonArray->Num());
+                FLinearColor ColorValue;
+                if (ParseLinearColor(*JsonArray, ColorValue))
+                {
+                    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting FLinearColor to (%f, %f, %f, %f)"), 
+                        ColorValue.R, ColorValue.G, ColorValue.B, ColorValue.A);
+                    *static_cast<FLinearColor*>(ContainerPtr) = ColorValue;
+                    return true;
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to parse LinearColor from array"));
+                }
+            }
+            // Additional check for string format, like when a string representation of an array is passed
+            else if (JsonValue->Type == EJson::String)
+            {
+                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Got string for FLinearColor: %s"), *JsonValue->AsString());
+                FString ColorString = JsonValue->AsString();
+                
+                // Check if the string looks like an array: "[r, g, b, a]"
+                if (ColorString.StartsWith(TEXT("[")) && ColorString.EndsWith(TEXT("]")))
+                {
+                    // Remove brackets
+                    ColorString = ColorString.Mid(1, ColorString.Len() - 2);
+                    
+                    // Split by commas
+                    TArray<FString> ColorComponents;
+                    ColorString.ParseIntoArray(ColorComponents, TEXT(","), true);
+                    
+                    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Parsed %d color components from string"), ColorComponents.Num());
+                    
+                    if (ColorComponents.Num() >= 3)
+                    {
+                        float R = FCString::Atof(*ColorComponents[0].TrimStart());
+                        float G = FCString::Atof(*ColorComponents[1].TrimStart());
+                        float B = FCString::Atof(*ColorComponents[2].TrimStart());
+                        float A = ColorComponents.Num() >= 4 ? FCString::Atof(*ColorComponents[3].TrimStart()) : 1.0f;
+                        
+                        FLinearColor ColorValue(R, G, B, A);
+                        UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting FLinearColor from string to (%f, %f, %f, %f)"), 
+                            ColorValue.R, ColorValue.G, ColorValue.B, ColorValue.A);
+                        *static_cast<FLinearColor*>(ContainerPtr) = ColorValue;
+                        return true;
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Not enough color components in string: %s"), *ColorString);
+                    }
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Color string is not in expected format: %s"), *ColorString);
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Expected array or string for LinearColor but got different type"));
+            }
+        }
+        // ... existing code ...
     }
-    // Add support for Array, Set, Map properties if needed
+    // ... existing code ...
 
     // Log failure if no suitable type handler was found
     UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson: Unsupported property type '%s' or invalid JSON value type."), *Property->GetClass()->GetName());
-
     return false;
 }
 
@@ -1099,23 +1189,41 @@ bool FUnrealMCPCommonUtils::ParseVector(const TArray<TSharedPtr<FJsonValue>>& Js
 // Example implementation for ParseLinearColor (adjust as needed)
 bool FUnrealMCPCommonUtils::ParseLinearColor(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FLinearColor& OutColor)
 {
-    if (JsonArray.Num() == 3 || JsonArray.Num() == 4)
+    UE_LOG(LogTemp, Log, TEXT("ParseLinearColor - Array has %d elements"), JsonArray.Num());
+    
+    if (JsonArray.Num() < 3)
     {
-        double R, G, B, A = 1.0; // Default alpha to 1.0
-        if (JsonArray[0]->TryGetNumber(R) && JsonArray[1]->TryGetNumber(G) && JsonArray[2]->TryGetNumber(B))
+        UE_LOG(LogTemp, Warning, TEXT("ParseLinearColor - Array has insufficient elements: %d (need at least 3)"), JsonArray.Num());
+        return false;
+    }
+
+    // Check each element to ensure they are numbers
+    for (int32 i = 0; i < JsonArray.Num() && i < 4; ++i)
+    {
+        if (JsonArray[i]->Type != EJson::Number)
         {
-            if (JsonArray.Num() == 4 && !JsonArray[3]->TryGetNumber(A))
-            {
-                return false; // Failed to parse Alpha
-            }
-            OutColor.R = R;
-            OutColor.G = G;
-            OutColor.B = B;
-            OutColor.A = A;
-            return true;
+            UE_LOG(LogTemp, Warning, TEXT("ParseLinearColor - Element %d is not a number (type: %d)"), i, (int)JsonArray[i]->Type);
+            return false;
         }
     }
-    return false;
+
+    // Extract RGB values
+    float R = JsonArray[0]->AsNumber();
+    float G = JsonArray[1]->AsNumber();
+    float B = JsonArray[2]->AsNumber();
+    
+    // Extract Alpha if available, otherwise default to 1.0
+    float A = 1.0f;
+    if (JsonArray.Num() >= 4)
+    {
+        A = JsonArray[3]->AsNumber();
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("ParseLinearColor - Parsed color: R=%f, G=%f, B=%f, A=%f"), R, G, B, A);
+    
+    // Set the output color
+    OutColor = FLinearColor(R, G, B, A);
+    return true;
 }
 
 // Placeholder for ParseRotator if needed

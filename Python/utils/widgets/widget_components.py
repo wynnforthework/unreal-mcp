@@ -5,7 +5,7 @@ This module provides utilities for working with UMG Widget Components in Unreal 
 """
 
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 from mcp.server.fastmcp import Context
 from utils.unreal_connection_utils import send_unreal_command
 
@@ -234,6 +234,14 @@ def add_widget_component_to_widget(
         position: Optional [X, Y] position in the canvas panel
         size: Optional [Width, Height] of the component
         **kwargs: Additional parameters specific to the component type
+            For Border components:
+            - background_color/brush_color: [R, G, B, A] color values (0.0-1.0)
+              To achieve transparency, set the Alpha value (A) in the color array
+            - opacity: Sets the overall render opacity of the entire border
+              Note: This property is separate from the brush color's alpha value
+            - use_brush_transparency: Boolean (True/False) to enable the "Use Brush Transparency" option
+              This is required for alpha transparency to work properly with rounded corners or other complex brushes
+            - padding: [Left, Top, Right, Bottom] values
         
     Returns:
         Dict containing success status and component properties
@@ -255,16 +263,25 @@ def add_widget_component_to_widget(
     logger.info(f"Adding widget component '{component_name}' ({component_type}) to widget '{widget_name}'...")
     return send_unreal_command("add_widget_component_to_widget", params)
 
-# Implementation for the new function (fixed)
-def set_widget_component_property(ctx: Context, widget_name: str, component_name: str, property_name: str, property_value: Any):
-    """Set property on a widget component."""
-    logger.info(f"Setting property '{property_name}' on component '{component_name}' in widget '{widget_name}'")
+def set_widget_component_property(ctx: Context, widget_name: str, component_name: str, property_name: str, property_value: Union[str, int, float, bool, list, Any]):
+    """Implementation for setting a property on a widget component."""
+    
     params = {
-        "widget_name": widget_name,        # Use snake_case
-        "component_name": component_name,   # Use snake_case
-        "property_name": property_name,     # Use snake_case
-        "property_value": property_value    # Use snake_case (send original value)
+        "widget_name": widget_name,
+        "component_name": component_name,
+        "property_name": property_name,
+        "property_value": property_value
     }
-    # Use send_unreal_command helper and correct command name
-    response = send_unreal_command("set_widget_component_property", params)
-    return response
+    
+    return send_unreal_command("set_widget_component_property", params)
+
+def get_widget_component_layout_impl(ctx: Context, widget_name: str) -> dict:
+    """Implementation for getting layout information for all components within a UMG Widget Blueprint."""
+    command = "get_widget_component_layout"
+    params = {"widget_name": widget_name}
+    
+    logger.info(f"Getting component layout for widget: {widget_name}")
+    
+    # Just prepare params and call send_unreal_command, returning its result directly.
+    # Response parsing and detailed error handling will be done in the tool function.
+    return send_unreal_command(command, params)
