@@ -208,7 +208,7 @@ def register_blueprint_tools(mcp: FastMCP):
         """
         return set_blueprint_property_impl(ctx, blueprint_name, property_name, property_value)
 
-    # @mcp.tool() commented out, just use set_component_property instead
+    @mcp.tool()
     def set_pawn_properties(
         ctx: Context,
         blueprint_name: str,

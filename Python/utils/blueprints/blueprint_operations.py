@@ -258,14 +258,6 @@ def set_component_property(
         "property_name": property_name,
         "property_value": property_value
     }
-    
-    logger.debug(f"set_component_property_impl: Sending command 'set_component_property'")
-    logger.debug(f"  Blueprint: {blueprint_name}")
-    logger.debug(f"  Component: {component_name}")
-    logger.debug(f"  Property: {property_name}")
-    logger.debug(f"  Value: {property_value}")
-    logger.debug(f"  Value Type: {type(property_value)}")
-    
     return send_unreal_command("set_component_property", params)
 
 def set_physics_properties(

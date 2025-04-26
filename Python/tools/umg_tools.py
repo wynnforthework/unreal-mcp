@@ -474,48 +474,55 @@ def register_umg_tools(mcp: FastMCP):
         ctx: Context,
         widget_name: str,
         component_name: str,
-        property_name: str,
-        property_value: Union[str, int, float, bool, list, Any]
+        **kwargs
     ) -> Dict[str, object]:
         """
-        Set a property on a specific component within a UMG Widget Blueprint.
+        Set one or more properties on a specific component within a UMG Widget Blueprint.
 
-        Args:
-            widget_name: Name of the target Widget Blueprint.
-            component_name: Name of the component within the widget (e.g., "MyButton", "ScoreTextBlock").
-            property_name: Name of the property to set on the component (e.g., "Text", "Visibility", "ToolTipText").
-            property_value: The value to set the property to. Type should match the property's expected type.
-
-        Returns:
-            Dict containing success status.
+        Parameters:
+            widget_name: Name of the target Widget Blueprint
+            component_name: Name of the component to modify
+            kwargs: Properties to set (as keyword arguments or a dict)
 
         Examples:
-            # Set the text of a TextBlock
+            
+            # Set the text and color of a TextBlock, including a struct property (ColorAndOpacity)
             set_widget_component_property(
-                widget_name="PlayerHUD", 
-                component_name="ScoreText", 
-                property_name="Text", 
-                property_value="Score: 100"
+                ctx,
+                "MyWidget",
+                "MyTextBlock",
+                Text="Red Text",
+                ColorAndOpacity={
+                    "SpecifiedColor": {
+                        "R": 1.0,
+                        "G": 0.0,
+                        "B": 0.0,
+                        "A": 1.0
+                    }
+                }
             )
+            # Simple properties can be passed directly; struct properties (like ColorAndOpacity) as dicts.
 
-            # Change the visibility of a Border
+            # Set the brush color (including opacity) of a Border using a flat RGBA dictionary
             set_widget_component_property(
-                widget_name="MainMenu",
-                component_name="LoginErrorBorder",
-                property_name="Visibility",
-                property_value="Hidden" # Common visibility values: Visible, Hidden, Collapsed, HitTestInvisible
+                ctx,
+                "MyWidget",
+                "MyBorder",
+                BrushColor={
+                    "R": 1.0,
+                    "G": 1.0,
+                    "B": 1.0,
+                    "A": 0.3
+                }
             )
-
-            # Set the ToolTip text for a Button
-            set_widget_component_property(
-                widget_name="OptionsMenu",
-                component_name="ApplyButton",
-                property_name="ToolTipText",
-                property_value="Apply graphics settings"
-            )
-        """
-        # Call aliased implementation
-        return set_widget_component_property_impl(ctx, widget_name, component_name, property_name, property_value)
+        """ 
+        logger.info(f"[DEBUG] TOOL ENTRY: set_widget_component_property called with widget_name={widget_name}, component_name={component_name}, kwargs={kwargs}")
+        try:
+            # Call aliased implementation
+            return set_widget_component_property_impl(ctx, widget_name, component_name, **(kwargs if isinstance(kwargs, dict) else {"Text": kwargs}))
+        except Exception as e:
+            logger.error(f"[ERROR] Exception in set_widget_component_property: {e}")
+            raise
 
     @mcp.tool()
     def get_widget_component_layout(ctx: Context, widget_name: str) -> dict:

@@ -38,16 +38,14 @@ add_widget_component_to_widget(
 set_widget_component_property(
     widget_name="MyWidget",
     component_name="ExistingBorder",
-    property_name="BrushColor",
-    property_value="(R=0.1,G=0.2,B=0.3,A=0.5)"  # 50% alpha
+    value={"BrushColor": "(R=0.1,G=0.2,B=0.3,A=0.5)"}  # 50% alpha
 )
 
 # Enable brush transparency (REQUIRED for alpha to work properly)
 set_widget_component_property(
     widget_name="MyWidget",
     component_name="ExistingBorder",
-    property_name="UseBrushTransparency",
-    property_value="true"
+    value={"UseBrushTransparency": "true"}
 )
 ```
 
@@ -70,8 +68,7 @@ add_widget_component_to_widget(
 set_widget_component_property(
     widget_name="MyWidget",
     component_name="TransparentImage",
-    property_name="UseBrushTransparency",
-    property_value="true"
+    kwargs={"UseBrushTransparency": "true"}
 )
 ```
 
@@ -94,8 +91,7 @@ add_widget_component_to_widget(
 set_widget_component_property(
     widget_name="MyWidget",
     component_name="TransparentButton",
-    property_name="UseBrushTransparency",
-    property_value="true"
+    kwargs={"UseBrushTransparency": "true"}
 )
 ```
 
@@ -126,8 +122,7 @@ add_widget_component_to_widget(
 set_widget_component_property(
     widget_name="MyWidget",
     component_name="FadedContainer",
-    property_name="RenderOpacity",
-    property_value="0.5"
+    value={"RenderOpacity": "0.5"}
 )
 ```
 
