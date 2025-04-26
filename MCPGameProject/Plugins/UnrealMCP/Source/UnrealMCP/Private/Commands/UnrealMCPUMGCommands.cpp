@@ -1534,16 +1534,12 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetComponent(const TS
 	}
 
 	// Get kwargs object if it exists
-	const TSharedPtr<FJsonObject>* KwargsObject;
-	TSharedPtr<FJsonObject> KwargsObjectRef;
-	if (Params->TryGetObjectField(TEXT("kwargs"), KwargsObject))
-	{
-		KwargsObjectRef = *KwargsObject;
+	const TSharedPtr<FJsonValue>* KwargsJsonPtr = Params->Values.Find(TEXT("kwargs"));
+	if (!KwargsJsonPtr || (*KwargsJsonPtr)->Type != EJson::Object) {
+		UE_LOG(LogUnrealMCPUMG, Error, TEXT("Missing or invalid 'kwargs' parameter"));
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing or invalid 'kwargs' parameter"));
 	}
-	else
-	{
-		KwargsObjectRef = MakeShared<FJsonObject>(); // Create empty object if not present
-	}
+	TSharedPtr<FJsonObject> KwargsObject = (*KwargsJsonPtr)->AsObject();
 
 	// Use WidgetComponentService to create the widget
 	FWidgetComponentService WidgetComponentService;
@@ -1553,7 +1549,7 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetComponent(const TS
 		ComponentType, 
 		Position, 
 		Size, 
-		KwargsObjectRef
+		KwargsObject
 	);
 
 	// Make sure widget was created
@@ -1617,292 +1613,71 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetWidgetComponentProperty(
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing parameter: component_name"));
     }
 
-    FString PropertyName;
-    if (!Params->TryGetStringField(TEXT("property_name"), PropertyName))
-    {
-        UE_LOG(LogUnrealMCPUMG, Error, TEXT("Missing parameter: property_name"));
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing parameter: property_name"));
+    // Fetch 'kwargs' from params
+    const TSharedPtr<FJsonValue>* KwargsJsonPtr = Params->Values.Find(TEXT("kwargs"));
+    if (!KwargsJsonPtr || (*KwargsJsonPtr)->Type != EJson::Object) {
+        UE_LOG(LogUnrealMCPUMG, Error, TEXT("Missing or invalid 'kwargs' parameter"));
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing or invalid 'kwargs' parameter"));
     }
+    TSharedPtr<FJsonObject> KwargsObject = (*KwargsJsonPtr)->AsObject();
 
-    // Use snake_case to match Python tool
-    const TSharedPtr<FJsonValue>* PropertyValueJsonPtr = Params->Values.Find(TEXT("property_value")); 
-
-    // Check if the field exists and the value it points to is valid
-    if (!PropertyValueJsonPtr || !(*PropertyValueJsonPtr).IsValid())
-    {
-        UE_LOG(LogUnrealMCPUMG, Error, TEXT("Missing or invalid parameter: property_value"));
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing or invalid parameter: property_value"));
-    }
-
-    // Get a reference to the actual value
-    const TSharedPtr<FJsonValue>& PropertyValueJsonValueRef = *PropertyValueJsonPtr;
-    
-    // Debug the property value type
-    FString PropertyValueType;
-    switch (PropertyValueJsonValueRef->Type)
-    {
-        case EJson::None: PropertyValueType = TEXT("None"); break;
-        case EJson::Null: PropertyValueType = TEXT("Null"); break;
-        case EJson::String: PropertyValueType = TEXT("String"); break;
-        case EJson::Boolean: PropertyValueType = TEXT("Boolean"); break;
-        case EJson::Number: PropertyValueType = TEXT("Number"); break;
-        case EJson::Array: PropertyValueType = TEXT("Array"); break;
-        case EJson::Object: PropertyValueType = TEXT("Object"); break;
-        default: PropertyValueType = TEXT("Unknown"); break;
-    }
-    
-    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Property value type: %s"), *PropertyValueType);
-    
-    // If it's a string value, log the actual string
-    if (PropertyValueJsonValueRef->Type == EJson::String)
-    {
-        UE_LOG(LogUnrealMCPUMG, Log, TEXT("Property string value: '%s'"), *PropertyValueJsonValueRef->AsString());
-    }
-    // If it's an array value, log the array elements
-    else if (PropertyValueJsonValueRef->Type == EJson::Array)
-    {
-        const TArray<TSharedPtr<FJsonValue>>& Array = PropertyValueJsonValueRef->AsArray();
-        FString ArrayContent = TEXT("[");
-        for (int32 i = 0; i < Array.Num(); i++)
-        {
-            if (i > 0) ArrayContent += TEXT(", ");
-            if (Array[i]->Type == EJson::Number)
-                ArrayContent += FString::Printf(TEXT("%f"), Array[i]->AsNumber());
-            else if (Array[i]->Type == EJson::String)
-                ArrayContent += FString::Printf(TEXT("\"%s\""), *Array[i]->AsString());
-            else if (Array[i]->Type == EJson::Boolean)
-                ArrayContent += Array[i]->AsBool() ? TEXT("true") : TEXT("false");
-            else
-                ArrayContent += TEXT("?");
-        }
-        ArrayContent += TEXT("]");
-        UE_LOG(LogUnrealMCPUMG, Log, TEXT("Property array value: %s"), *ArrayContent);
-    }
-
-    // Use the defined log category
-    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Setting property '%s' on component '%s' in widget '%s'"), *PropertyName, *ComponentName, *WidgetName);
-
+    // Find the widget blueprint and component
     UWidgetBlueprint* WidgetBP = FindWidgetBlueprint(WidgetName);
-    if (!WidgetBP)
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Widget Blueprint not found: %s"), *WidgetName));
+    if (!WidgetBP || !WidgetBP->WidgetTree) {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Widget Blueprint not found or has no WidgetTree: %s"), *WidgetName));
     }
-
-    // Ensure the blueprint is loaded and has a valid widget tree
-    WidgetBP->Modify(); // Mark for modification
-    if (!WidgetBP->WidgetTree)
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Widget Blueprint '%s' has no WidgetTree"), *WidgetName));
-    }
-
-    // Find the component within the widget tree
     UWidget* TargetWidget = WidgetBP->WidgetTree->FindWidget(FName(*ComponentName));
-    if (!TargetWidget)
-    {
+    if (!TargetWidget) {
         return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Component '%s' not found in Widget Blueprint '%s'"), *ComponentName, *WidgetName));
     }
 
-    // Find the property on the component's class
-    FProperty* Property = FindFProperty<FProperty>(TargetWidget->GetClass(), FName(*PropertyName));
-    if (!Property)
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(*FString::Printf(TEXT("Property '%s' not found on component '%s' (Class: %s)"), *PropertyName, *ComponentName, *TargetWidget->GetClass()->GetName()));
+    TArray<FString> PropertyNames;
+    KwargsObject->Values.GetKeys(PropertyNames);
+
+    TArray<FString> SuccessProps;
+    TMap<FString, FString> FailedProps;
+
+    for (const FString& PropertyName : PropertyNames) {
+        TSharedPtr<FJsonValue> PropertyValue = KwargsObject->TryGetField(PropertyName);
+        FProperty* Property = FindFProperty<FProperty>(TargetWidget->GetClass(), FName(*PropertyName));
+        if (!Property) {
+            FailedProps.Add(PropertyName, FString::Printf(TEXT("Property '%s' not found on component '%s' (Class: %s)"), *PropertyName, *ComponentName, *TargetWidget->GetClass()->GetName()));
+            continue;
+        }
+        void* PropertyData = Property->ContainerPtrToValuePtr<void>(TargetWidget);
+        FString ErrorMessage;
+        if (!FUnrealMCPCommonUtils::SetPropertyFromJson(Property, PropertyData, PropertyValue)) {
+            FailedProps.Add(PropertyName, FString::Printf(TEXT("Failed to set property '%s'. Check value type/format."), *PropertyName));
+            continue;
+        }
+        SuccessProps.Add(PropertyName);
     }
 
-    // Pointer to the property's data within the widget instance
-    void* PropertyData = Property->ContainerPtrToValuePtr<void>(TargetWidget);
-
-    // Set the property value based on its type and the JSON input
-    FString ErrorMessage;
-    
-    // Special handling for UseBrushTransparency to properly set up brush components
-    if (PropertyName == TEXT("UseBrushTransparency"))
-    {
-        // Check if we have a component that has brush properties
-        if (UBorder* BorderWidget = Cast<UBorder>(TargetWidget))
-        {
-            // Get the value as a boolean
-            bool bUseBrushTransparency = false;
-            if (PropertyValueJsonValueRef->TryGetBool(bUseBrushTransparency))
-            {
-                UE_LOG(LogUnrealMCPUMG, Log, TEXT("Setting UseBrushTransparency to %d for Border '%s'"), 
-                    bUseBrushTransparency, *ComponentName);
-                
-                // In UE 5.5, UBorder doesn't have GetBrush or SetBrushFromSlateBrush
-                // Instead, we'll set brush properties directly
-                if (bUseBrushTransparency)
-                {
-                    // For transparency, set DrawAs to Image through alternative means
-                    // We'll set the brush tint directly, preserving alpha
-                    FLinearColor CurrentColor = BorderWidget->GetBrushColor();
-                    BorderWidget->SetBrushColor(CurrentColor);
-                    
-                    // For UE 5.5, set the appropriate property to enable transparency
-                    // This might be handled through SetContentColorAndOpacity or other properties
-                    BorderWidget->SetRenderOpacity(BorderWidget->GetRenderOpacity()); // Preserve current opacity
-                }
-                else
-                {
-                    // For non-transparent borders, simply set the brush color
-                    FLinearColor CurrentColor = BorderWidget->GetBrushColor();
-                    BorderWidget->SetBrushColor(CurrentColor);
-                }
-                
-                // Mark blueprint modified and return success
-                FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
-                FKismetEditorUtilities::CompileBlueprint(WidgetBP);
-                
-                TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
-                Response->SetStringField(TEXT("widget_name"), WidgetName);
-                Response->SetStringField(TEXT("component_name"), ComponentName);
-                Response->SetStringField(TEXT("property_name"), PropertyName);
-                Response->SetBoolField(TEXT("value"), bUseBrushTransparency);
-                return Response;
-            }
-        }
-        else if (UImage* ImageWidget = Cast<UImage>(TargetWidget))
-        {
-            // For Image components
-            bool bUseBrushTransparency = false;
-            if (PropertyValueJsonValueRef->TryGetBool(bUseBrushTransparency))
-            {
-                UE_LOG(LogUnrealMCPUMG, Log, TEXT("Setting UseBrushTransparency to %d for Image '%s'"), 
-                    bUseBrushTransparency, *ComponentName);
-                // For images, we need to ensure the brush is set up for transparency
-                FSlateBrush Brush = ImageWidget->GetBrush();
-                Brush.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
-                ImageWidget->SetBrush(Brush);
-                
-                // Mark blueprint modified and return success
-                FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
-                FKismetEditorUtilities::CompileBlueprint(WidgetBP);
-                
-                TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
-                Response->SetStringField(TEXT("widget_name"), WidgetName);
-                Response->SetStringField(TEXT("component_name"), ComponentName);
-                Response->SetStringField(TEXT("property_name"), PropertyName);
-                Response->SetBoolField(TEXT("value"), bUseBrushTransparency);
-                return Response;
-            }
-        }
-        else if (UButton* ButtonWidget = Cast<UButton>(TargetWidget))
-        {
-            // For Button components
-            bool bUseBrushTransparency = false;
-            if (PropertyValueJsonValueRef->TryGetBool(bUseBrushTransparency))
-            {
-                UE_LOG(LogUnrealMCPUMG, Log, TEXT("Setting UseBrushTransparency to %d for Button '%s'"), 
-                    bUseBrushTransparency, *ComponentName);
-                
-                // Update button style to use transparency
-                FButtonStyle ButtonStyle = ButtonWidget->GetStyle();
-                ButtonStyle.Normal.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
-                ButtonStyle.Hovered.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
-                ButtonStyle.Pressed.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
-                ButtonStyle.Disabled.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
-                ButtonWidget->SetStyle(ButtonStyle);
-                
-                // Mark blueprint modified and return success
-                FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
-                FKismetEditorUtilities::CompileBlueprint(WidgetBP);
-                
-                TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
-                Response->SetStringField(TEXT("widget_name"), WidgetName);
-                Response->SetStringField(TEXT("component_name"), ComponentName);
-                Response->SetStringField(TEXT("property_name"), PropertyName);
-                Response->SetBoolField(TEXT("value"), bUseBrushTransparency);
-                return Response;
-            }
-        }
-        // Handle additional brush-using components
-        else
-        {
-            // Check for any component that has a SetUseBrushTransparency method
-            // This covers classes that inherit from Border but might have different class name
-            bool bUseBrushTransparency = false;
-            if (PropertyValueJsonValueRef->TryGetBool(bUseBrushTransparency))
-            {
-                // Using reflection to check for and call common brush transparency methods
-                UE_LOG(LogUnrealMCPUMG, Log, TEXT("Attempting to set UseBrushTransparency on component '%s' of class '%s'"), 
-                    *ComponentName, *TargetWidget->GetClass()->GetName());
-                
-                bool bApplied = false;
-                
-                // Try to call SetUseBrushTransparency if it exists (for Border-like widgets)
-                UFunction* SetUseBrushTransparencyFunc = TargetWidget->FindFunction(FName(TEXT("SetUseBrushTransparency")));
-                if (SetUseBrushTransparencyFunc)
-                {
-                    struct FParams
-                    {
-                        bool bInUseBrushTransparency;
-                    };
-                    FParams Params;
-                    Params.bInUseBrushTransparency = bUseBrushTransparency;
-                    TargetWidget->ProcessEvent(SetUseBrushTransparencyFunc, &Params);
-                    bApplied = true;
-                    
-                    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Applied SetUseBrushTransparency(%d) to component '%s'"), 
-                        bUseBrushTransparency, *ComponentName);
-                }
-                
-                // Try to modify the brush DrawAs property for Image-like widgets
-                UFunction* GetBrushFunc = TargetWidget->FindFunction(FName(TEXT("GetBrush")));
-                UFunction* SetBrushFunc = TargetWidget->FindFunction(FName(TEXT("SetBrush")));
-                if (GetBrushFunc && SetBrushFunc)
-                {
-                    FSlateBrush Brush;
-                    TargetWidget->ProcessEvent(GetBrushFunc, &Brush);
-                    
-                    // Modify the brush for transparency
-                    Brush.DrawAs = bUseBrushTransparency ? ESlateBrushDrawType::Image : ESlateBrushDrawType::Box;
-                    TargetWidget->ProcessEvent(SetBrushFunc, &Brush);
-                    bApplied = true;
-                    
-                    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Applied brush DrawAs modification to component '%s'"), *ComponentName);
-                }
-                
-                if (bApplied)
-                {
-                    // Mark blueprint modified and return success
-                    FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
-                    FKismetEditorUtilities::CompileBlueprint(WidgetBP);
-                    
-                    TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
-                    Response->SetStringField(TEXT("widget_name"), WidgetName);
-                    Response->SetStringField(TEXT("component_name"), ComponentName);
-                    Response->SetStringField(TEXT("property_name"), PropertyName);
-                    Response->SetBoolField(TEXT("value"), bUseBrushTransparency);
-                    Response->SetBoolField(TEXT("used_reflection"), true);
-                    return Response;
-                }
-            }
-        }
+    // If any property was set, mark blueprint as modified and compile
+    if (SuccessProps.Num() > 0) {
+        FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
+        FKismetEditorUtilities::CompileBlueprint(WidgetBP);
     }
-    
-    // Use the helper function with the reference to the JSON value
-    // This helper needs to be implemented in UnrealMCPCommonUtils or similar
-    if (!FUnrealMCPCommonUtils::SetPropertyFromJson(Property, PropertyData, PropertyValueJsonValueRef))
-    {
-        ErrorMessage = FString::Printf(TEXT("Failed to set property '%s'. Check value type/format."), *PropertyName);
-        // Use the defined log category
-        UE_LOG(LogUnrealMCPUMG, Warning, TEXT("%s"), *ErrorMessage);
-        return FUnrealMCPCommonUtils::CreateErrorResponse(ErrorMessage);
-    }
-    
-    // Use the defined log category
-    UE_LOG(LogUnrealMCPUMG, Log, TEXT("Successfully set property '%s' on component '%s'"), *PropertyName, *ComponentName);
 
-    // Notify the asset system that the blueprint has changed
-    FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
-    // Recompile the blueprint to ensure changes are visually reflected immediately
-    FKismetEditorUtilities::CompileBlueprint(WidgetBP);
-
+    // Build response
     TSharedPtr<FJsonObject> Response = FUnrealMCPCommonUtils::CreateSuccessResponse();
     Response->SetStringField(TEXT("widget_name"), WidgetName);
     Response->SetStringField(TEXT("component_name"), ComponentName);
-    Response->SetStringField(TEXT("property_name"), PropertyName);
-    // Consider returning the actual set value if conversion occurred
-    // Response->SetField(TEXT("set_value"), PropertyValueJsonValueRef); 
+
+    TArray<TSharedPtr<FJsonValue>> SuccessArray;
+    for (const FString& Prop : SuccessProps) {
+        SuccessArray.Add(MakeShared<FJsonValueString>(Prop));
+    }
+    Response->SetArrayField(TEXT("success_properties"), SuccessArray);
+
+    TArray<TSharedPtr<FJsonValue>> FailedArray;
+    for (const auto& Pair : FailedProps) {
+        TSharedPtr<FJsonObject> FailObj = MakeShared<FJsonObject>();
+        FailObj->SetStringField(TEXT("property"), Pair.Key);
+        FailObj->SetStringField(TEXT("error"), Pair.Value);
+        FailedArray.Add(MakeShared<FJsonValueObject>(FailObj));
+    }
+    Response->SetArrayField(TEXT("failed_properties"), FailedArray);
 
     return Response;
 }

@@ -263,16 +263,61 @@ def add_widget_component_to_widget(
     logger.info(f"Adding widget component '{component_name}' ({component_type}) to widget '{widget_name}'...")
     return send_unreal_command("add_widget_component_to_widget", params)
 
-def set_widget_component_property(ctx: Context, widget_name: str, component_name: str, property_name: str, property_value: Union[str, int, float, bool, list, Any]):
-    """Implementation for setting a property on a widget component."""
-    
+def set_widget_component_property(ctx: Context, widget_name: str, component_name: str, **kwargs):
+    """
+    Implementation for setting one or more properties on a widget component.
+    Pass properties as keyword arguments (e.g., Text="Hello").
+
+    Example (simple property):
+        set_widget_component_property(ctx, "MyWidget", "MyTextBlock", Text="Hello World")
+
+    Example (struct property - FSlateColor):
+        set_widget_component_property(
+            ctx,
+            "MyWidget",
+            "MyTextBlock",
+            Text="Red Text",
+            ColorAndOpacity={
+                "SpecifiedColor": {
+                    "R": 1.0,
+                    "G": 0.0,
+                    "B": 0.0,
+                    "A": 1.0
+                }
+            }
+        )
+
+    The struct property (e.g., FSlateColor) must be passed as a dict matching Unreal's expected JSON structure.
+    """
+    # Debug: Log all incoming arguments
+    logger.info(f"[DEBUG] set_widget_component_property called with: widget_name={widget_name}, component_name={component_name}, kwargs={kwargs}")
+
+    # Flatten if kwargs is double-wrapped (i.e., kwargs={'kwargs': {...}})
+    if (
+        len(kwargs) == 1 and
+        'kwargs' in kwargs and
+        isinstance(kwargs['kwargs'], dict)
+    ):
+        logger.info("[DEBUG] Flattening double-wrapped kwargs in set_widget_component_property")
+        kwargs = kwargs['kwargs']
+
+    # Argument validation
+    if not widget_name or not isinstance(widget_name, str):
+        logger.error("[ERROR] 'widget_name' is required and must be a string.")
+        raise ValueError("'widget_name' is required and must be a string.")
+    if not component_name or not isinstance(component_name, str):
+        logger.error("[ERROR] 'component_name' is required and must be a string.")
+        raise ValueError("'component_name' is required and must be a string.")
+    if not kwargs or not isinstance(kwargs, dict):
+        logger.error("[ERROR] At least one property must be provided as a keyword argument.")
+        raise ValueError("At least one property must be provided as a keyword argument.")
+
     params = {
         "widget_name": widget_name,
         "component_name": component_name,
-        "property_name": property_name,
-        "property_value": property_value
+        "kwargs": kwargs
     }
-    
+    logger.info(f"[DEBUG] Sending set_widget_component_property params: {params}")
     return send_unreal_command("set_widget_component_property", params)
 
 def get_widget_component_layout_impl(ctx: Context, widget_name: str) -> dict:
