@@ -1,0 +1,47 @@
+"""
+Struct operations for Unreal MCP.
+
+This module provides utility functions for managing Unreal Engine struct operations.
+"""
+
+import logging
+from typing import Dict, List, Any
+from mcp.server.fastmcp import Context
+from utils.unreal_connection_utils import send_unreal_command
+
+# Get logger
+logger = logging.getLogger("UnrealMCP")
+
+
+def create_struct(
+    ctx: Context,
+    struct_name: str,
+    properties: List[Dict[str, str]],
+    path: str = "/Game/Blueprints",
+    description: str = ""
+) -> Dict[str, Any]:
+    """
+    Create a new Unreal struct.
+    
+    Args:
+        ctx: The MCP context
+        struct_name: Name of the struct to create
+        properties: List of property dictionaries, each containing:
+                    - name: Property name
+                    - type: Property type (e.g., "Boolean", "Integer", "Float", "String", "Vector", etc.)
+                    - description: (Optional) Property description
+        path: Path where to create the struct
+        description: Optional description for the struct
+        
+    Returns:
+        Dictionary with the creation status and struct path
+    """
+    params = {
+        "struct_name": struct_name,
+        "properties": properties,
+        "path": path,
+        "description": description
+    }
+    
+    logger.info(f"Creating struct: {struct_name} at {path}")
+    return send_unreal_command("create_struct", params)

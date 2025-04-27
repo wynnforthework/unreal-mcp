@@ -35,14 +35,15 @@ public class UnrealMCP : ModuleRules
 				"HTTP",
 				"Json",
 				"JsonUtilities",
-				"DeveloperSettings"
+				"DeveloperSettings",
+				"EditorScriptingUtilities",
+				"AssetTools"
 			}
 		);
 		
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"UnrealEd",
 				"EditorScriptingUtilities",
 				"EditorSubsystem",
 				"Slate",
@@ -54,7 +55,15 @@ public class UnrealMCP : ModuleRules
 				"BlueprintGraph",
 				"Projects",
 				"AssetRegistry",
-				"UMGEditor"
+				"UMGEditor",
+				"InputCore",
+				"ToolMenus",
+				"CoreUObject",
+				"EditorStyle",
+				"AssetTools",
+				"StructUtils",
+				"PropertyEditor",
+				"BlueprintEditorLibrary"
 			}
 		);
 		
@@ -63,6 +72,7 @@ public class UnrealMCP : ModuleRules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"UnrealEd",
 					"PropertyEditor",      // For widget property editing
 					"ToolMenus",           // For editor UI
 					"BlueprintEditorLibrary" // For Blueprint utilities

@@ -15,7 +15,7 @@
 #include "Engine/PointLight.h"
 #include "Engine/SpotLight.h"
 #include "Camera/CameraActor.h"
-#include "EditorAssetLibrary.h"
+#include "EditorScriptingUtilities/Public/EditorAssetLibrary.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "JsonObjectConverter.h"
 #include "GameFramework/Actor.h"
@@ -57,6 +57,7 @@
 #include "Commands/UnrealMCPProjectCommands.h"
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Commands/UnrealMCPUMGCommands.h"
+#include "Commands/UnrealMCPDataTableCommands.h"
 
 // Default settings
 #define MCP_SERVER_HOST "127.0.0.1"
@@ -69,6 +70,7 @@ UUnrealMCPBridge::UUnrealMCPBridge()
     BlueprintNodeCommands = MakeShared<FUnrealMCPBlueprintNodeCommands>();
     ProjectCommands = MakeShared<FUnrealMCPProjectCommands>();
     UMGCommands = MakeShared<FUnrealMCPUMGCommands>();
+    DataTableCommands = MakeShared<FUnrealMCPDataTableCommands>();
 }
 
 UUnrealMCPBridge::~UUnrealMCPBridge()
@@ -78,6 +80,7 @@ UUnrealMCPBridge::~UUnrealMCPBridge()
     BlueprintNodeCommands.Reset();
     ProjectCommands.Reset();
     UMGCommands.Reset();
+    DataTableCommands.Reset();
 }
 
 // Initialize subsystem
@@ -267,6 +270,7 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 static const TArray<FString> ProjectCommandsList = {
                     TEXT("create_input_mapping"),
                     TEXT("create_folder"),
+                    TEXT("create_struct"),
                     TEXT("get_project_dir")
                 };
                 
@@ -305,6 +309,15 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 else if (UMGCommandsList.Contains(CommandType))
                 {
                     ResultJson = UMGCommands->HandleCommand(CommandType, Params);
+                }
+                else if (CommandType == TEXT("create_datatable") || 
+                         CommandType == TEXT("add_rows_to_datatable") || 
+                         CommandType == TEXT("get_datatable_rows") || 
+                         CommandType == TEXT("get_datatable_row_names") ||
+                         CommandType == TEXT("update_rows_in_datatable") ||
+                         CommandType == TEXT("delete_datatable_rows"))
+                {
+                    ResultJson = DataTableCommands->HandleCommand(CommandType, Params);
                 }
                 else
                 {
