@@ -15,7 +15,8 @@ from utils.blueprints.blueprint_operations import (
     set_physics_properties as set_physics_properties_impl,
     compile_blueprint as compile_blueprint_impl,
     set_blueprint_property as set_blueprint_property_impl,
-    set_pawn_properties as set_pawn_properties_impl
+    set_pawn_properties as set_pawn_properties_impl,
+    add_blueprint_custom_event_node as add_blueprint_custom_event_node_impl
 )
 
 # Get logger
@@ -242,5 +243,23 @@ def register_blueprint_tools(mcp: FastMCP):
             use_controller_rotation_roll,
             can_be_damaged
         )
+    
+    @mcp.tool()
+    def add_blueprint_custom_event_node(
+        ctx: Context,
+        blueprint_name: str,
+        event_name: str,
+        node_position: List[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Adds a custom event node to the event graph of the specified Blueprint.
+        Args:
+            blueprint_name: Name of the target Blueprint
+            event_name: Name of the custom event to create
+            node_position: Optional [X, Y] position for the node
+        Returns:
+            Dict with node_id and event_name
+        """
+        return add_blueprint_custom_event_node_impl(ctx, blueprint_name, event_name, node_position)
     
     logger.info("Blueprint tools registered successfully")
