@@ -81,6 +81,7 @@
 #include "Components/WrapBoxSlot.h"
 
 #include "Services/UMG/WidgetComponentService.h"
+#include "Components/SlateWrapperTypes.h" // For FSlateChildSize, ESlateSizeRule
 
 // Define log category if it doesn't exist
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCPUMG, Log, All);
@@ -1678,6 +1679,126 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetWidgetComponentProperty(
         FailedArray.Add(MakeShared<FJsonValueObject>(FailObj));
     }
     Response->SetArrayField(TEXT("failed_properties"), FailedArray);
+
+    // --- SLOT PROPERTY HANDLING FOR UHorizontalBoxSlot ---
+    UPanelSlot* PanelSlot = TargetWidget->Slot;
+    UHorizontalBoxSlot* HorizontalBoxSlot = Cast<UHorizontalBoxSlot>(PanelSlot);
+    if (HorizontalBoxSlot) {
+        // Padding
+        if (KwargsObject->HasField(TEXT("padding"))) {
+            const TArray<TSharedPtr<FJsonValue>>* PaddingArrayPtr;
+            if (KwargsObject->TryGetArrayField(TEXT("padding"), PaddingArrayPtr) && PaddingArrayPtr) {
+                const TArray<TSharedPtr<FJsonValue>>& PaddingArray = *PaddingArrayPtr;
+                if (PaddingArray.Num() == 4) {
+                    float Left = PaddingArray[0]->AsNumber();
+                    float Top = PaddingArray[1]->AsNumber();
+                    float Right = PaddingArray[2]->AsNumber();
+                    float Bottom = PaddingArray[3]->AsNumber();
+                    HorizontalBoxSlot->SetPadding(FMargin(Left, Top, Right, Bottom));
+                } else if (PaddingArray.Num() == 1) {
+                    float Pad = PaddingArray[0]->AsNumber();
+                    HorizontalBoxSlot->SetPadding(FMargin(Pad));
+                }
+            }
+        }
+        // Horizontal Alignment
+        if (KwargsObject->HasField(TEXT("horizontal_alignment"))) {
+            FString AlignStr = KwargsObject->GetStringField(TEXT("horizontal_alignment"));
+            EHorizontalAlignment HAlign = HAlign_Fill;
+            if (AlignStr.Equals(TEXT("Left"), ESearchCase::IgnoreCase)) HAlign = HAlign_Left;
+            else if (AlignStr.Equals(TEXT("Center"), ESearchCase::IgnoreCase)) HAlign = HAlign_Center;
+            else if (AlignStr.Equals(TEXT("Right"), ESearchCase::IgnoreCase)) HAlign = HAlign_Right;
+            else if (AlignStr.Equals(TEXT("Fill"), ESearchCase::IgnoreCase)) HAlign = HAlign_Fill;
+            HorizontalBoxSlot->SetHorizontalAlignment(HAlign);
+        }
+        // Vertical Alignment
+        if (KwargsObject->HasField(TEXT("vertical_alignment"))) {
+            FString AlignStr = KwargsObject->GetStringField(TEXT("vertical_alignment"));
+            EVerticalAlignment VAlign = VAlign_Fill;
+            if (AlignStr.Equals(TEXT("Top"), ESearchCase::IgnoreCase)) VAlign = VAlign_Top;
+            else if (AlignStr.Equals(TEXT("Center"), ESearchCase::IgnoreCase)) VAlign = VAlign_Center;
+            else if (AlignStr.Equals(TEXT("Bottom"), ESearchCase::IgnoreCase)) VAlign = VAlign_Bottom;
+            else if (AlignStr.Equals(TEXT("Fill"), ESearchCase::IgnoreCase)) VAlign = VAlign_Fill;
+            HorizontalBoxSlot->SetVerticalAlignment(VAlign);
+        }
+        // Size Rule and Value
+        if (KwargsObject->HasField(TEXT("size_rule"))) {
+            FString SizeRuleStr = KwargsObject->GetStringField(TEXT("size_rule"));
+            ESlateSizeRule::Type SizeRule = ESlateSizeRule::Automatic;
+            if (SizeRuleStr.Equals(TEXT("Fill"), ESearchCase::IgnoreCase)) SizeRule = ESlateSizeRule::Fill;
+            else if (SizeRuleStr.Equals(TEXT("Auto"), ESearchCase::IgnoreCase)) SizeRule = ESlateSizeRule::Automatic;
+            float SizeValue = 1.0f;
+            if (KwargsObject->HasField(TEXT("size_value"))) {
+                SizeValue = static_cast<float>(KwargsObject->GetNumberField(TEXT("size_value")));
+            }
+            FSlateChildSize ChildSize(SizeRule);
+            ChildSize.Value = SizeValue;
+            HorizontalBoxSlot->SetSize(ChildSize);
+        }
+        // Mark blueprint as modified and compile
+        FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
+        FKismetEditorUtilities::CompileBlueprint(WidgetBP);
+        // Build response
+        Response->SetStringField(TEXT("widget_name"), WidgetName);
+        Response->SetStringField(TEXT("component_name"), ComponentName);
+        Response->SetArrayField(TEXT("success_properties"), {});
+        Response->SetArrayField(TEXT("failed_properties"), {});
+        return Response;
+    }
+    // --- SLOT PROPERTY HANDLING FOR UVerticalBoxSlot ---
+    UVerticalBoxSlot* VerticalBoxSlot = Cast<UVerticalBoxSlot>(PanelSlot);
+    if (VerticalBoxSlot) {
+        // Padding
+        if (KwargsObject->HasField(TEXT("padding"))) {
+            const TArray<TSharedPtr<FJsonValue>>* PaddingArrayPtr;
+            if (KwargsObject->TryGetArrayField(TEXT("padding"), PaddingArrayPtr) && PaddingArrayPtr) {
+                const TArray<TSharedPtr<FJsonValue>>& PaddingArray = *PaddingArrayPtr;
+                if (PaddingArray.Num() == 4) {
+                    float Left = PaddingArray[0]->AsNumber();
+                    float Top = PaddingArray[1]->AsNumber();
+                    float Right = PaddingArray[2]->AsNumber();
+                    float Bottom = PaddingArray[3]->AsNumber();
+                    VerticalBoxSlot->SetPadding(FMargin(Left, Top, Right, Bottom));
+                } else if (PaddingArray.Num() == 1) {
+                    float Pad = PaddingArray[0]->AsNumber();
+                    VerticalBoxSlot->SetPadding(FMargin(Pad));
+                }
+            }
+        }
+        // Vertical Alignment
+        if (KwargsObject->HasField(TEXT("vertical_alignment"))) {
+            FString AlignStr = KwargsObject->GetStringField(TEXT("vertical_alignment"));
+            EVerticalAlignment VAlign = VAlign_Fill;
+            if (AlignStr.Equals(TEXT("Top"), ESearchCase::IgnoreCase)) VAlign = VAlign_Top;
+            else if (AlignStr.Equals(TEXT("Center"), ESearchCase::IgnoreCase)) VAlign = VAlign_Center;
+            else if (AlignStr.Equals(TEXT("Bottom"), ESearchCase::IgnoreCase)) VAlign = VAlign_Bottom;
+            else if (AlignStr.Equals(TEXT("Fill"), ESearchCase::IgnoreCase)) VAlign = VAlign_Fill;
+            VerticalBoxSlot->SetVerticalAlignment(VAlign);
+        }
+        // Size Rule and Value
+        if (KwargsObject->HasField(TEXT("size_rule"))) {
+            FString SizeRuleStr = KwargsObject->GetStringField(TEXT("size_rule"));
+            ESlateSizeRule::Type SizeRule = ESlateSizeRule::Automatic;
+            if (SizeRuleStr.Equals(TEXT("Fill"), ESearchCase::IgnoreCase)) SizeRule = ESlateSizeRule::Fill;
+            else if (SizeRuleStr.Equals(TEXT("Auto"), ESearchCase::IgnoreCase)) SizeRule = ESlateSizeRule::Automatic;
+            float SizeValue = 1.0f;
+            if (KwargsObject->HasField(TEXT("size_value"))) {
+                SizeValue = static_cast<float>(KwargsObject->GetNumberField(TEXT("size_value")));
+            }
+            FSlateChildSize ChildSize(SizeRule);
+            ChildSize.Value = SizeValue;
+            VerticalBoxSlot->SetSize(ChildSize);
+        }
+        // Mark blueprint as modified and compile
+        FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
+        FKismetEditorUtilities::CompileBlueprint(WidgetBP);
+        // Build response
+        Response->SetStringField(TEXT("widget_name"), WidgetName);
+        Response->SetStringField(TEXT("component_name"), ComponentName);
+        Response->SetArrayField(TEXT("success_properties"), {});
+        Response->SetArrayField(TEXT("failed_properties"), {});
+        return Response;
+    }
 
     return Response;
 }
