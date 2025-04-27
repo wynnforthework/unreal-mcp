@@ -119,22 +119,20 @@ def register_blueprint_tools(mcp: FastMCP):
         ctx: Context,
         blueprint_name: str,
         component_name: str,
-        property_name: str,
-        property_value: Union[str, int, float, bool, list]
+        **kwargs
     ) -> Dict[str, Any]:
         """
-        Set a property on a component in a Blueprint.
-        
+        Set one or more properties on a component in a Blueprint.
         Args:
             blueprint_name: Name of the target Blueprint
             component_name: Name of the component
-            property_name: Name of the property to set
-            property_value: Value to set the property to
-            
+            kwargs: Properties to set (as keyword arguments or a dict). Each key is a property name, value is the value to set.
         Returns:
-            Response indicating success or failure
+            Response indicating success or failure for each property.
+        Example:
+            set_component_property(ctx, "MyActor", "Mesh", StaticMesh="/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", Mobility="Movable")
         """
-        return set_component_property_impl(ctx, blueprint_name, component_name, property_name, property_value)
+        return set_component_property_impl(ctx, blueprint_name, component_name, **kwargs)
     
     @mcp.tool()
     def set_physics_properties(

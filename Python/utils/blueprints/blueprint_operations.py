@@ -248,16 +248,59 @@ def set_component_property(
     ctx: Context,
     blueprint_name: str,
     component_name: str,
-    property_name: str,
-    property_value: Any
+    **kwargs
 ) -> Dict[str, Any]:
-    """Implementation for setting a property on a component in a Blueprint."""
+    """
+    Set one or more properties on a component in a Blueprint.
+
+    Args:
+        ctx: MCP context
+        blueprint_name: Name of the target Blueprint
+        component_name: Name of the component
+        kwargs: Properties to set. You can pass properties as direct keyword arguments (recommended),
+            or as a single dict using kwargs={...}. If double-wrapped (kwargs={'kwargs': {...}}),
+            the function will automatically flatten it for convenience. This matches the widget property setter pattern.
+
+    Returns:
+        Response indicating success or failure for each property.
+
+    Example:
+        # Preferred usage (direct keyword arguments):
+        set_component_property(ctx, "MyActor", "Mesh", StaticMesh="/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", Mobility="Movable")
+
+        # Also supported (dict):
+        set_component_property(ctx, "MyActor", "Mesh", kwargs={"StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", "Mobility": "Movable"})
+
+    """
+    # Debug: Log all incoming arguments
+    logger.info(f"[DEBUG] set_component_property called with: blueprint_name={blueprint_name}, component_name={component_name}, kwargs={kwargs}")
+
+    # Flatten if kwargs is double-wrapped (i.e., kwargs={'kwargs': {...}})
+    if (
+        len(kwargs) == 1 and
+        'kwargs' in kwargs and
+        isinstance(kwargs['kwargs'], dict)
+    ):
+        logger.info("[DEBUG] Flattening double-wrapped kwargs in set_component_property")
+        kwargs = kwargs['kwargs']
+
+    # Argument validation
+    if not blueprint_name or not isinstance(blueprint_name, str):
+        logger.error("[ERROR] 'blueprint_name' is required and must be a string.")
+        raise ValueError("'blueprint_name' is required and must be a string.")
+    if not component_name or not isinstance(component_name, str):
+        logger.error("[ERROR] 'component_name' is required and must be a string.")
+        raise ValueError("'component_name' is required and must be a string.")
+    if not kwargs or not isinstance(kwargs, dict):
+        logger.error("[ERROR] At least one property must be provided as a keyword argument.")
+        raise ValueError("At least one property must be provided as a keyword argument.")
+
     params = {
         "blueprint_name": blueprint_name,
         "component_name": component_name,
-        "property_name": property_name,
-        "property_value": property_value
+        "kwargs": kwargs
     }
+    logger.info(f"[DEBUG] Sending set_component_property params: {params}")
     return send_unreal_command("set_component_property", params)
 
 def set_physics_properties(

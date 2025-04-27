@@ -18,6 +18,14 @@ private:
     // Specific blueprint command handlers
     TSharedPtr<FJsonObject> HandleCreateBlueprint(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleAddComponentToBlueprint(const TSharedPtr<FJsonObject>& Params);
+    /**
+     * Set one or more properties on a component in a Blueprint.
+     * Params must include:
+     *   - blueprint_name (string): Name of the Blueprint
+     *   - component_name (string): Name of the component
+     *   - kwargs (object): Dictionary of property names and values to set
+     * Returns a response with lists of success_properties and failed_properties.
+     */
     TSharedPtr<FJsonObject> HandleSetComponentProperty(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleSetPhysicsProperties(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleCompileBlueprint(const TSharedPtr<FJsonObject>& Params);

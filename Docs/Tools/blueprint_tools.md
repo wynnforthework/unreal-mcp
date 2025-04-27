@@ -90,29 +90,44 @@ Set the mesh for a StaticMeshComponent.
 
 ### set_component_property
 
-Set a property on a component in a Blueprint.
+Set one or more properties on a component in a Blueprint.
 
 **Parameters:**
 - `blueprint_name` (string) - The name of the Blueprint
 - `component_name` (string) - The name of the component
-- `property_name` (string) - The name of the property to set
-- `property_value` (any) - The value to set for the property
+- `kwargs` (object) - Dictionary of property names and values to set. You can pass properties as direct keyword arguments (recommended), or as a single dict using `kwargs={...}`. If double-wrapped (i.e., `kwargs={'kwargs': {...}}`), the function will automatically flatten it for convenience. This matches the widget property setter pattern.
 
 **Returns:**
-- Result of the property setting operation including success status and message
+- Result of the property setting operation including lists of success_properties and failed_properties
 
-**Example:**
+**Examples:**
+
+Preferred usage (direct keyword arguments):
 ```json
 {
   "command": "set_component_property",
   "params": {
     "blueprint_name": "MyActor",
     "component_name": "Mesh",
-    "property_name": "StaticMesh",
-    "property_value": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube"
+    "kwargs": {
+      "StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube",
+      "Mobility": "Movable"
+    }
   }
 }
 ```
+
+Also supported (dict):
+```python
+set_component_property(ctx, "MyActor", "Mesh", kwargs={"StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", "Mobility": "Movable"})
+```
+
+If double-wrapped (rare, but handled):
+```python
+set_component_property(ctx, "MyActor", "Mesh", kwargs={"kwargs": {"StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", "Mobility": "Movable"}})
+```
+
+All styles above will be handled correctly and set the properties as expected.
 
 ### set_physics_properties
 
