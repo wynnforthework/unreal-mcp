@@ -8,6 +8,8 @@ import logging
 from typing import Dict, Any, List
 from mcp.server.fastmcp import FastMCP, Context
 from utils.project.struct_operations import create_struct as create_struct_impl
+from utils.project.struct_operations import update_struct as update_struct_impl
+from utils.project.struct_operations import show_struct_variables as show_struct_variables_impl
 
 # Get logger
 logger = logging.getLogger("UnrealMCP")
@@ -153,5 +155,44 @@ def register_project_tools(mcp: FastMCP):
             )
         """
         return create_struct_impl(ctx, struct_name, properties, path, description)
+
+    @mcp.tool()
+    def update_struct(
+        ctx: Context,
+        struct_name: str,
+        properties: List[Dict[str, str]],
+        path: str = "/Game/Blueprints",
+        description: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Update an existing Unreal struct.
+        Args:
+            struct_name: Name of the struct to update
+            properties: List of property dictionaries, each containing:
+                        - name: Property name
+                        - type: Property type (e.g., "Boolean", "Integer", "Float", "String", "Vector", etc.)
+                        - description: (Optional) Property description
+            path: Path where the struct exists
+            description: Optional description for the struct
+        Returns:
+            Dictionary with the update status and struct path
+        """
+        return update_struct_impl(ctx, struct_name, properties, path, description)
+
+    @mcp.tool()
+    def show_struct_variables(
+        ctx: Context,
+        struct_name: str,
+        path: str = "/Game/Blueprints"
+    ) -> Dict[str, Any]:
+        """
+        Show variables and types of a struct in Unreal Engine.
+        Args:
+            struct_name: Name of the struct to inspect
+            path: Path where the struct exists (default: /Game/Blueprints)
+        Returns:
+            Dictionary with struct variable info
+        """
+        return show_struct_variables_impl(ctx, struct_name, path)
 
     logger.info("Project tools registered successfully")

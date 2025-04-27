@@ -271,7 +271,9 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("create_input_mapping"),
                     TEXT("create_folder"),
                     TEXT("create_struct"),
-                    TEXT("get_project_dir")
+                    TEXT("update_struct"),
+                    TEXT("get_project_dir"),
+                    TEXT("show_struct_variables")
                 };
                 
                 static const TArray<FString> UMGCommandsList = {
