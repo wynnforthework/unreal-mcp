@@ -125,13 +125,12 @@ def register_blueprint_node_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Add a variable to a Blueprint.
-        
+        Supports built-in, user-defined struct, and delegate types.
         Args:
             blueprint_name: Name of the target Blueprint
             variable_name: Name of the variable
-            variable_type: Type of the variable (Boolean, Integer, Float, Vector, etc.)
+            variable_type: Type of the variable (Boolean, Integer, Float, Vector, StructName, StructName[], Delegate, etc.)
             is_exposed: Whether to expose the variable to the editor
-            
         Returns:
             Response indicating success or failure
         """
