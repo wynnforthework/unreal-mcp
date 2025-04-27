@@ -332,7 +332,9 @@ def add_variable(
     variable_type: str,
     is_exposed: bool = False
 ) -> Dict[str, Any]:
-    """Implementation for adding a variable to a Blueprint."""
+    """Implementation for adding a variable to a Blueprint.
+    Supports built-in, user-defined struct, and delegate types.
+    """
     params = {
         "blueprint_name": blueprint_name,
         "variable_name": variable_name,

@@ -15,7 +15,8 @@ from utils.blueprints.blueprint_operations import (
     set_physics_properties as set_physics_properties_impl,
     compile_blueprint as compile_blueprint_impl,
     set_blueprint_property as set_blueprint_property_impl,
-    set_pawn_properties as set_pawn_properties_impl
+    set_pawn_properties as set_pawn_properties_impl,
+    add_blueprint_custom_event_node as add_blueprint_custom_event_node_impl
 )
 
 # Get logger
@@ -118,22 +119,20 @@ def register_blueprint_tools(mcp: FastMCP):
         ctx: Context,
         blueprint_name: str,
         component_name: str,
-        property_name: str,
-        property_value: Union[str, int, float, bool, list]
+        **kwargs
     ) -> Dict[str, Any]:
         """
-        Set a property on a component in a Blueprint.
-        
+        Set one or more properties on a component in a Blueprint.
         Args:
             blueprint_name: Name of the target Blueprint
             component_name: Name of the component
-            property_name: Name of the property to set
-            property_value: Value to set the property to
-            
+            kwargs: Properties to set (as keyword arguments or a dict). Each key is a property name, value is the value to set.
         Returns:
-            Response indicating success or failure
+            Response indicating success or failure for each property.
+        Example:
+            set_component_property(ctx, "MyActor", "Mesh", StaticMesh="/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", Mobility="Movable")
         """
-        return set_component_property_impl(ctx, blueprint_name, component_name, property_name, property_value)
+        return set_component_property_impl(ctx, blueprint_name, component_name, **kwargs)
     
     @mcp.tool()
     def set_physics_properties(
@@ -242,5 +241,23 @@ def register_blueprint_tools(mcp: FastMCP):
             use_controller_rotation_roll,
             can_be_damaged
         )
+    
+    @mcp.tool()
+    def add_blueprint_custom_event_node(
+        ctx: Context,
+        blueprint_name: str,
+        event_name: str,
+        node_position: List[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Adds a custom event node to the event graph of the specified Blueprint.
+        Args:
+            blueprint_name: Name of the target Blueprint
+            event_name: Name of the custom event to create
+            node_position: Optional [X, Y] position for the node
+        Returns:
+            Dict with node_id and event_name
+        """
+        return add_blueprint_custom_event_node_impl(ctx, blueprint_name, event_name, node_position)
     
     logger.info("Blueprint tools registered successfully")

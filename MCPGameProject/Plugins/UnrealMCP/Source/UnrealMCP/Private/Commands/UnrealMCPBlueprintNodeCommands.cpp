@@ -16,6 +16,7 @@
 #include "Camera/CameraActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "EdGraphSchema_K2.h"
+#include "K2Node_CustomEvent.h"
 
 // No longer needed as we're using LogTemp
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -57,6 +58,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleCommand(const FSt
     else if (CommandType == TEXT("find_blueprint_nodes"))
     {
         return HandleFindBlueprintNodes(Params);
+    }
+    else if (CommandType == TEXT("add_blueprint_custom_event_node"))
+    {
+        return HandleAddBlueprintCustomEventNode(Params);
     }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint node command: %s"), *CommandType));
@@ -707,32 +712,181 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
 
     // Create variable based on type
     FEdGraphPinType PinType;
-    
-    // Set up pin type based on variable_type string
-    if (VariableType == TEXT("Boolean"))
-    {
-        PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+    bool bTypeResolved = false;
+
+    auto SetPinTypeForCategory = [&](auto Category, UObject* SubCategoryObject = nullptr) {
+        if constexpr (std::is_same_v<std::decay_t<decltype(Category)>, FName>) {
+            PinType.PinCategory = Category;
+        } else {
+            PinType.PinCategory = FName(Category);
+        }
+        PinType.PinSubCategoryObject = SubCategoryObject;
+        bTypeResolved = true;
+    };
+
+    FString TypeStr = VariableType;
+    TypeStr.TrimStartAndEndInline();
+
+    // Handle array, set, map containers
+    if (TypeStr.EndsWith(TEXT("[]"))) {
+        // Array type
+        FString InnerType = TypeStr.LeftChop(2);
+        InnerType.TrimStartAndEndInline();
+        // Recursively resolve inner type
+        FEdGraphPinType InnerPinType;
+        bool bInnerResolved = false;
+        // Use a lambda for recursion
+        auto ResolveType = [&](const FString& InType, FEdGraphPinType& OutPinType, bool& bResolved) {
+            // Built-in types
+            if (InType.Equals(TEXT("Float"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Float;
+                bResolved = true;
+            } else if (InType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+                bResolved = true;
+            } else if (InType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase) || InType.Equals(TEXT("Int"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+                bResolved = true;
+            } else if (InType.Equals(TEXT("String"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_String;
+                bResolved = true;
+            } else if (InType.Equals(TEXT("Name"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Name;
+                bResolved = true;
+            } else if (InType.Equals(TEXT("Text"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
+                bResolved = true;
+            } else if (InType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                OutPinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
+                bResolved = true;
+            } else if (InType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                OutPinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
+                bResolved = true;
+            } else if (InType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                OutPinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
+                bResolved = true;
+            } else if (InType.Equals(TEXT("Color"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                OutPinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
+                bResolved = true;
+            } else {
+                // Try struct
+                UScriptStruct* FoundStruct = nullptr;
+                TArray<FString> StructNameVariations;
+                StructNameVariations.Add(InType);
+                StructNameVariations.Add(FString::Printf(TEXT("F%s"), *InType));
+                StructNameVariations.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s"), *InType, *InType));
+                StructNameVariations.Add(FString::Printf(TEXT("/Game/DataStructures/%s.%s"), *InType, *InType));
+                StructNameVariations.Add(FString::Printf(TEXT("/Script/Engine.%s"), *InType));
+                for (const FString& StructVariation : StructNameVariations) {
+                    FoundStruct = FindObject<UScriptStruct>(ANY_PACKAGE, *StructVariation);
+                    if (FoundStruct) break;
+                }
+                if (!FoundStruct) {
+                    for (const FString& StructVariation : StructNameVariations) {
+                        FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
+                        if (FoundStruct) break;
+                    }
+                }
+                if (FoundStruct) {
+                    OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    OutPinType.PinSubCategoryObject = FoundStruct;
+                    bResolved = true;
+                } else {
+                    // Try enum
+                    UEnum* FoundEnum = FindObject<UEnum>(ANY_PACKAGE, *InType);
+                    if (!FoundEnum) {
+                        FoundEnum = LoadObject<UEnum>(nullptr, *InType);
+                    }
+                    if (FoundEnum) {
+                        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
+                        OutPinType.PinSubCategoryObject = FoundEnum;
+                        bResolved = true;
+                    }
+                }
+            }
+        };
+        ResolveType(InnerType, InnerPinType, bInnerResolved);
+        if (bInnerResolved) {
+            PinType = InnerPinType;
+            PinType.ContainerType = EPinContainerType::Array;
+            bTypeResolved = true;
+        } else {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unsupported or unknown array inner type: %s"), *InnerType));
+        }
+    } else {
+        // Built-in types
+        if (TypeStr.Equals(TEXT("Float"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Float);
+        } else if (TypeStr.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Boolean);
+        } else if (TypeStr.Equals(TEXT("Integer"), ESearchCase::IgnoreCase) || TypeStr.Equals(TEXT("Int"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Int);
+        } else if (TypeStr.Equals(TEXT("String"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_String);
+        } else if (TypeStr.Equals(TEXT("Name"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Name);
+        } else if (TypeStr.Equals(TEXT("Text"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Text);
+        } else if (TypeStr.Equals(TEXT("Vector"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, TBaseStructure<FVector>::Get());
+        } else if (TypeStr.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, TBaseStructure<FRotator>::Get());
+        } else if (TypeStr.Equals(TEXT("Transform"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, TBaseStructure<FTransform>::Get());
+        } else if (TypeStr.Equals(TEXT("Color"), ESearchCase::IgnoreCase)) {
+            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, TBaseStructure<FLinearColor>::Get());
+        } else {
+            // Try struct
+            UScriptStruct* FoundStruct = nullptr;
+            TArray<FString> StructNameVariations;
+            StructNameVariations.Add(TypeStr);
+            StructNameVariations.Add(FString::Printf(TEXT("F%s"), *TypeStr));
+            StructNameVariations.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s"), *TypeStr, *TypeStr));
+            StructNameVariations.Add(FString::Printf(TEXT("/Game/DataStructures/%s.%s"), *TypeStr, *TypeStr));
+            StructNameVariations.Add(FString::Printf(TEXT("/Script/Engine.%s"), *TypeStr));
+            for (const FString& StructVariation : StructNameVariations) {
+                FoundStruct = FindObject<UScriptStruct>(ANY_PACKAGE, *StructVariation);
+                if (FoundStruct) break;
+            }
+            if (!FoundStruct) {
+                for (const FString& StructVariation : StructNameVariations) {
+                    FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
+                    if (FoundStruct) break;
+                }
+            }
+            if (FoundStruct) {
+                SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, FoundStruct);
+            } else {
+                // Try enum
+                UEnum* FoundEnum = FindObject<UEnum>(ANY_PACKAGE, *TypeStr);
+                if (!FoundEnum) {
+                    FoundEnum = LoadObject<UEnum>(nullptr, *TypeStr);
+                }
+                if (FoundEnum) {
+                    SetPinTypeForCategory(UEdGraphSchema_K2::PC_Byte, FoundEnum);
+                } else {
+                    // Try object/class
+                    UClass* FoundClass = FindObject<UClass>(ANY_PACKAGE, *TypeStr);
+                    if (!FoundClass) {
+                        FoundClass = LoadObject<UClass>(nullptr, *TypeStr);
+                    }
+                    if (FoundClass) {
+                        SetPinTypeForCategory(UEdGraphSchema_K2::PC_Object, FoundClass);
+                    } else {
+                        // Try delegate (not implemented here, but could be added)
+                        // ...
+                        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unsupported or unknown variable type: %s"), *TypeStr));
+                    }
+                }
+            }
+        }
     }
-    else if (VariableType == TEXT("Integer") || VariableType == TEXT("Int"))
-    {
-        PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
-    }
-    else if (VariableType == TEXT("Float"))
-    {
-        PinType.PinCategory = UEdGraphSchema_K2::PC_Float;
-    }
-    else if (VariableType == TEXT("String"))
-    {
-        PinType.PinCategory = UEdGraphSchema_K2::PC_String;
-    }
-    else if (VariableType == TEXT("Vector"))
-    {
-        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-        PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
-    }
-    else
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unsupported variable type: %s"), *VariableType));
+    if (!bTypeResolved) {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not resolve variable type: %s"), *VariableType));
     }
 
     // Create the variable
@@ -920,5 +1074,58 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetArrayField(TEXT("node_guids"), NodeGuidArray);
     
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintCustomEventNode(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+
+    FString EventName;
+    if (!Params->TryGetStringField(TEXT("event_name"), EventName))
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'event_name' parameter"));
+
+    FVector2D NodePosition(0.0f, 0.0f);
+    if (Params->HasField(TEXT("node_position")))
+        NodePosition = FUnrealMCPCommonUtils::GetVector2DFromJson(Params, TEXT("node_position"));
+
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+    if (!Blueprint)
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+
+    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
+    if (!EventGraph)
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
+
+    // Check for existing custom event node
+    for (UEdGraphNode* Node : EventGraph->Nodes)
+    {
+        UK2Node_CustomEvent* CustomEventNode = Cast<UK2Node_CustomEvent>(Node);
+        if (CustomEventNode && CustomEventNode->CustomFunctionName == FName(*EventName))
+        {
+            TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
+            Obj->SetStringField(TEXT("node_id"), CustomEventNode->NodeGuid.ToString());
+            Obj->SetStringField(TEXT("event_name"), EventName);
+            return Obj;
+        }
+    }
+
+    // Create new custom event node
+    UK2Node_CustomEvent* NewEventNode = NewObject<UK2Node_CustomEvent>(EventGraph);
+    NewEventNode->CustomFunctionName = FName(*EventName);
+    NewEventNode->NodePosX = NodePosition.X;
+    NewEventNode->NodePosY = NodePosition.Y;
+    EventGraph->AddNode(NewEventNode, true);
+    NewEventNode->CreateNewGuid();
+    NewEventNode->PostPlacedNewNode();
+    NewEventNode->AllocateDefaultPins();
+
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetStringField(TEXT("node_id"), NewEventNode->NodeGuid.ToString());
+    ResultObj->SetStringField(TEXT("event_name"), EventName);
     return ResultObj;
 } 
