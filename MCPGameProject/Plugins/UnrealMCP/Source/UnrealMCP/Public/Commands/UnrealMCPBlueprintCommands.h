@@ -33,6 +33,8 @@ private:
     TSharedPtr<FJsonObject> HandleSetBlueprintProperty(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleSetStaticMeshProperties(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleSetPawnProperties(const TSharedPtr<FJsonObject>& Params);
+    // Handler for generic Blueprint function call
+    TSharedPtr<FJsonObject> HandleCallFunctionByName(const TSharedPtr<FJsonObject>& Params);
 
     // Helper functions
     TSharedPtr<FJsonObject> AddComponentToBlueprint(const FString& BlueprintName, const FString& ComponentType, 

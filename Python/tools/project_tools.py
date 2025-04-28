@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP, Context
 from utils.project.struct_operations import create_struct as create_struct_impl
 from utils.project.struct_operations import update_struct as update_struct_impl
 from utils.project.struct_operations import show_struct_variables as show_struct_variables_impl
+from utils.project.struct_operations import list_folder_contents as list_folder_contents_impl
 
 # Get logger
 logger = logging.getLogger("UnrealMCP")
@@ -194,5 +195,21 @@ def register_project_tools(mcp: FastMCP):
             Dictionary with struct variable info
         """
         return show_struct_variables_impl(ctx, struct_name, path)
+
+    @mcp.tool()
+    def list_folder_contents(
+        ctx: Context,
+        folder_path: str
+    ) -> Dict[str, Any]:
+        """
+        List the contents of a folder in the Unreal project (content or regular folder).
+        Args:
+            folder_path: Path to the folder (e.g., "/Game/Blueprints" or "Content/MyFolder" or "Intermediate/MyTools")
+        Returns:
+            Dictionary with arrays of subfolders and files/assets
+        Example:
+            list_folder_contents(folder_path="/Game/Blueprints")
+        """
+        return list_folder_contents_impl(ctx, folder_path)
 
     logger.info("Project tools registered successfully")

@@ -260,4 +260,22 @@ def register_blueprint_tools(mcp: FastMCP):
         """
         return add_blueprint_custom_event_node_impl(ctx, blueprint_name, event_name, node_position)
     
+    @mcp.tool()
+    def call_blueprint_function(
+        ctx: Context,
+        target_name: str,
+        function_name: str,
+        string_params: list = None
+    ) -> dict:
+        """
+        Call a BlueprintCallable function by name on the specified target.
+        Only supports FString parameters for now.
+        """
+        payload = {
+            "target_name": target_name,
+            "function_name": function_name,
+            "string_params": string_params or []
+        }
+        return ctx.mcp.command("call_function_by_name", payload)
+    
     logger.info("Blueprint tools registered successfully")

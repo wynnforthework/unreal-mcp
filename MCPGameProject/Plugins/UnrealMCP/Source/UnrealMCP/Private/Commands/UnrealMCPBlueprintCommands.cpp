@@ -70,6 +70,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCommand(const FString
     {
         return HandleSetPawnProperties(Params);
     }
+    else if (CommandType == TEXT("call_function_by_name"))
+    {
+        return HandleCallFunctionByName(Params);
+    }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint command: %s"), *CommandType));
 }
@@ -1053,4 +1057,33 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetPawnProperties(con
     ResponseObj->SetBoolField(TEXT("success"), bAnyPropertiesSet);
     ResponseObj->SetObjectField(TEXT("results"), ResultsObj);
     return ResponseObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCallFunctionByName(const TSharedPtr<FJsonObject>& Params)
+{
+    FString TargetName, FunctionName;
+    TArray<FString> StringParams;
+    if (!Params->TryGetStringField(TEXT("target_name"), TargetName) ||
+        !Params->TryGetStringField(TEXT("function_name"), FunctionName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing required parameters"));
+    }
+    // Find the target object (for demo: try actor, then nullptr)
+    UObject* Target = FUnrealMCPCommonUtils::FindActorByName(TargetName); // Extend as needed
+    if (!Target)
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Target not found"));
+
+    // Parse string_params array
+    const TArray<TSharedPtr<FJsonValue>>* JsonParams;
+    if (Params->TryGetArrayField(TEXT("string_params"), JsonParams))
+    {
+        for (const auto& Val : *JsonParams)
+            StringParams.Add(Val->AsString());
+    }
+
+    FString Error;
+    if (!FUnrealMCPCommonUtils::CallFunctionByName(Target, FunctionName, StringParams, Error))
+        return FUnrealMCPCommonUtils::CreateErrorResponse(Error);
+
+    return FUnrealMCPCommonUtils::CreateSuccessResponse();
 }

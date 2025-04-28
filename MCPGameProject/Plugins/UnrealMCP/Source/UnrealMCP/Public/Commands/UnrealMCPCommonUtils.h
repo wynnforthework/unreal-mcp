@@ -75,4 +75,7 @@ public:
 
     // Helper to set an FProperty value from a JsonValue
     static bool SetPropertyFromJson(FProperty* Property, void* ContainerPtr, const TSharedPtr<FJsonValue>& JsonValue);
+
+    // Helper to call a BlueprintCallable function by name with FString parameters
+    static bool CallFunctionByName(UObject* Target, const FString& FunctionName, const TArray<FString>& StringParams, FString& OutError);
 }; 

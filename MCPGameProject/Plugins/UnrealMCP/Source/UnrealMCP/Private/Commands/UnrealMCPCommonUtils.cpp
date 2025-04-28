@@ -1259,3 +1259,33 @@ AActor* FUnrealMCPCommonUtils::FindActorByName(const FString& ActorName)
     }
     return nullptr;
 }
+
+bool FUnrealMCPCommonUtils::CallFunctionByName(UObject* Target, const FString& FunctionName, const TArray<FString>& StringParams, FString& OutError)
+{
+    if (!Target) {
+        OutError = TEXT("Target is null");
+        return false;
+    }
+    UFunction* Function = Target->FindFunction(FName(*FunctionName));
+    if (!Function) {
+        OutError = FString::Printf(TEXT("Function not found: %s"), *FunctionName);
+        return false;
+    }
+    uint8* Params = (uint8*)FMemory_Alloca(Function->ParmsSize);
+    FMemory::Memzero(Params, Function->ParmsSize);
+
+    int32 ParamIndex = 0;
+    for (TFieldIterator<FProperty> It(Function); It && (It->PropertyFlags & CPF_Parm); ++It)
+    {
+        if (It->IsA<FStrProperty>() && ParamIndex < StringParams.Num())
+        {
+            FStrProperty* StrProp = CastField<FStrProperty>(*It);
+            void* ValuePtr = It->ContainerPtrToValuePtr<void>(Params);
+            StrProp->SetPropertyValue(ValuePtr, StringParams[ParamIndex]);
+            ParamIndex++;
+        }
+        // Extend for other types as needed
+    }
+    Target->ProcessEvent(Function, Params);
+    return true;
+}

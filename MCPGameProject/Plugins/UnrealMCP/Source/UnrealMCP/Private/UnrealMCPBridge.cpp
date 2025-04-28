@@ -252,7 +252,8 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("compile_blueprint"), 
                     TEXT("set_blueprint_property"), 
                     TEXT("set_static_mesh_properties"),
-                    TEXT("set_pawn_properties")
+                    TEXT("set_pawn_properties"),
+                    TEXT("call_function_by_name")
                 };
                 
                 static const TArray<FString> BlueprintNodeCommandsList = {
@@ -264,7 +265,8 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("add_blueprint_input_action_node"),
                     TEXT("add_blueprint_function_node"),
                     TEXT("add_blueprint_get_component_node"),
-                    TEXT("add_blueprint_variable")
+                    TEXT("add_blueprint_variable"),
+                    TEXT("add_blueprint_custom_event_node")
                 };
                 
                 static const TArray<FString> ProjectCommandsList = {
@@ -273,7 +275,8 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("create_struct"),
                     TEXT("update_struct"),
                     TEXT("get_project_dir"),
-                    TEXT("show_struct_variables")
+                    TEXT("show_struct_variables"),
+                    TEXT("list_folder_contents")
                 };
                 
                 static const TArray<FString> UMGCommandsList = {
