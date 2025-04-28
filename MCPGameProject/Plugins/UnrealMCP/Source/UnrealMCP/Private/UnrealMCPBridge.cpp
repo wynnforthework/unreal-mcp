@@ -275,7 +275,8 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("create_struct"),
                     TEXT("update_struct"),
                     TEXT("get_project_dir"),
-                    TEXT("show_struct_variables")
+                    TEXT("show_struct_variables"),
+                    TEXT("list_folder_contents")
                 };
                 
                 static const TArray<FString> UMGCommandsList = {

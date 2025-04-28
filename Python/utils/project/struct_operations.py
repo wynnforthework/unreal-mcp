@@ -98,3 +98,22 @@ def show_struct_variables(
     }
     logger.info(f"Showing struct variables for: {struct_name} at {path}")
     return send_unreal_command("show_struct_variables", params)
+
+
+def list_folder_contents(
+    ctx: Context,
+    folder_path: str
+) -> Dict[str, Any]:
+    """
+    List the contents of a folder in the Unreal project (content or regular folder).
+    Args:
+        ctx: The MCP context
+        folder_path: Path to the folder (e.g., "/Game/Blueprints" or "Content/MyFolder" or "Intermediate/MyTools")
+    Returns:
+        Dictionary with arrays of subfolders and files/assets
+    """
+    params = {
+        "folder_path": folder_path
+    }
+    logger.info(f"Listing folder contents for: {folder_path}")
+    return send_unreal_command("list_folder_contents", params)

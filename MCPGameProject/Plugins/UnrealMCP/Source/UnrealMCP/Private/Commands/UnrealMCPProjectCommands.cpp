@@ -46,6 +46,10 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCommand(const FString& 
     {
         return HandleShowStructVariables(Params);
     }
+    else if (CommandType == TEXT("list_folder_contents"))
+    {
+        return HandleListFolderContents(Params);
+    }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown project command: %s"), *CommandType));
 }
@@ -703,5 +707,109 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleShowStructVariables(con
     ResultObj->SetBoolField(TEXT("success"), true);
     ResultObj->SetStringField(TEXT("struct_name"), StructName);
     ResultObj->SetArrayField(TEXT("variables"), VariablesJson);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleListFolderContents(const TSharedPtr<FJsonObject>& Params)
+{
+    FString FolderPath;
+    if (!Params->TryGetStringField(TEXT("folder_path"), FolderPath))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'folder_path' parameter"));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> SubfoldersJson;
+    TArray<TSharedPtr<FJsonValue>> FilesJson;
+
+    // Determine if this is a content folder
+    bool bIsContentFolder = FolderPath.StartsWith(TEXT("/Content/")) || FolderPath.StartsWith(TEXT("Content/")) || FolderPath.StartsWith(TEXT("/Game/")) || FolderPath.StartsWith(TEXT("Game/"));
+    FString AssetPath = FolderPath;
+    if (bIsContentFolder)
+    {
+        // Normalize all /Content, /Content/, /Game/Content, /Game/Content/ to /Game
+        if (AssetPath == TEXT("/Content") || AssetPath == TEXT("/Content/") || AssetPath == TEXT("Content") || AssetPath == TEXT("Content/"))
+        {
+            AssetPath = TEXT("/Game");
+        }
+        else if (AssetPath.StartsWith(TEXT("/Content/")))
+        {
+            AssetPath = TEXT("/Game/") + AssetPath.RightChop(9); // "/Content/" is 9 chars
+        }
+        else if (AssetPath.StartsWith(TEXT("Content/")))
+        {
+            AssetPath = TEXT("/Game/") + AssetPath.RightChop(8); // "Content/" is 8 chars
+        }
+        else if (AssetPath == TEXT("/Game/Content") || AssetPath == TEXT("/Game/Content/"))
+        {
+            AssetPath = TEXT("/Game");
+        }
+        else if (AssetPath.StartsWith(TEXT("/Game/Content/")))
+        {
+            AssetPath = TEXT("/Game/") + AssetPath.RightChop(14); // "/Game/Content/" is 14 chars
+        }
+        else if (AssetPath.StartsWith(TEXT("Game/")))
+        {
+            AssetPath = TEXT("/Game/") + AssetPath.RightChop(5);
+        }
+        // Normalize AssetPath for root and remove trailing slash if present
+        if (AssetPath.EndsWith(TEXT("/")))
+        {
+            AssetPath = AssetPath.LeftChop(1);
+        }
+        UE_LOG(LogTemp, Display, TEXT("About to call GetSubPaths for folder: %s"), *AssetPath);
+        // Use AssetRegistry to get subfolders
+        TArray<FString> Subfolders;
+        FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+        TArray<FString> RootSubfolders;
+        AssetRegistryModule.Get().GetSubPaths(TEXT(""), RootSubfolders, false);
+        UE_LOG(LogTemp, Warning, TEXT("GetSubPaths(\"\") returned: %s"), *FString::Join(RootSubfolders, TEXT(", ")));
+        for (const FString& Subfolder : RootSubfolders)
+        {
+            if (!Subfolders.Contains(Subfolder))
+                Subfolders.Add(Subfolder);
+        }
+        TArray<FString> PathSubfolders;
+        AssetRegistryModule.Get().GetSubPaths(AssetPath, PathSubfolders, false);
+        UE_LOG(LogTemp, Warning, TEXT("GetSubPaths(%s) returned: %s"), *AssetPath, *FString::Join(PathSubfolders, TEXT(", ")));
+        for (const FString& Subfolder : PathSubfolders)
+        {
+            if (!Subfolders.Contains(Subfolder))
+                Subfolders.Add(Subfolder);
+        }
+        for (const FString& Subfolder : Subfolders)
+        {
+            SubfoldersJson.Add(MakeShared<FJsonValueString>(Subfolder));
+        }
+        // List assets/files
+        TArray<FString> Assets = UEditorAssetLibrary::ListAssets(AssetPath, false);
+        for (const FString& Asset : Assets)
+        {
+            FilesJson.Add(MakeShared<FJsonValueString>(Asset));
+        }
+    }
+    else
+    {
+        // Use platform file system for non-content folders
+        FString ProjectPath = FPaths::ProjectDir();
+        FString FullPath = FPaths::Combine(ProjectPath, FolderPath);
+        IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+        // List subfolders and files
+        PlatformFile.IterateDirectory(*FullPath, [&SubfoldersJson, &FilesJson, &PlatformFile](const TCHAR* Path, bool bIsDirectory) {
+            FString Item(Path);
+            if (bIsDirectory)
+            {
+                SubfoldersJson.Add(MakeShared<FJsonValueString>(Item));
+            }
+            else
+            {
+                FilesJson.Add(MakeShared<FJsonValueString>(Item));
+            }
+            return true;
+        });
+    }
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetArrayField(TEXT("subfolders"), SubfoldersJson);
+    ResultObj->SetArrayField(TEXT("files"), FilesJson);
     return ResultObj;
 }
