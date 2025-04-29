@@ -323,46 +323,48 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
     if (ComponentType == TEXT("StaticMesh"))
     {
         FString DirectComponentName = TEXT("StaticMeshComponent");
-        ComponentClass = FindObject<UClass>(ANY_PACKAGE, *DirectComponentName);
-        UE_LOG(LogTemp, Display, TEXT("Direct match attempt for %s -> %s: %s"), 
-               *ComponentType, *DirectComponentName, ComponentClass ? TEXT("Found") : TEXT("Not found"));
-    }
-    
-    // If we still don't have a component class, try the regular lookup flow
-    if (!ComponentClass)
-    {
-        // Try to find the class with exact name first
-        ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentType);
-        UE_LOG(LogTemp, Display, TEXT("FindObject<%s>: %s"), *ComponentType, ComponentClass ? TEXT("Found") : TEXT("Not found"));
+        // Try to find the component class using various paths
+        TArray<FString> ClassPaths;
+        ClassPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *DirectComponentName));
+        ClassPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *DirectComponentName));
+        ClassPaths.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s_C"), *DirectComponentName, *DirectComponentName));
+        ClassPaths.Add(FString::Printf(TEXT("/Game/%s.%s_C"), *DirectComponentName, *DirectComponentName));
 
-        // If found, make sure it's actually a component class
-        if (ComponentClass && !ComponentClass->IsChildOf(UActorComponent::StaticClass()))
+        for (const FString& ClassPath : ClassPaths)
         {
-            UE_LOG(LogTemp, Warning, TEXT("Found class %s but it's not a component class"), *ComponentType);
-            ComponentClass = nullptr;
-        }
-        
-        // If not found, try with "Component" suffix
-        if (!ComponentClass && !ComponentType.EndsWith(TEXT("Component")))
-        {
-            FString ComponentTypeWithSuffix = ComponentType + TEXT("Component");
-            ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentTypeWithSuffix);
-            UE_LOG(LogTemp, Display, TEXT("FindObject<%s>: %s"), *ComponentTypeWithSuffix, ComponentClass ? TEXT("Found") : TEXT("Not found"));
-        }
-        
-        // If still not found, try with "U" prefix
-        if (!ComponentClass && !ComponentType.StartsWith(TEXT("U")))
-        {
-            FString ComponentTypeWithPrefix = TEXT("U") + ComponentType;
-            ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentTypeWithPrefix);
-            UE_LOG(LogTemp, Display, TEXT("FindObject<%s>: %s"), *ComponentTypeWithPrefix, ComponentClass ? TEXT("Found") : TEXT("Not found"));
-            
-            // Try with both prefix and suffix
-            if (!ComponentClass && !ComponentType.EndsWith(TEXT("Component")))
+            ComponentClass = LoadObject<UClass>(nullptr, *ClassPath);
+            if (ComponentClass)
             {
-                FString ComponentTypeWithBoth = TEXT("U") + ComponentType + TEXT("Component");
-                ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentTypeWithBoth);
-                UE_LOG(LogTemp, Display, TEXT("FindObject<%s>: %s"), *ComponentTypeWithBoth, ComponentClass ? TEXT("Found") : TEXT("Not found"));
+                break;
+            }
+        }
+
+        // Try with different prefixes/suffixes if not found
+        if (!ComponentClass)
+        {
+            TArray<FString> VariationPaths;
+            // With U prefix
+            FString WithUPrefix = FString::Printf(TEXT("U%s"), *ComponentType);
+            VariationPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *WithUPrefix));
+            VariationPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *WithUPrefix));
+            
+            // With Component suffix
+            FString WithSuffix = FString::Printf(TEXT("%sComponent"), *ComponentType);
+            VariationPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *WithSuffix));
+            VariationPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *WithSuffix));
+            
+            // With U prefix and Component suffix
+            FString WithBoth = FString::Printf(TEXT("U%sComponent"), *ComponentType);
+            VariationPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *WithBoth));
+            VariationPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *WithBoth));
+
+            for (const FString& Path : VariationPaths)
+            {
+                ComponentClass = LoadObject<UClass>(nullptr, *Path);
+                if (ComponentClass)
+                {
+                    break;
+                }
             }
         }
     }
@@ -388,7 +390,27 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
         FString* MappedType = CommonComponentTypes.Find(ComponentType);
         if (MappedType)
         {
-            ComponentClass = FindObject<UClass>(ANY_PACKAGE, **MappedType);
+            // Try loading from Engine module first
+            FString EnginePath = FString::Printf(TEXT("/Script/Engine.%s"), **MappedType);
+            ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
+            
+            if (!ComponentClass)
+            {
+                // Try other common modules if not found in Engine
+                TArray<FString> ModulePaths = {
+                    TEXT("/Script/UMG"),
+                    TEXT("/Script/NavigationSystem"),
+                    TEXT("/Script/AIModule")
+                };
+                
+                for (const FString& ModulePath : ModulePaths)
+                {
+                    if (ComponentClass) break;
+                    FString FullPath = FString::Printf(TEXT("%s.%s"), *ModulePath, **MappedType);
+                    ComponentClass = LoadObject<UClass>(nullptr, *FullPath);
+                }
+            }
+            
             UE_LOG(LogTemp, Display, TEXT("Mapped to common type: %s -> %s, Found: %s"), 
                   *ComponentType, **MappedType, ComponentClass ? TEXT("Yes") : TEXT("No"));
         }

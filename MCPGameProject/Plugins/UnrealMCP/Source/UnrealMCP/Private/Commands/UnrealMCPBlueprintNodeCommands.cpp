@@ -321,53 +321,78 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
     // Check if we have a target class specified
     if (!Target.IsEmpty())
     {
-        // Try to find the target class
+        // Try to find the target class using various paths
+        TArray<FString> ClassPaths;
+        ClassPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *Target));
+        ClassPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *Target));
+        ClassPaths.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s_C"), *Target, *Target));
+        ClassPaths.Add(FString::Printf(TEXT("/Game/%s.%s_C"), *Target, *Target));
+
         UClass* TargetClass = nullptr;
-        
-        // First try without a prefix
-        TargetClass = FindObject<UClass>(ANY_PACKAGE, *Target);
-        UE_LOG(LogTemp, Display, TEXT("Tried to find class '%s': %s"), 
-               *Target, TargetClass ? TEXT("Found") : TEXT("Not found"));
-        
-        // If not found, try with U prefix (common convention for UE classes)
-        if (!TargetClass && !Target.StartsWith(TEXT("U")))
+        for (const FString& ClassPath : ClassPaths)
         {
-            FString TargetWithPrefix = FString(TEXT("U")) + Target;
-            TargetClass = FindObject<UClass>(ANY_PACKAGE, *TargetWithPrefix);
-            UE_LOG(LogTemp, Display, TEXT("Tried to find class '%s': %s"), 
-                   *TargetWithPrefix, TargetClass ? TEXT("Found") : TEXT("Not found"));
+            TargetClass = LoadObject<UClass>(nullptr, *ClassPath);
+            if (TargetClass)
+            {
+                break;
+            }
         }
-        
-        // If still not found, try with common component names
+
+        // Try with U prefix if not found
         if (!TargetClass)
         {
-            // Try some common component class names
-            TArray<FString> PossibleClassNames;
-            PossibleClassNames.Add(FString(TEXT("U")) + Target + TEXT("Component"));
-            PossibleClassNames.Add(Target + TEXT("Component"));
+            FString TargetWithPrefix = FString::Printf(TEXT("U%s"), *Target);
+            TArray<FString> PrefixedPaths;
+            PrefixedPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *TargetWithPrefix));
+            PrefixedPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *TargetWithPrefix));
             
-            for (const FString& ClassName : PossibleClassNames)
+            for (const FString& Path : PrefixedPaths)
             {
-                TargetClass = FindObject<UClass>(ANY_PACKAGE, *ClassName);
+                TargetClass = LoadObject<UClass>(nullptr, *Path);
                 if (TargetClass)
                 {
-                    UE_LOG(LogTemp, Display, TEXT("Found class using alternative name '%s'"), *ClassName);
                     break;
                 }
             }
         }
-        
-        // Special case handling for common classes like UGameplayStatics
-        if (!TargetClass && Target == TEXT("UGameplayStatics"))
+
+        // For UGameplayStatics specific lookup
+        if (!TargetClass && Target.Equals(TEXT("GameplayStatics")))
         {
-            // For UGameplayStatics, use a direct reference to known class
-            TargetClass = FindObject<UClass>(ANY_PACKAGE, TEXT("UGameplayStatics"));
-            if (!TargetClass)
+            TargetClass = LoadObject<UClass>(nullptr, TEXT("/Script/Engine.GameplayStatics"));
+        }
+
+        // Special case handling for common classes like UGameplayStatics
+        if (TargetClass && TargetClass->GetName() == TEXT("GameplayStatics") && 
+            (FunctionName == TEXT("GetActorOfClass") || FunctionName.Equals(TEXT("GetActorOfClass"), ESearchCase::IgnoreCase)))
+        {
+            UE_LOG(LogTemp, Display, TEXT("Using special case handling for GameplayStatics::GetActorOfClass"));
+            
+            // Create the function node directly
+            FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
+            if (FunctionNode)
             {
-                // Try loading it from its known package
-                TargetClass = LoadObject<UClass>(nullptr, TEXT("/Script/Engine.GameplayStatics"));
-                UE_LOG(LogTemp, Display, TEXT("Explicitly loading GameplayStatics: %s"), 
-                       TargetClass ? TEXT("Success") : TEXT("Failed"));
+                // Direct setup for known function
+                FunctionNode->FunctionReference.SetExternalMember(
+                    FName(TEXT("GetActorOfClass")), 
+                    TargetClass
+                );
+                
+                FunctionNode->NodePosX = NodePosition.X;
+                FunctionNode->NodePosY = NodePosition.Y;
+                EventGraph->AddNode(FunctionNode);
+                FunctionNode->CreateNewGuid();
+                FunctionNode->PostPlacedNewNode();
+                FunctionNode->AllocateDefaultPins();
+                
+                UE_LOG(LogTemp, Display, TEXT("Created GetActorOfClass node directly"));
+                
+                // List all pins
+                for (UEdGraphPin* Pin : FunctionNode->Pins)
+                {
+                    UE_LOG(LogTemp, Display, TEXT("  - Pin: %s, Direction: %d, Category: %s"), 
+                           *Pin->PinName.ToString(), (int32)Pin->Direction, *Pin->PinType.PinCategory.ToString());
+                }
             }
         }
         
@@ -508,17 +533,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
                             const FString& ClassName = StringVal;
                             
                             // TODO: This likely won't work in UE5.5+, so don't rely on it.
-                            UClass* Class = FindObject<UClass>(ANY_PACKAGE, *ClassName);
+                            UClass* Class = LoadObject<UClass>(nullptr, *ClassName);
 
                             if (!Class)
                             {
-                                Class = LoadObject<UClass>(nullptr, *ClassName);
-                                UE_LOG(LogTemp, Display, TEXT("FindObject<UClass> failed. Assuming soft path  path: %s"), *ClassName);
-                            }
-                            
-                            // If not found, try with Engine module path
-                            if (!Class)
-                            {
+                                // Try with Engine module path
                                 FString EngineClassName = FString::Printf(TEXT("/Script/Engine.%s"), *ClassName);
                                 Class = LoadObject<UClass>(nullptr, *EngineClassName);
                                 UE_LOG(LogTemp, Display, TEXT("Trying Engine module path: %s"), *EngineClassName);
@@ -782,7 +801,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                 StructNameVariations.Add(FString::Printf(TEXT("/Game/DataStructures/%s.%s"), *InType, *InType));
                 StructNameVariations.Add(FString::Printf(TEXT("/Script/Engine.%s"), *InType));
                 for (const FString& StructVariation : StructNameVariations) {
-                    FoundStruct = FindObject<UScriptStruct>(ANY_PACKAGE, *StructVariation);
+                    FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
                     if (FoundStruct) break;
                 }
                 if (!FoundStruct) {
@@ -797,7 +816,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                     bResolved = true;
                 } else {
                     // Try enum
-                    UEnum* FoundEnum = FindObject<UEnum>(ANY_PACKAGE, *InType);
+                    UEnum* FoundEnum = LoadObject<UEnum>(nullptr, *InType);
                     if (!FoundEnum) {
                         FoundEnum = LoadObject<UEnum>(nullptr, *InType);
                     }
@@ -849,7 +868,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
             StructNameVariations.Add(FString::Printf(TEXT("/Game/DataStructures/%s.%s"), *TypeStr, *TypeStr));
             StructNameVariations.Add(FString::Printf(TEXT("/Script/Engine.%s"), *TypeStr));
             for (const FString& StructVariation : StructNameVariations) {
-                FoundStruct = FindObject<UScriptStruct>(ANY_PACKAGE, *StructVariation);
+                FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
                 if (FoundStruct) break;
             }
             if (!FoundStruct) {
@@ -862,7 +881,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                 SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, FoundStruct);
             } else {
                 // Try enum
-                UEnum* FoundEnum = FindObject<UEnum>(ANY_PACKAGE, *TypeStr);
+                UEnum* FoundEnum = LoadObject<UEnum>(nullptr, *TypeStr);
                 if (!FoundEnum) {
                     FoundEnum = LoadObject<UEnum>(nullptr, *TypeStr);
                 }
@@ -870,9 +889,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                     SetPinTypeForCategory(UEdGraphSchema_K2::PC_Byte, FoundEnum);
                 } else {
                     // Try object/class
-                    UClass* FoundClass = FindObject<UClass>(ANY_PACKAGE, *TypeStr);
+                    UClass* FoundClass = LoadObject<UClass>(nullptr, *TypeStr);
                     if (!FoundClass) {
-                        FoundClass = LoadObject<UClass>(nullptr, *TypeStr);
+                        // Try with Engine module path
+                        FString EngineClassName = FString::Printf(TEXT("/Script/Engine.%s"), *TypeStr);
+                        FoundClass = LoadObject<UClass>(nullptr, *EngineClassName);
                     }
                     if (FoundClass) {
                         SetPinTypeForCategory(UEdGraphSchema_K2::PC_Object, FoundClass);

@@ -78,10 +78,11 @@ TSharedPtr<FJsonObject> FUnrealMCPDataTableCommands::HandleCreateDataTable(const
 
     // Try alternative struct names if needed
     TArray<FString> StructNameVariations;
-    StructNameVariations.Add(RowStructName);
-    StructNameVariations.Add(FString::Printf(TEXT("F%s"), *RowStructName));
-    StructNameVariations.Add(FString::Printf(TEXT("/Game/Data/%s.%s"), *RowStructName, *RowStructName));
     StructNameVariations.Add(FString::Printf(TEXT("/Script/Engine.%s"), *RowStructName));
+    StructNameVariations.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *RowStructName));
+    StructNameVariations.Add(FString::Printf(TEXT("/Game/Data/%s.%s"), *RowStructName, *RowStructName));
+    StructNameVariations.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s"), *RowStructName, *RowStructName));
+    StructNameVariations.Add(FString::Printf(TEXT("/Game/%s.%s"), *RowStructName, *RowStructName));
     
     // Create the DataTable
     UDataTableFactory* Factory = NewObject<UDataTableFactory>();
@@ -91,7 +92,7 @@ TSharedPtr<FJsonObject> FUnrealMCPDataTableCommands::HandleCreateDataTable(const
     for (const FString& StructVariation : StructNameVariations)
     {
         UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Trying to find struct with name: '%s'"), *StructVariation);
-        UScriptStruct* FoundStruct = FindObject<UScriptStruct>(ANY_PACKAGE, *StructVariation);
+        UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
         if (FoundStruct)
         {
             UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Successfully found struct: '%s'"), *StructVariation);
