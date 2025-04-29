@@ -121,10 +121,10 @@ UWidgetBlueprint* FindWidgetBlueprint(const FString& BlueprintNameOrPath)
     
     // If not found with direct path, try common directories
     TArray<FString> SearchPaths = {
-        FString::Printf(TEXT("/Game/Widgets/%s"), *BlueprintNameOrPath),
-        FString::Printf(TEXT("/Game/UI/%s"), *BlueprintNameOrPath),
-        FString::Printf(TEXT("/Game/UMG/%s"), *BlueprintNameOrPath),
-        FString::Printf(TEXT("/Game/Interface/%s"), *BlueprintNameOrPath)
+        FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Widgets/%s"), *BlueprintNameOrPath)),
+        FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("UI/%s"), *BlueprintNameOrPath)),
+        FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("UMG/%s"), *BlueprintNameOrPath)),
+        FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Interface/%s"), *BlueprintNameOrPath))
     };
     
     for (const FString& SearchPath : SearchPaths)
@@ -301,20 +301,15 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateUMGWidgetBlueprint(co
 			// Try to find the parent class with various prefixes
 			UClass* FoundClass = nullptr;
 			TArray<FString> PossibleClassPaths;
-			PossibleClassPaths.Add(ParentClassName);
-			PossibleClassPaths.Add(FString::Printf(TEXT("/Script/UMG.%s"), *ParentClassName));
-			PossibleClassPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *ParentClassName));
-			PossibleClassPaths.Add(FString::Printf(TEXT("/Game.%s"), *ParentClassName));
+			PossibleClassPaths.Add(FUnrealMCPCommonUtils::BuildUMGPath(ParentClassName));
+			PossibleClassPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(ParentClassName));
+			PossibleClassPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(ParentClassName));
+			PossibleClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s_C"), *ParentClassName, *ParentClassName)));
+			PossibleClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("%s.%s_C"), *ParentClassName, *ParentClassName)));
 			
 			for (const FString& ClassPath : PossibleClassPaths)
 			{
-				FoundClass = FindObject<UClass>(ANY_PACKAGE, *ClassPath);
-				if (FoundClass)
-				{
-					break;
-				}
-				
-				FoundClass = LoadClass<UUserWidget>(nullptr, *ClassPath);
+				FoundClass = LoadObject<UClass>(nullptr, *ClassPath);
 				if (FoundClass)
 				{
 					break;

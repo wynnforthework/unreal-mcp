@@ -78,10 +78,11 @@ TSharedPtr<FJsonObject> FUnrealMCPDataTableCommands::HandleCreateDataTable(const
 
     // Try alternative struct names if needed
     TArray<FString> StructNameVariations;
-    StructNameVariations.Add(RowStructName);
-    StructNameVariations.Add(FString::Printf(TEXT("F%s"), *RowStructName));
-    StructNameVariations.Add(FString::Printf(TEXT("/Game/Data/%s.%s"), *RowStructName, *RowStructName));
-    StructNameVariations.Add(FString::Printf(TEXT("/Script/Engine.%s"), *RowStructName));
+    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(RowStructName));
+    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildCorePath(RowStructName));
+    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Data/%s.%s"), *RowStructName, *RowStructName)));
+    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *RowStructName, *RowStructName)));
+    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("%s.%s"), *RowStructName, *RowStructName)));
     
     // Create the DataTable
     UDataTableFactory* Factory = NewObject<UDataTableFactory>();
@@ -91,7 +92,7 @@ TSharedPtr<FJsonObject> FUnrealMCPDataTableCommands::HandleCreateDataTable(const
     for (const FString& StructVariation : StructNameVariations)
     {
         UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Trying to find struct with name: '%s'"), *StructVariation);
-        UScriptStruct* FoundStruct = FindObject<UScriptStruct>(ANY_PACKAGE, *StructVariation);
+        UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
         if (FoundStruct)
         {
             UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Successfully found struct: '%s'"), *StructVariation);
@@ -582,10 +583,10 @@ UDataTable* FUnrealMCPDataTableCommands::FindDataTable(const FString& DataTableN
 {
     // Try multiple path variations to find the datatable
     TArray<FString> PathVariations;
-    PathVariations.Add(FString::Printf(TEXT("/Game/Data/%s"), *DataTableName));
-    PathVariations.Add(FString::Printf(TEXT("/Game/Data/%s.%s"), *DataTableName, *DataTableName));
+    PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Data/%s"), *DataTableName)));
+    PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Data/%s.%s"), *DataTableName, *DataTableName)));
     PathVariations.Add(DataTableName); // Try direct name
-    PathVariations.Add(FString::Printf(TEXT("/Game/%s"), *DataTableName)); // Try under Game root
+    PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(DataTableName)); // Try under Game root
     
     for (const FString& Path : PathVariations)
     {
