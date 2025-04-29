@@ -78,11 +78,44 @@ TSharedPtr<FJsonObject> FUnrealMCPDataTableCommands::HandleCreateDataTable(const
 
     // Try alternative struct names if needed
     TArray<FString> StructNameVariations;
-    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(RowStructName));
-    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildCorePath(RowStructName));
-    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Data/%s.%s"), *RowStructName, *RowStructName)));
-    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *RowStructName, *RowStructName)));
-    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("%s.%s"), *RowStructName, *RowStructName)));
+    
+    // First try the direct name if it's already a full path
+    if (RowStructName.StartsWith(TEXT("/Game/")))
+    {
+        StructNameVariations.Add(RowStructName);
+    }
+    else if (RowStructName.StartsWith(TEXT("/Script/")))
+    {
+        StructNameVariations.Add(RowStructName);
+    }
+    else
+    {
+        // Try engine and core paths first
+        StructNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(RowStructName));
+        StructNameVariations.Add(FUnrealMCPCommonUtils::BuildCorePath(RowStructName));
+        
+        // Then try game paths - ensure no double slashes
+        FString GamePath = FUnrealMCPCommonUtils::GetGameContentPath();
+        if (!GamePath.EndsWith(TEXT("/")))
+        {
+            GamePath += TEXT("/");
+        }
+        
+        // Try in Blueprints folder
+        StructNameVariations.Add(FString::Printf(TEXT("%sBlueprints/%s.%s"), *GamePath, *RowStructName, *RowStructName));
+        
+        // Try in Data folder
+        StructNameVariations.Add(FString::Printf(TEXT("%sData/%s.%s"), *GamePath, *RowStructName, *RowStructName));
+        
+        // Try direct in Game folder
+        StructNameVariations.Add(FString::Printf(TEXT("%s%s.%s"), *GamePath, *RowStructName, *RowStructName));
+    }
+    
+    // Log all variations we're going to try
+    for (const FString& Variation : StructNameVariations)
+    {
+        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Will try to find struct with name: '%s'"), *Variation);
+    }
     
     // Create the DataTable
     UDataTableFactory* Factory = NewObject<UDataTableFactory>();
