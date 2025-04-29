@@ -325,10 +325,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
         FString DirectComponentName = TEXT("StaticMeshComponent");
         // Try to find the component class using various paths
         TArray<FString> ClassPaths;
-        ClassPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *DirectComponentName));
-        ClassPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *DirectComponentName));
-        ClassPaths.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s_C"), *DirectComponentName, *DirectComponentName));
-        ClassPaths.Add(FString::Printf(TEXT("/Game/%s.%s_C"), *DirectComponentName, *DirectComponentName));
+        ClassPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(DirectComponentName));
+        ClassPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(DirectComponentName));
+        ClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s_C"), *DirectComponentName, *DirectComponentName)));
+        ClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("%s.%s_C"), *DirectComponentName, *DirectComponentName)));
 
         for (const FString& ClassPath : ClassPaths)
         {
@@ -345,18 +345,18 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
             TArray<FString> VariationPaths;
             // With U prefix
             FString WithUPrefix = FString::Printf(TEXT("U%s"), *ComponentType);
-            VariationPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *WithUPrefix));
-            VariationPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *WithUPrefix));
+            VariationPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(WithUPrefix));
+            VariationPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(WithUPrefix));
             
             // With Component suffix
             FString WithSuffix = FString::Printf(TEXT("%sComponent"), *ComponentType);
-            VariationPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *WithSuffix));
-            VariationPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *WithSuffix));
+            VariationPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(WithSuffix));
+            VariationPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(WithSuffix));
             
             // With U prefix and Component suffix
             FString WithBoth = FString::Printf(TEXT("U%sComponent"), *ComponentType);
-            VariationPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *WithBoth));
-            VariationPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *WithBoth));
+            VariationPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(WithBoth));
+            VariationPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(WithBoth));
 
             for (const FString& Path : VariationPaths)
             {
@@ -391,22 +391,22 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
         if (MappedType)
         {
             // Try loading from Engine module first
-            FString EnginePath = FString::Printf(TEXT("/Script/Engine.%s"), **MappedType);
+            FString EnginePath = FUnrealMCPCommonUtils::BuildEnginePath(**MappedType);
             ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
             
             if (!ComponentClass)
             {
                 // Try other common modules if not found in Engine
                 TArray<FString> ModulePaths = {
-                    TEXT("/Script/UMG"),
-                    TEXT("/Script/NavigationSystem"),
-                    TEXT("/Script/AIModule")
+                    FUnrealMCPCommonUtils::BuildCorePath(TEXT("UMG")),
+                    FUnrealMCPCommonUtils::BuildCorePath(TEXT("NavigationSystem")),
+                    FUnrealMCPCommonUtils::BuildCorePath(TEXT("AIModule"))
                 };
                 
                 for (const FString& ModulePath : ModulePaths)
                 {
                     if (ComponentClass) break;
-                    FString FullPath = FString::Printf(TEXT("%s.%s"), *ModulePath, **MappedType);
+                    FString FullPath = FUnrealMCPCommonUtils::BuildCorePath(FString::Printf(TEXT("%s.%s"), *ModulePath, **MappedType));
                     ComponentClass = LoadObject<UClass>(nullptr, *FullPath);
                 }
             }
@@ -420,14 +420,14 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
     if (!ComponentClass)
     {
         // Try direct loading by path for engine components
-        FString EnginePath = FString::Printf(TEXT("/Script/Engine.%sComponent"), *ComponentType);
+        FString EnginePath = FUnrealMCPCommonUtils::BuildEnginePath(FString::Printf(TEXT("%sComponent"), *ComponentType));
         ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
         UE_LOG(LogTemp, Display, TEXT("LoadObject<%s>: %s"), *EnginePath, ComponentClass ? TEXT("Found") : TEXT("Not found"));
         
         if (!ComponentClass)
         {
             // For components that don't follow the standard naming pattern
-            FString RawPath = FString::Printf(TEXT("/Script/Engine.%s"), *ComponentType);
+            FString RawPath = FUnrealMCPCommonUtils::BuildEnginePath(FString::Printf(TEXT("%s"), *ComponentType));
             ComponentClass = LoadObject<UClass>(nullptr, *RawPath);
             UE_LOG(LogTemp, Display, TEXT("LoadObject<%s>: %s"), *RawPath, ComponentClass ? TEXT("Found") : TEXT("Not found"));
         }
@@ -511,7 +511,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetComponentProperty(
     TSharedPtr<FJsonObject> KwargsObject;
     const TSharedPtr<FJsonObject>* KwargsObjectPtr = nullptr;
     // Try to get as object first
-    if (Params->TryGetObjectField(ANSITEXTVIEW("kwargs"), KwargsObjectPtr) && KwargsObjectPtr && KwargsObjectPtr->IsValid()) {
+    if (Params->TryGetObjectField(TEXT("kwargs"), KwargsObjectPtr) && KwargsObjectPtr && KwargsObjectPtr->IsValid()) {
         KwargsObject = *KwargsObjectPtr;
     } else {
         // Try to get as string and parse

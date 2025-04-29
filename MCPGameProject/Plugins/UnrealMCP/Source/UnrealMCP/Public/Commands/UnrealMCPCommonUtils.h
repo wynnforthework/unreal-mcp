@@ -78,4 +78,36 @@ public:
 
     // Helper to call a BlueprintCallable function by name with FString parameters
     static bool CallFunctionByName(UObject* Target, const FString& FunctionName, const TArray<FString>& StringParams, FString& OutError);
+
+    // Helper to set an FProperty value from a JsonValue
+    static bool SetPropertyValueFromJsonValue(FProperty* Property, void* PropertyValue, const TSharedPtr<FJsonValue>& JsonValue);
+
+    // Package path utilities
+    static FString GetGameContentPath() { return TEXT("/Game"); }
+    static FString GetEngineScriptPath() { return TEXT("/Script/Engine"); }
+    static FString GetCoreScriptPath() { return TEXT("/Script/CoreUObject"); }
+    static FString GetUMGScriptPath() { return TEXT("/Script/UMG"); }
+    
+    static FString BuildGamePath(const FString& Path) 
+    { 
+        return FString::Printf(TEXT("%s/%s"), *GetGameContentPath(), *Path);
+    }
+    
+    static FString BuildEnginePath(const FString& Path)
+    {
+        return FString::Printf(TEXT("%s.%s"), *GetEngineScriptPath(), *Path);
+    }
+    
+    static FString BuildCorePath(const FString& Path)
+    {
+        return FString::Printf(TEXT("%s.%s"), *GetCoreScriptPath(), *Path);
+    }
+    
+    static FString BuildUMGPath(const FString& Path)
+    {
+        return FString::Printf(TEXT("%s.%s"), *GetUMGScriptPath(), *Path);
+    }
+
+private:
+    // ... existing code ...
 }; 

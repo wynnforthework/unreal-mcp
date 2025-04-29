@@ -323,10 +323,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
     {
         // Try to find the target class using various paths
         TArray<FString> ClassPaths;
-        ClassPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *Target));
-        ClassPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *Target));
-        ClassPaths.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s_C"), *Target, *Target));
-        ClassPaths.Add(FString::Printf(TEXT("/Game/%s.%s_C"), *Target, *Target));
+        ClassPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(Target));
+        ClassPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(Target));
+        ClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s_C"), *Target, *Target)));
+        ClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("%s.%s_C"), *Target, *Target)));
 
         UClass* TargetClass = nullptr;
         for (const FString& ClassPath : ClassPaths)
@@ -343,8 +343,8 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
         {
             FString TargetWithPrefix = FString::Printf(TEXT("U%s"), *Target);
             TArray<FString> PrefixedPaths;
-            PrefixedPaths.Add(FString::Printf(TEXT("/Script/Engine.%s"), *TargetWithPrefix));
-            PrefixedPaths.Add(FString::Printf(TEXT("/Script/CoreUObject.%s"), *TargetWithPrefix));
+            PrefixedPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(TargetWithPrefix));
+            PrefixedPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(TargetWithPrefix));
             
             for (const FString& Path : PrefixedPaths)
             {
@@ -797,9 +797,9 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                 TArray<FString> StructNameVariations;
                 StructNameVariations.Add(InType);
                 StructNameVariations.Add(FString::Printf(TEXT("F%s"), *InType));
-                StructNameVariations.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s"), *InType, *InType));
-                StructNameVariations.Add(FString::Printf(TEXT("/Game/DataStructures/%s.%s"), *InType, *InType));
-                StructNameVariations.Add(FString::Printf(TEXT("/Script/Engine.%s"), *InType));
+                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *InType, *InType)));
+                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *InType, *InType)));
+                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(InType));
                 for (const FString& StructVariation : StructNameVariations) {
                     FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
                     if (FoundStruct) break;
@@ -864,9 +864,9 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
             TArray<FString> StructNameVariations;
             StructNameVariations.Add(TypeStr);
             StructNameVariations.Add(FString::Printf(TEXT("F%s"), *TypeStr));
-            StructNameVariations.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s"), *TypeStr, *TypeStr));
-            StructNameVariations.Add(FString::Printf(TEXT("/Game/DataStructures/%s.%s"), *TypeStr, *TypeStr));
-            StructNameVariations.Add(FString::Printf(TEXT("/Script/Engine.%s"), *TypeStr));
+            StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *TypeStr, *TypeStr)));
+            StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *TypeStr, *TypeStr)));
+            StructNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(TypeStr));
             for (const FString& StructVariation : StructNameVariations) {
                 FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
                 if (FoundStruct) break;
@@ -892,7 +892,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                     UClass* FoundClass = LoadObject<UClass>(nullptr, *TypeStr);
                     if (!FoundClass) {
                         // Try with Engine module path
-                        FString EngineClassName = FString::Printf(TEXT("/Script/Engine.%s"), *TypeStr);
+                        FString EngineClassName = FUnrealMCPCommonUtils::BuildEnginePath(TypeStr);
                         FoundClass = LoadObject<UClass>(nullptr, *EngineClassName);
                     }
                     if (FoundClass) {

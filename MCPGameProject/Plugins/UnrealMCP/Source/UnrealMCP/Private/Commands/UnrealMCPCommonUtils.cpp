@@ -161,126 +161,125 @@ UBlueprint* FUnrealMCPCommonUtils::FindBlueprint(const FString& BlueprintName)
 
 UBlueprint* FUnrealMCPCommonUtils::FindBlueprintByName(const FString& BlueprintName)
 {
-    // First try the direct path if provided
-    if (BlueprintName.Contains(TEXT("/")))
+    // Early exit for empty names
+    if (BlueprintName.IsEmpty())
     {
-        // This might be a full path or a partial path
-        FString AssetPath;
-        
-        if (BlueprintName.StartsWith(TEXT("/")))
+        UE_LOG(LogTemp, Error, TEXT("Empty blueprint name provided"));
+        return nullptr;
+    }
+
+    // Step 1: Normalize the path
+    FString NormalizedName = BlueprintName;
+    
+    // Remove .uasset extension if present
+    if (NormalizedName.EndsWith(TEXT(".uasset"), ESearchCase::IgnoreCase))
+    {
+        NormalizedName = NormalizedName.LeftChop(7);
+    }
+    
+    // Handle absolute vs relative paths
+    bool bIsAbsolutePath = NormalizedName.StartsWith(TEXT("/"));
+    if (bIsAbsolutePath)
+    {
+        // If it's an absolute path starting with /Game/, use it directly
+        if (NormalizedName.StartsWith(TEXT("/Game/")))
         {
-            // Already starts with /, use as is
-            AssetPath = BlueprintName;
+            UE_LOG(LogTemp, Display, TEXT("Using absolute path: %s"), *NormalizedName);
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *NormalizedName);
+            if (Blueprint)
+            {
+                return Blueprint;
+            }
+        }
+        // If it starts with / but not /Game/, prepend /Game/
+        else
+        {
+            NormalizedName = FString(TEXT("/Game")) + NormalizedName;
+            UE_LOG(LogTemp, Display, TEXT("Converted to game path: %s"), *NormalizedName);
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *NormalizedName);
+            if (Blueprint)
+            {
+                return Blueprint;
+            }
+        }
+    }
+    else
+    {
+        // For relative paths, extract any subdirectories
+        FString SubPath;
+        FString BaseName;
+        if (NormalizedName.Contains(TEXT("/")))
+        {
+            NormalizedName.Split(TEXT("/"), &SubPath, &BaseName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+            // Reconstruct with /Game/ prefix
+            NormalizedName = FString::Printf(TEXT("/Game/%s/%s"), *SubPath, *BaseName);
+            UE_LOG(LogTemp, Display, TEXT("Reconstructed path with subdirectory: %s"), *NormalizedName);
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *NormalizedName);
+            if (Blueprint)
+            {
+                return Blueprint;
+            }
         }
         else
         {
-            // Need to add /Game/ prefix if missing
-            AssetPath = TEXT("/Game/") + BlueprintName;
+            BaseName = NormalizedName;
         }
-        
-        // Ensure the path doesn't have .uasset extension
-        if (AssetPath.EndsWith(TEXT(".uasset")))
+
+        // Try standard locations for relative paths
+        TArray<FString> DefaultPaths = {
+            FString::Printf(TEXT("/Game/Blueprints/%s"), *BaseName),
+            FString::Printf(TEXT("/Game/%s"), *BaseName)
+        };
+
+        // Try each default path
+        for (const FString& Path : DefaultPaths)
         {
-            AssetPath = AssetPath.LeftChop(7); // Remove .uasset
+            UE_LOG(LogTemp, Display, TEXT("Trying blueprint at path: %s"), *Path);
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *Path);
+            if (Blueprint)
+            {
+                return Blueprint;
+            }
         }
-        
-        UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetPath);
-        if (Blueprint)
-        {
-            return Blueprint;
-        }
-        
-        // Log that we couldn't find the blueprint at the explicit path
-        UE_LOG(LogTemp, Warning, TEXT("Blueprint not found at explicit path: %s"), *AssetPath);
-        
-        // Instead of returning null, we'll continue with other searches but with safeguards
     }
 
-    // Normalize the blueprint name to avoid double slashes when combining with default paths
-    FString NormalizedName = BlueprintName;
-    
-    // If the blueprint name already starts with /Game/, extract just the part after it
-    if (NormalizedName.StartsWith(TEXT("/Game/")))
-    {
-        NormalizedName = NormalizedName.RightChop(6); // Remove /Game/
-        UE_LOG(LogTemp, Display, TEXT("Normalized blueprint name to: %s"), *NormalizedName);
-    }
-    
-    // Now we can safely combine with default paths without creating double slashes
-    
-    // Try in default Blueprints folder
-    FString DefaultPath = TEXT("/Game/Blueprints/") + NormalizedName;
-    UE_LOG(LogTemp, Display, TEXT("Trying blueprint at path: %s"), *DefaultPath);
-    UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *DefaultPath);
-    if (Blueprint)
-    {
-        return Blueprint;
-    }
-    
-    // Next try in Success folder if that's where it might be
-    FString SuccessPath = TEXT("/Game/Success/") + NormalizedName;
-    UE_LOG(LogTemp, Display, TEXT("Trying blueprint at path: %s"), *SuccessPath);
-    Blueprint = LoadObject<UBlueprint>(nullptr, *SuccessPath);
-    if (Blueprint)
-    {
-        return Blueprint;
-    }
-    
-    // If still not found, search in Content root
-    FString RootPath = TEXT("/Game/") + NormalizedName;
-    UE_LOG(LogTemp, Display, TEXT("Trying blueprint at path: %s"), *RootPath);
-    Blueprint = LoadObject<UBlueprint>(nullptr, *RootPath);
-    if (Blueprint)
-    {
-        return Blueprint;
-    }
-
-    // If still not found, try to find it using asset registry
+    // If still not found, use asset registry for a thorough search
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
     TArray<FAssetData> AllBlueprintAssetData;
     
-    // Create a filter to get ALL blueprints and widget blueprints within the Content directory recursively
+    // Create a filter for blueprints and widget blueprints
     FARFilter Filter;
     Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
     Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
-    Filter.PackagePaths.Add(TEXT("/Game")); // Start search from /Game (Content folder)
-    Filter.bRecursivePaths = true; // Search all subfolders
+    Filter.PackagePaths.Add(TEXT("/Game"));
+    Filter.bRecursivePaths = true;
 
-    // Add logging for the filter being used
-    UE_LOG(LogTemp, Display, TEXT("Searching Asset Registry for Blueprints and WidgetBlueprints under /Game recursively..."));
-
-    // Get all blueprint assets matching the filter
+    UE_LOG(LogTemp, Display, TEXT("Performing Asset Registry search for: %s"), *NormalizedName);
     AssetRegistryModule.Get().GetAssets(Filter, AllBlueprintAssetData);
-    
-    // Log how many total blueprint assets were found
-    UE_LOG(LogTemp, Display, TEXT("Asset Registry search found %d total blueprint/widget assets."), AllBlueprintAssetData.Num());
+    UE_LOG(LogTemp, Display, TEXT("Found %d total blueprint assets"), AllBlueprintAssetData.Num());
 
-    // Now, iterate through the results and find the one matching the NormalizedName
-    FName TargetAssetName(*NormalizedName);
+    // First try exact name match
+    FString SearchName = FPaths::GetBaseFilename(NormalizedName);
     for (const FAssetData& Asset : AllBlueprintAssetData)
     {
-        if (Asset.AssetName == TargetAssetName)
+        if (Asset.AssetName.ToString() == SearchName)
         {
-            // Found a match!
-            UE_LOG(LogTemp, Display, TEXT("Found matching asset via Asset Registry iteration: %s (Class: %s)"), 
-                   *Asset.GetObjectPathString(), *Asset.AssetClassPath.ToString());
-            // Attempt to load and return the asset
-            // Use LoadObject for potentially unloaded assets
-            UBlueprint* FoundBlueprint = LoadObject<UBlueprint>(nullptr, *Asset.GetObjectPathString());
-            if (FoundBlueprint)
-            {
-                return FoundBlueprint;
-            }
-            else
-            {
-                // Log if loading failed for some reason
-                UE_LOG(LogTemp, Warning, TEXT("Found matching asset data for %s, but failed to load the UBlueprint/UWidgetBlueprint object."), *NormalizedName);
-            }
+            UE_LOG(LogTemp, Display, TEXT("Found exact match: %s"), *Asset.GetObjectPathString());
+            return Cast<UBlueprint>(Asset.GetAsset());
         }
     }
-    
-    // If we looped through everything and didn't find it
-    UE_LOG(LogTemp, Error, TEXT("Blueprint/WidgetBlueprint '%s' (Normalized: '%s') not found in standard paths or via Asset Registry search iteration."), *BlueprintName, *NormalizedName);
+
+    // If exact match fails, try case-insensitive match
+    for (const FAssetData& Asset : AllBlueprintAssetData)
+    {
+        if (Asset.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Found case-insensitive match: %s"), *Asset.GetObjectPathString());
+            return Cast<UBlueprint>(Asset.GetAsset());
+        }
+    }
+
+    UE_LOG(LogTemp, Error, TEXT("Blueprint '%s' not found after exhaustive search"), *BlueprintName);
     return nullptr;
 }
 
