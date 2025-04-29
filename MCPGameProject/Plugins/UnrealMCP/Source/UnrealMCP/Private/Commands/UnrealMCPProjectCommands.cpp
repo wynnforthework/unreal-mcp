@@ -13,6 +13,28 @@
 #include "Factories/StructureFactory.h"
 #include "UserDefinedStructure/UserDefinedStructEditorData.h"
 
+// Helper to get a user-friendly type string for a property
+static FString GetPropertyTypeString(const FProperty* Property)
+{
+    if (!Property) return TEXT("Unknown");
+    if (Property->IsA<FBoolProperty>()) return TEXT("Boolean");
+    if (Property->IsA<FIntProperty>()) return TEXT("Integer");
+    if (Property->IsA<FFloatProperty>()) return TEXT("Float");
+    if (Property->IsA<FStrProperty>()) return TEXT("String");
+    if (Property->IsA<FNameProperty>()) return TEXT("Name");
+    if (Property->IsA<FStructProperty>())
+    {
+        const FStructProperty* StructProp = CastField<FStructProperty>(Property);
+        if (StructProp->Struct == TBaseStructure<FVector>::Get()) return TEXT("Vector");
+        if (StructProp->Struct == TBaseStructure<FRotator>::Get()) return TEXT("Rotator");
+        if (StructProp->Struct == TBaseStructure<FTransform>::Get()) return TEXT("Transform");
+        if (StructProp->Struct == TBaseStructure<FLinearColor>::Get()) return TEXT("Color");
+        return StructProp->Struct->GetName();
+    }
+    if (Property->IsA<FArrayProperty>()) return TEXT("Array");
+    return Property->GetClass()->GetName();
+}
+
 FUnrealMCPProjectCommands::FUnrealMCPProjectCommands()
 {
 }
@@ -220,7 +242,7 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCreateStruct(const TSha
         return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Struct already exists: %s"), *PackageName));
     }
 
-    // Use AssetTools and UStructureFactory to create the struct asset
+    // Create the struct asset
     FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
     UStructureFactory* StructFactory = NewObject<UStructureFactory>();
     UObject* CreatedAsset = AssetToolsModule.Get().CreateAsset(AssetName, PackagePath.LeftChop(1), UUserDefinedStruct::StaticClass(), StructFactory);
@@ -238,163 +260,149 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCreateStruct(const TSha
         FStructureEditorUtils::ChangeTooltip(NewStruct, Description);
     }
 
-    // Remove all existing variables from the struct before adding new ones
+    // First, collect all existing variables to remove
+    TArray<FGuid> ExistingGuids;
     {
-        auto VarDescArray = FStructureEditorUtils::GetVarDesc(NewStruct);
-        TArray<FGuid> GuidsToRemove;
-        for (const FStructVariableDescription& Desc : VarDescArray)
+        const TArray<FStructVariableDescription>& VarDescArray = FStructureEditorUtils::GetVarDesc(NewStruct);
+        for (int32 i = 0; i < VarDescArray.Num(); ++i)
         {
-            GuidsToRemove.Add(Desc.VarGuid);
-        }
-        for (const FGuid& Guid : GuidsToRemove)
-        {
-            FStructureEditorUtils::RemoveVariable(NewStruct, Guid);
+            ExistingGuids.Add(VarDescArray[i].VarGuid);
         }
     }
-    
-    // Keep track of the variables we've attempted to add
-    TArray<FString> AddedProperties;
-    TSet<FGuid> RenamedGuids; // Track GUIDs we've already renamed
-    
-    // Add simple variables - this is a simplified approach that should work with UE 5.5
-    int32 PropertyIndex = 0;
+
+    // Remove all existing variables
+    for (const FGuid& Guid : ExistingGuids)
+    {
+        FStructureEditorUtils::RemoveVariable(NewStruct, Guid);
+    }
+
+    // Add new variables
     for (const TSharedPtr<FJsonValue>& PropertyValue : *PropertiesArray)
     {
         TSharedPtr<FJsonObject> PropertyObj = PropertyValue->AsObject();
         if (!PropertyObj.IsValid())
         {
-            ++PropertyIndex;
             continue;
         }
 
         FString PropertyName;
         if (!PropertyObj->TryGetStringField(TEXT("name"), PropertyName))
         {
-            ++PropertyIndex;
             continue;
         }
 
-        // Skip duplicates
-        if (AddedProperties.Contains(PropertyName))
-        {
-            ++PropertyIndex;
-            continue;
-        }
-        
-        AddedProperties.Add(PropertyName);
-
-        // Set up the property type
         FString PropertyType;
         if (!PropertyObj->TryGetStringField(TEXT("type"), PropertyType))
         {
-            ++PropertyIndex;
             continue;
         }
 
+        FString PropertyTooltip;
+        PropertyObj->TryGetStringField(TEXT("description"), PropertyTooltip);
+
+        // Create the pin type
         FEdGraphPinType PinType;
+        
+        // Set the proper pin category based on type
         if (PropertyType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
         {
-            PinType.PinCategory = TEXT("bool");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
         }
         else if (PropertyType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
         {
-            PinType.PinCategory = TEXT("int");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
         }
         else if (PropertyType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
         {
-            PinType.PinCategory = TEXT("float");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_Float;
         }
         else if (PropertyType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
         {
-            PinType.PinCategory = TEXT("string");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_String;
         }
         else if (PropertyType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
         {
-            PinType.PinCategory = TEXT("name");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_Name;
         }
         else if (PropertyType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
         {
-            PinType.PinCategory = TEXT("struct");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
             PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
         }
         else if (PropertyType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
         {
-            PinType.PinCategory = TEXT("struct");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
             PinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
         }
         else if (PropertyType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
         {
-            PinType.PinCategory = TEXT("struct");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
             PinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
         }
         else if (PropertyType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
         {
-            PinType.PinCategory = TEXT("struct");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
             PinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
         }
         else
         {
             // Default to string if type not recognized
-            PinType.PinCategory = TEXT("string");
+            PinType.PinCategory = UEdGraphSchema_K2::PC_String;
         }
 
-        // Add the variable
-        FStructureEditorUtils::AddVariable(NewStruct, PinType);
-
-        // Find and rename the just-added variable
-        bool bRenamed = false;
-        const auto& VarDescArray = FStructureEditorUtils::GetVarDesc(NewStruct);
-        for (const FStructVariableDescription& Desc : VarDescArray)
+        // First, add the variable
+        bool bAdded = FStructureEditorUtils::AddVariable(NewStruct, PinType);
+        if (!bAdded)
         {
-            if (Desc.VarName.ToString().StartsWith(TEXT("MemberVar_")) && !RenamedGuids.Contains(Desc.VarGuid))
-            {
-                // Rename this variable
-                FStructureEditorUtils::RenameVariable(NewStruct, Desc.VarGuid, PropertyName);
-                RenamedGuids.Add(Desc.VarGuid);
-                bRenamed = true;
-
-                // Set variable tooltip if provided
-                FString VarTooltip;
-                if (PropertyObj->TryGetStringField(TEXT("description"), VarTooltip) || PropertyObj->TryGetStringField(TEXT("tooltip"), VarTooltip))
-                {
-                    FStructureEditorUtils::ChangeVariableTooltip(NewStruct, Desc.VarGuid, VarTooltip);
-                }
-                break;
-            }
+            UE_LOG(LogTemp, Warning, TEXT("Failed to add variable %s to struct %s"), *PropertyName, *StructName);
+            continue;
         }
 
-        // If we failed to rename the variable, remove it to avoid leaving unrenamed variables
-        if (!bRenamed)
+        // Get the updated variable list and find the last added variable
+        const TArray<FStructVariableDescription>& VarDescArray = FStructureEditorUtils::GetVarDesc(NewStruct);
+        if (VarDescArray.Num() > 0)
         {
-            // Find and remove the unrenamed variable
-            for (const FStructVariableDescription& Desc : VarDescArray)
+            const FStructVariableDescription& NewVarDesc = VarDescArray.Last();
+            
+            // Rename the variable
+            FStructureEditorUtils::RenameVariable(NewStruct, NewVarDesc.VarGuid, *PropertyName);
+            
+            // Set tooltip
+            if (!PropertyTooltip.IsEmpty())
             {
-                if (Desc.VarName.ToString().StartsWith(TEXT("MemberVar_")) && !RenamedGuids.Contains(Desc.VarGuid))
-                {
-                    FStructureEditorUtils::RemoveVariable(NewStruct, Desc.VarGuid);
-                    break;
-                }
+                FStructureEditorUtils::ChangeVariableTooltip(NewStruct, NewVarDesc.VarGuid, PropertyTooltip);
             }
-            AddedProperties.Remove(PropertyName); // Remove from our tracking since it failed
+            
+            // Force a recompile to ensure the variable is properly set up
+            FStructureEditorUtils::CompileStructure(NewStruct);
+            
+            UE_LOG(LogTemp, Display, TEXT("Added variable %s to struct %s"), *PropertyName, *StructName);
         }
-
-        ++PropertyIndex;
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Failed to find newly added variable %s in struct %s"), *PropertyName, *StructName);
+        }
     }
 
-    // Clean up any remaining unrenamed variables
-    const auto& FinalVarDescArray = FStructureEditorUtils::GetVarDesc(NewStruct);
-    for (const FStructVariableDescription& Desc : FinalVarDescArray)
+    // Clean up any remaining unrenamed variables (MemberVar_)
+    TArray<FGuid> GuidsToRemove;
+    for (const FStructVariableDescription& Desc : FStructureEditorUtils::GetVarDesc(NewStruct))
     {
-        if (Desc.VarName.ToString().StartsWith(TEXT("MemberVar_")) && !RenamedGuids.Contains(Desc.VarGuid))
+        if (Desc.VarName.ToString().StartsWith(TEXT("MemberVar_")))
         {
-            FStructureEditorUtils::RemoveVariable(NewStruct, Desc.VarGuid);
+            UE_LOG(LogTemp, Warning, TEXT("[MCP CreateStruct] Will remove leftover variable: %s"), *Desc.VarName.ToString());
+            GuidsToRemove.Add(Desc.VarGuid);
         }
     }
+    for (const FGuid& Guid : GuidsToRemove)
+    {
+        FStructureEditorUtils::RemoveVariable(NewStruct, Guid);
+        UE_LOG(LogTemp, Warning, TEXT("[MCP CreateStruct] Removed variable with GUID: %s"), *Guid.ToString());
+    }
+    UE_LOG(LogTemp, Warning, TEXT("[MCP CreateStruct] Cleanup removed %d variables."), GuidsToRemove.Num());
 
-    // Final compilation
+    // Final compilation and save
     FStructureEditorUtils::CompileStructure(NewStruct);
-    
-    // Save the struct
     NewStruct->MarkPackageDirty();
     FAssetRegistryModule::AssetCreated(NewStruct);
 
@@ -629,28 +637,6 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleUpdateStruct(const TSha
     ResultObj->SetStringField(TEXT("full_path"), PackageName);
     
     return ResultObj;
-}
-
-// Helper to get a user-friendly type string for a property
-static FString GetPropertyTypeString(const FProperty* Property)
-{
-    if (Property->IsA<FBoolProperty>()) return TEXT("Boolean");
-    if (Property->IsA<FIntProperty>()) return TEXT("Integer");
-    if (Property->IsA<FFloatProperty>()) return TEXT("Float");
-    if (Property->IsA<FStrProperty>()) return TEXT("String");
-    if (Property->IsA<FNameProperty>()) return TEXT("Name");
-    if (Property->IsA<FStructProperty>())
-    {
-        const FStructProperty* StructProp = CastField<FStructProperty>(Property);
-        if (StructProp->Struct == TBaseStructure<FVector>::Get()) return TEXT("Vector");
-        if (StructProp->Struct == TBaseStructure<FRotator>::Get()) return TEXT("Rotator");
-        if (StructProp->Struct == TBaseStructure<FTransform>::Get()) return TEXT("Transform");
-        if (StructProp->Struct == TBaseStructure<FLinearColor>::Get()) return TEXT("Color");
-        return StructProp->Struct->GetName();
-    }
-    if (Property->IsA<FArrayProperty>()) return TEXT("Array");
-    // Add more types as needed
-    return Property->GetClass()->GetName();
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleShowStructVariables(const TSharedPtr<FJsonObject>& Params)

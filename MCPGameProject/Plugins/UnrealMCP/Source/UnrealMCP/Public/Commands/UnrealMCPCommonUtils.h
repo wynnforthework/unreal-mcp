@@ -83,14 +83,19 @@ public:
     static bool SetPropertyValueFromJsonValue(FProperty* Property, void* PropertyValue, const TSharedPtr<FJsonValue>& JsonValue);
 
     // Package path utilities
-    static FString GetGameContentPath() { return TEXT("/Game"); }
+    static FString GetGameContentPath() { return TEXT("/Game/"); }
     static FString GetEngineScriptPath() { return TEXT("/Script/Engine"); }
     static FString GetCoreScriptPath() { return TEXT("/Script/CoreUObject"); }
     static FString GetUMGScriptPath() { return TEXT("/Script/UMG"); }
     
     static FString BuildGamePath(const FString& Path) 
     { 
-        return FString::Printf(TEXT("%s/%s"), *GetGameContentPath(), *Path);
+        FString CleanPath = Path;
+        if (CleanPath.StartsWith(TEXT("/")))
+        {
+            CleanPath = CleanPath.RightChop(1);
+        }
+        return FString::Printf(TEXT("%s%s"), *GetGameContentPath(), *CleanPath);
     }
     
     static FString BuildEnginePath(const FString& Path)
