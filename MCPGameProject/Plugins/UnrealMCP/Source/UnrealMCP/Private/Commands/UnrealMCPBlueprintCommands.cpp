@@ -20,6 +20,9 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/GameModeBase.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -231,25 +234,38 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const
         {
             FoundClass = USceneComponent::StaticClass();
         }
+        else if (ClassName == TEXT("ACharacter"))
+        {
+            FoundClass = ACharacter::StaticClass();
+        }
+        else if (ClassName == TEXT("APlayerController"))
+        {
+            FoundClass = APlayerController::StaticClass();
+        }
+        else if (ClassName == TEXT("AGameModeBase"))
+        {
+            FoundClass = AGameModeBase::StaticClass();
+        }
         else
         {
             // Try loading the class using LoadClass which is more reliable than FindObject
-            // First try as an Actor class
-            const FString ActorClassPath = FString::Printf(TEXT("/Script/Engine.%s"), *ClassName);
-            FoundClass = LoadClass<UObject>(nullptr, *ActorClassPath);
-            
-            if (!FoundClass)
+            // Try common module paths
+            TArray<FString> ModulePaths = {
+                TEXT("/Script/Engine"),
+                TEXT("/Script/GameplayAbilities"),
+                TEXT("/Script/AIModule"),
+                TEXT("/Script/Game"),
+                TEXT("/Script/CoreUObject")
+            };
+
+            for (const FString& ModulePath : ModulePaths)
             {
-                // Try as a Component class if not found
-                const FString ComponentClassPath = FString::Printf(TEXT("/Script/Engine.%s"), *ClassName);
-                FoundClass = LoadObject<UClass>(nullptr, *ComponentClassPath);
-            }
-            
-            if (!FoundClass)
-            {
-                // Try alternate paths if not found
-                const FString GameClassPath = FString::Printf(TEXT("/Script/Game.%s"), *ClassName);
-                FoundClass = LoadClass<UObject>(nullptr, *GameClassPath);
+                const FString ClassPath = FString::Printf(TEXT("%s.%s"), *ModulePath, *ClassName);
+                FoundClass = LoadClass<UObject>(nullptr, *ClassPath);
+                if (FoundClass)
+                {
+                    break;
+                }
             }
         }
 
@@ -271,7 +287,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const
     UE_LOG(LogTemp, Log, TEXT("Creating blueprint: Name='%s', FullPath='%s', ParentClass='%s'"), 
         *AssetName, *FullAssetPath, *SelectedParentClass->GetName());
 
-    // Create the blueprint
+    // Create the package
     UPackage* Package = CreatePackage(*FullAssetPath);
     if (!Package)
     {
@@ -279,7 +295,16 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const
         return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to create package for path: '%s'"), *FullAssetPath));
     }
 
-    UBlueprint* NewBlueprint = Cast<UBlueprint>(Factory->FactoryCreateNew(UBlueprint::StaticClass(), Package, *AssetName, RF_Standalone | RF_Public, nullptr, GWarn));
+    // Create the blueprint using FKismetEditorUtilities which handles all necessary setup
+    UBlueprint* NewBlueprint = FKismetEditorUtilities::CreateBlueprint(
+        SelectedParentClass,
+        Package,
+        *AssetName,
+        BPTYPE_Normal,
+        UBlueprint::StaticClass(),
+        UBlueprintGeneratedClass::StaticClass(),
+        NAME_None
+    );
 
     if (NewBlueprint)
     {
@@ -592,6 +617,43 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetComponentProperty(
     for (const FString& PropertyName : PropertyNames)
     {
         TSharedPtr<FJsonValue> PropertyValue = KwargsObject->TryGetField(PropertyName);
+
+        // --- Custom handling for collision properties ---
+        bool bHandled = false;
+        UPrimitiveComponent* PrimComponent = Cast<UPrimitiveComponent>(ComponentTemplate);
+        if (PrimComponent)
+        {
+            if (PropertyName == TEXT("CollisionEnabled"))
+            {
+                FString ValueString;
+                if (PropertyValue->TryGetString(ValueString))
+                {
+                    // Map string to ECollisionEnabled::Type
+                    ECollisionEnabled::Type CollisionType = ECollisionEnabled::NoCollision;
+                    if (ValueString == "NoCollision") CollisionType = ECollisionEnabled::NoCollision;
+                    else if (ValueString == "QueryOnly") CollisionType = ECollisionEnabled::QueryOnly;
+                    else if (ValueString == "PhysicsOnly") CollisionType = ECollisionEnabled::PhysicsOnly;
+                    else if (ValueString == "QueryAndPhysics") CollisionType = ECollisionEnabled::QueryAndPhysics;
+                    PrimComponent->SetCollisionEnabled(CollisionType);
+                    SuccessProps.Add(PropertyName);
+                    bHandled = true;
+                }
+            }
+            else if (PropertyName == TEXT("CollisionProfileName"))
+            {
+                FString ValueString;
+                if (PropertyValue->TryGetString(ValueString))
+                {
+                    PrimComponent->SetCollisionProfileName(*ValueString);
+                    SuccessProps.Add(PropertyName);
+                    bHandled = true;
+                }
+            }
+        }
+        if (bHandled)
+            continue;
+        // --- End custom handling ---
+
         FProperty* Property = FindFProperty<FProperty>(ComponentTemplate->GetClass(), *PropertyName);
         if (!Property)
         {
