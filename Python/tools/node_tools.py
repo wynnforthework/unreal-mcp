@@ -126,13 +126,61 @@ def register_blueprint_node_tools(mcp: FastMCP):
         """
         Add a variable to a Blueprint.
         Supports built-in, user-defined struct, and delegate types.
+
         Args:
             blueprint_name: Name of the target Blueprint
             variable_name: Name of the variable
             variable_type: Type of the variable (Boolean, Integer, Float, Vector, StructName, StructName[], Delegate, etc.)
             is_exposed: Whether to expose the variable to the editor
+
         Returns:
             Response indicating success or failure
+
+        Examples:
+            # Add a basic integer variable
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="Score",
+                variable_type="Integer",
+                is_exposed=True
+            )
+
+            # Add a string variable
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="PlayerName",
+                variable_type="String",
+                is_exposed=True
+            )
+
+            # Add a vector variable
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="Position",
+                variable_type="Vector",
+                is_exposed=True
+            )
+
+            # Add an array variable
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="Inventory",
+                variable_type="String[]",
+                is_exposed=True
+            )
+
+            # Add a custom struct variable (using full path)
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="Stats",
+                variable_type="/Game/DataStructures/PlayerStats",
+                is_exposed=True
+            )
         """
         return add_variable_impl(ctx, blueprint_name, variable_name, variable_type, is_exposed)
     
