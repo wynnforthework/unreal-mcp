@@ -592,6 +592,43 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetComponentProperty(
     for (const FString& PropertyName : PropertyNames)
     {
         TSharedPtr<FJsonValue> PropertyValue = KwargsObject->TryGetField(PropertyName);
+
+        // --- Custom handling for collision properties ---
+        bool bHandled = false;
+        UPrimitiveComponent* PrimComponent = Cast<UPrimitiveComponent>(ComponentTemplate);
+        if (PrimComponent)
+        {
+            if (PropertyName == TEXT("CollisionEnabled"))
+            {
+                FString ValueString;
+                if (PropertyValue->TryGetString(ValueString))
+                {
+                    // Map string to ECollisionEnabled::Type
+                    ECollisionEnabled::Type CollisionType = ECollisionEnabled::NoCollision;
+                    if (ValueString == "NoCollision") CollisionType = ECollisionEnabled::NoCollision;
+                    else if (ValueString == "QueryOnly") CollisionType = ECollisionEnabled::QueryOnly;
+                    else if (ValueString == "PhysicsOnly") CollisionType = ECollisionEnabled::PhysicsOnly;
+                    else if (ValueString == "QueryAndPhysics") CollisionType = ECollisionEnabled::QueryAndPhysics;
+                    PrimComponent->SetCollisionEnabled(CollisionType);
+                    SuccessProps.Add(PropertyName);
+                    bHandled = true;
+                }
+            }
+            else if (PropertyName == TEXT("CollisionProfileName"))
+            {
+                FString ValueString;
+                if (PropertyValue->TryGetString(ValueString))
+                {
+                    PrimComponent->SetCollisionProfileName(*ValueString);
+                    SuccessProps.Add(PropertyName);
+                    bHandled = true;
+                }
+            }
+        }
+        if (bHandled)
+            continue;
+        // --- End custom handling ---
+
         FProperty* Property = FindFProperty<FProperty>(ComponentTemplate->GetClass(), *PropertyName);
         if (!Property)
         {
