@@ -71,11 +71,17 @@ def register_editor_tools(mcp: FastMCP):
         rotation: List[float] = None
     ) -> Dict[str, Any]:
         """
-        Create a new actor in the current level.
+        Create a new basic Unreal Engine actor in the current level.
+        This function is used for spawning built-in Unreal Engine actor types only.
         
         Args:
             name: The name to give the new actor (must be unique)
-            type: The type of actor to create (e.g. StaticMeshActor, PointLight)
+            type: The type of built-in actor to create. Supported types:
+                  - StaticMeshActor: Basic static mesh actor
+                  - PointLight: Point light source
+                  - SpotLight: Spot light source
+                  - DirectionalLight: Directional light source
+                  - CameraActor: Camera actor
             location: The [x, y, z] world location to spawn at
             rotation: The [pitch, yaw, roll] rotation in degrees
             
@@ -90,6 +96,10 @@ def register_editor_tools(mcp: FastMCP):
             spawn_actor(name="MyCube", type="StaticMeshActor", 
                        location=[100, 200, 50], 
                        rotation=[0, 45, 0])
+                       
+        Note:
+            This function is for basic actor types only. For spawning custom Blueprint 
+            actors with custom logic and components, use spawn_blueprint_actor() instead.
         """
         return spawn_actor_impl(ctx, name, type, location, rotation)
     
@@ -319,12 +329,18 @@ def register_editor_tools(mcp: FastMCP):
         rotation: List[float] = None
     ) -> Dict[str, Any]:
         """
-        Spawn an actor from a Blueprint.
+        Spawn an actor from a Blueprint class in the current level.
+        This function is used for spawning custom Blueprint actors that can have:
+        - Custom components and hierarchies
+        - Visual scripting logic
+        - Custom variables and events
+        - Complex behaviors and interactions
         
         Args:
-            blueprint_name: Path to the Blueprint to spawn from (e.g., "/Game/Blueprints/BP_Character")
-                           Can be absolute ("/Game/...") or relative ("BP_Character" will be prefixed with "/Game/Blueprints/")
-            actor_name: Name to give the spawned actor (must be unique)
+            blueprint_name: Path to the Blueprint to spawn from. Can be:
+                          - Absolute path: "/Game/Blueprints/BP_Character"
+                          - Relative path: "BP_Character" (will be prefixed with "/Game/Blueprints/")
+            actor_name: Name to give the spawned actor instance (must be unique)
             location: The [x, y, z] world location to spawn at
             rotation: The [pitch, yaw, roll] rotation in degrees
             
@@ -352,6 +368,10 @@ def register_editor_tools(mcp: FastMCP):
                 actor_name="Player1",
                 location=[0, 0, 100]
             )
+            
+        Note:
+            This function requires the Blueprint to exist and be properly compiled.
+            For spawning basic actor types (lights, static meshes, etc.), use spawn_actor() instead.
         """
         return spawn_blueprint_actor_impl(ctx, blueprint_name, actor_name, location, rotation)
 
