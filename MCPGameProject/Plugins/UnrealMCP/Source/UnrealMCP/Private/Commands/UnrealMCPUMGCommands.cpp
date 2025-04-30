@@ -79,6 +79,8 @@
 #include "Components/GridSlot.h"
 #include "Components/UniformGridSlot.h"
 #include "Components/WrapBoxSlot.h"
+#include "Components/RetainerBox.h"
+#include "Components/WindowTitleBarArea.h"
 
 #include "Services/UMG/WidgetComponentService.h"
 #include "Components/SlateWrapperTypes.h" // For FSlateChildSize, ESlateSizeRule
@@ -916,6 +918,39 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetAsChild(const TSha
 			break;
 		}
 	}
+
+	// Check for single-child widget limitations
+	UPanelWidget* ParentPanel = Cast<UPanelWidget>(ParentWidget);
+	if (ParentPanel)
+	{
+		// Check if this is a single-child widget type
+		bool bIsSingleChildWidget = ParentWidget->IsA<UBorder>() || 
+								  ParentWidget->IsA<USizeBox>() || 
+								  ParentWidget->IsA<UScaleBox>() || 
+								  ParentWidget->IsA<UBackgroundBlur>() ||
+								  ParentWidget->IsA<USafeZone>() ||
+								  ParentWidget->IsA<UNamedSlot>() ||
+								  ParentWidget->IsA<URetainerBox>() ||
+								  ParentWidget->IsA<UWindowTitleBarArea>();
+
+		if (bIsSingleChildWidget && ParentPanel->GetChildrenCount() > 0)
+		{
+			// Get the widget class name without the 'U' prefix
+			FString WidgetClassName = ParentWidget->GetClass()->GetName();
+			if (WidgetClassName.StartsWith(TEXT("U")))
+			{
+				WidgetClassName = WidgetClassName.RightChop(1);
+			}
+
+			return FUnrealMCPCommonUtils::CreateErrorResponse(
+				FString::Printf(TEXT("Cannot add child '%s' to '%s' because %s widgets can only have one child, and it already has a child widget"),
+				*ChildComponentName, *ParentComponentName, *WidgetClassName));
+		}
+	}
+	else
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Parent widget '%s' is not a panel widget that can have children"), *ParentComponentName));
+	}
 	
 	// Get child's current parent if any
 	UPanelWidget* CurrentParent = ChildWidget->GetParent();
@@ -926,26 +961,18 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetAsChild(const TSha
 	}
 	
 	// Add child to the new parent
-	UPanelWidget* ParentPanel = Cast<UPanelWidget>(ParentWidget);
-	if (ParentPanel)
-	{
-		ParentPanel->AddChild(ChildWidget);
+	ParentPanel->AddChild(ChildWidget);
 		
-		// Save the Widget Blueprint
-		WidgetBlueprint->MarkPackageDirty();
-		FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
-		UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
+	// Save the Widget Blueprint
+	WidgetBlueprint->MarkPackageDirty();
+	FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+	UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
 		
-		// Create success response
-		Response->SetBoolField(TEXT("success"), true);
-		Response->SetStringField(TEXT("parent_component_name"), ParentComponentName);
-		Response->SetStringField(TEXT("child_component_name"), ChildComponentName);
-		return Response;
-	}
-	else
-	{
-		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Parent widget '%s' is not a panel widget that can have children"), *ParentComponentName));
-	}
+	// Create success response
+	Response->SetBoolField(TEXT("success"), true);
+	Response->SetStringField(TEXT("parent_component_name"), ParentComponentName);
+	Response->SetStringField(TEXT("child_component_name"), ChildComponentName);
+	return Response;
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateWidgetComponentWithChild(const TSharedPtr<FJsonObject>& Params)
