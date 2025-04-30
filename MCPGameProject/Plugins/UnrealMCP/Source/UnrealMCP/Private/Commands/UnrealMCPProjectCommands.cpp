@@ -17,22 +17,35 @@
 static FString GetPropertyTypeString(const FProperty* Property)
 {
     if (!Property) return TEXT("Unknown");
+    
+    // Handle array properties first
+    if (const FArrayProperty* ArrayProp = CastField<FArrayProperty>(Property))
+    {
+        // Get the type of array elements
+        FString ElementType = GetPropertyTypeString(ArrayProp->Inner);
+        return ElementType + TEXT("[]");
+    }
+    
     if (Property->IsA<FBoolProperty>()) return TEXT("Boolean");
     if (Property->IsA<FIntProperty>()) return TEXT("Integer");
-    if (Property->IsA<FFloatProperty>()) return TEXT("Float");
+    if (Property->IsA<FFloatProperty>() || Property->IsA<FDoubleProperty>()) return TEXT("Float");
     if (Property->IsA<FStrProperty>()) return TEXT("String");
     if (Property->IsA<FNameProperty>()) return TEXT("Name");
-    if (Property->IsA<FStructProperty>())
+    if (const FStructProperty* StructProp = CastField<FStructProperty>(Property))
     {
-        const FStructProperty* StructProp = CastField<FStructProperty>(Property);
         if (StructProp->Struct == TBaseStructure<FVector>::Get()) return TEXT("Vector");
         if (StructProp->Struct == TBaseStructure<FRotator>::Get()) return TEXT("Rotator");
         if (StructProp->Struct == TBaseStructure<FTransform>::Get()) return TEXT("Transform");
         if (StructProp->Struct == TBaseStructure<FLinearColor>::Get()) return TEXT("Color");
-        return StructProp->Struct->GetName();
+        // For custom structs, strip the 'F' prefix if present
+        FString StructName = StructProp->Struct->GetName();
+        if (StructName.StartsWith(TEXT("F")) && StructName.Len() > 1)
+        {
+            StructName = StructName.RightChop(1);
+        }
+        return StructName;
     }
-    if (Property->IsA<FArrayProperty>()) return TEXT("Array");
-    return Property->GetClass()->GetName();
+    return TEXT("Unknown");
 }
 
 FUnrealMCPProjectCommands::FUnrealMCPProjectCommands()
@@ -302,52 +315,174 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCreateStruct(const TSha
 
         // Create the pin type
         FEdGraphPinType PinType;
+        bool bTypeResolved = false;
         
-        // Set the proper pin category based on type
-        if (PropertyType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
+        // Check if this is an array type
+        if (PropertyType.EndsWith(TEXT("[]")))
         {
-            PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
-        }
-        else if (PropertyType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
-        {
-            PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
-        }
-        else if (PropertyType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
-        {
-            PinType.PinCategory = UEdGraphSchema_K2::PC_Float;
-        }
-        else if (PropertyType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
-        {
-            PinType.PinCategory = UEdGraphSchema_K2::PC_String;
-        }
-        else if (PropertyType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
-        {
-            PinType.PinCategory = UEdGraphSchema_K2::PC_Name;
-        }
-        else if (PropertyType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
-        {
-            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
-        }
-        else if (PropertyType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
-        {
-            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            PinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
-        }
-        else if (PropertyType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
-        {
-            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            PinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
-        }
-        else if (PropertyType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
-        {
-            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            PinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
+            // Get the base type without the array suffix
+            FString BaseType = PropertyType.LeftChop(2);
+            
+            // Create a temporary pin type for the base type
+            FEdGraphPinType BasePinType;
+            
+            // Resolve the base type
+            if (BaseType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
+            {
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+                bTypeResolved = true;
+            }
+            else if (BaseType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
+            {
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+                bTypeResolved = true;
+            }
+            else if (BaseType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
+            {
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Float;
+                bTypeResolved = true;
+            }
+            else if (BaseType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
+            {
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_String;
+                bTypeResolved = true;
+            }
+            else if (BaseType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
+            {
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Name;
+                bTypeResolved = true;
+            }
+            else if (BaseType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
+            {
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                BasePinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
+                bTypeResolved = true;
+            }
+            else if (BaseType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
+            {
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                BasePinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
+                bTypeResolved = true;
+            }
+            else if (BaseType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
+            {
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                BasePinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
+                bTypeResolved = true;
+            }
+            else if (BaseType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
+            {
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                BasePinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
+                bTypeResolved = true;
+            }
+            else
+            {
+                // Try to find a custom struct
+                UScriptStruct* FoundStruct = nullptr;
+                TArray<FString> StructNameVariations;
+                StructNameVariations.Add(BaseType);
+                StructNameVariations.Add(FString::Printf(TEXT("F%s"), *BaseType));
+                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *BaseType, *BaseType)));
+                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *BaseType, *BaseType)));
+                
+                for (const FString& StructVariation : StructNameVariations)
+                {
+                    FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
+                    if (FoundStruct)
+                    {
+                        BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                        BasePinType.PinSubCategoryObject = FoundStruct;
+                        bTypeResolved = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (bTypeResolved)
+            {
+                // Set up the array type
+                PinType = BasePinType;
+                PinType.ContainerType = EPinContainerType::Array;
+            }
+            else
+            {
+                // Default to string array if type not resolved
+                PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+                PinType.ContainerType = EPinContainerType::Array;
+                bTypeResolved = true;
+            }
         }
         else
         {
-            // Default to string if type not recognized
-            PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+            // Handle non-array types
+            if (PropertyType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+            }
+            else if (PropertyType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+            }
+            else if (PropertyType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_Float;
+            }
+            else if (PropertyType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+            }
+            else if (PropertyType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_Name;
+            }
+            else if (PropertyType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
+            }
+            else if (PropertyType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                PinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
+            }
+            else if (PropertyType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                PinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
+            }
+            else if (PropertyType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                PinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
+            }
+            else
+            {
+                // Try to find a custom struct
+                UScriptStruct* FoundStruct = nullptr;
+                TArray<FString> StructNameVariations;
+                StructNameVariations.Add(PropertyType);
+                StructNameVariations.Add(FString::Printf(TEXT("F%s"), *PropertyType));
+                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *PropertyType, *PropertyType)));
+                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *PropertyType, *PropertyType)));
+                
+                for (const FString& StructVariation : StructNameVariations)
+                {
+                    FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
+                    if (FoundStruct)
+                    {
+                        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                        PinType.PinSubCategoryObject = FoundStruct;
+                        break;
+                    }
+                }
+                
+                if (!FoundStruct)
+                {
+                    // Default to string if type not recognized
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+                }
+            }
         }
 
         // First, add the variable
@@ -532,50 +667,176 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleUpdateStruct(const TSha
             UE_LOG(LogTemp, Warning, TEXT("[MCP UpdateStruct] Property '%s' does not exist, will add as new variable."), *PropertyName);
             // Add new variable
             FEdGraphPinType PinType;
-            if (PropertyType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
+            bool bTypeResolved = false;
+            
+            // Check if this is an array type
+            if (PropertyType.EndsWith(TEXT("[]")))
             {
-                PinType.PinCategory = TEXT("bool");
-            }
-            else if (PropertyType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
-            {
-                PinType.PinCategory = TEXT("int");
-            }
-            else if (PropertyType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
-            {
-                PinType.PinCategory = TEXT("float");
-            }
-            else if (PropertyType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
-            {
-                PinType.PinCategory = TEXT("string");
-            }
-            else if (PropertyType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
-            {
-                PinType.PinCategory = TEXT("name");
-            }
-            else if (PropertyType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
-            {
-                PinType.PinCategory = TEXT("struct");
-                PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
-            }
-            else if (PropertyType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
-            {
-                PinType.PinCategory = TEXT("struct");
-                PinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
-            }
-            else if (PropertyType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
-            {
-                PinType.PinCategory = TEXT("struct");
-                PinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
-            }
-            else if (PropertyType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
-            {
-                PinType.PinCategory = TEXT("struct");
-                PinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
+                // Get the base type without the array suffix
+                FString BaseType = PropertyType.LeftChop(2);
+                
+                // Create a temporary pin type for the base type
+                FEdGraphPinType BasePinType;
+                
+                // Resolve the base type
+                if (BaseType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
+                {
+                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+                    bTypeResolved = true;
+                }
+                else if (BaseType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
+                {
+                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+                    bTypeResolved = true;
+                }
+                else if (BaseType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
+                {
+                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_Float;
+                    bTypeResolved = true;
+                }
+                else if (BaseType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
+                {
+                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_String;
+                    bTypeResolved = true;
+                }
+                else if (BaseType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
+                {
+                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_Name;
+                    bTypeResolved = true;
+                }
+                else if (BaseType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
+                {
+                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    BasePinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
+                    bTypeResolved = true;
+                }
+                else if (BaseType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
+                {
+                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    BasePinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
+                    bTypeResolved = true;
+                }
+                else if (BaseType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
+                {
+                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    BasePinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
+                    bTypeResolved = true;
+                }
+                else if (BaseType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
+                {
+                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    BasePinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
+                    bTypeResolved = true;
+                }
+                else
+                {
+                    // Try to find a custom struct
+                    UScriptStruct* FoundStruct = nullptr;
+                    TArray<FString> StructNameVariations;
+                    StructNameVariations.Add(BaseType);
+                    StructNameVariations.Add(FString::Printf(TEXT("F%s"), *BaseType));
+                    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *BaseType, *BaseType)));
+                    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *BaseType, *BaseType)));
+                    
+                    for (const FString& StructVariation : StructNameVariations)
+                    {
+                        FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
+                        if (FoundStruct)
+                        {
+                            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                            BasePinType.PinSubCategoryObject = FoundStruct;
+                            bTypeResolved = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (bTypeResolved)
+                {
+                    // Set up the array type
+                    PinType = BasePinType;
+                    PinType.ContainerType = EPinContainerType::Array;
+                }
+                else
+                {
+                    // Default to string array if type not resolved
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+                    PinType.ContainerType = EPinContainerType::Array;
+                    bTypeResolved = true;
+                }
             }
             else
             {
-                PinType.PinCategory = TEXT("string");
+                // Handle non-array types
+                if (PropertyType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
+                {
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+                }
+                else if (PropertyType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
+                {
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+                }
+                else if (PropertyType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
+                {
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_Float;
+                }
+                else if (PropertyType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
+                {
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+                }
+                else if (PropertyType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
+                {
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_Name;
+                }
+                else if (PropertyType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
+                {
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
+                }
+                else if (PropertyType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
+                {
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    PinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
+                }
+                else if (PropertyType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
+                {
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    PinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
+                }
+                else if (PropertyType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
+                {
+                    PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    PinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
+                }
+                else
+                {
+                    // Try to find a custom struct
+                    UScriptStruct* FoundStruct = nullptr;
+                    TArray<FString> StructNameVariations;
+                    StructNameVariations.Add(PropertyType);
+                    StructNameVariations.Add(FString::Printf(TEXT("F%s"), *PropertyType));
+                    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *PropertyType, *PropertyType)));
+                    StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *PropertyType, *PropertyType)));
+                    
+                    for (const FString& StructVariation : StructNameVariations)
+                    {
+                        FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
+                        if (FoundStruct)
+                        {
+                            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                            PinType.PinSubCategoryObject = FoundStruct;
+                            break;
+                        }
+                    }
+                    
+                    if (!FoundStruct)
+                    {
+                        // Default to string if type not recognized
+                        PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+                    }
+                }
             }
+
             FStructureEditorUtils::AddVariable(ExistingStruct, PinType);
             // Find and rename the just-added variable
             auto VarDescArray = FStructureEditorUtils::GetVarDesc(ExistingStruct);
