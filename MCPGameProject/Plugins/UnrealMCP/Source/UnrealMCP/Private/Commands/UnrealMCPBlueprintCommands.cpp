@@ -199,9 +199,18 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const
     if (!ParentClass.IsEmpty())
     {
         FString ClassName = ParentClass;
-        if (!ClassName.StartsWith(TEXT("A")))
+        // Handle both Actor and ActorComponent classes
+        if (!ClassName.StartsWith(TEXT("A")) && !ClassName.StartsWith(TEXT("U")))
         {
-            ClassName = TEXT("A") + ClassName;
+            // If it ends with "Component", add U prefix, otherwise add A prefix
+            if (ClassName.EndsWith(TEXT("Component")))
+            {
+                ClassName = TEXT("U") + ClassName;
+            }
+            else
+            {
+                ClassName = TEXT("A") + ClassName;
+            }
         }
         
         // First try direct StaticClass lookup for common classes
@@ -214,17 +223,33 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const
         {
             FoundClass = AActor::StaticClass();
         }
+        else if (ClassName == TEXT("UActorComponent"))
+        {
+            FoundClass = UActorComponent::StaticClass();
+        }
+        else if (ClassName == TEXT("USceneComponent"))
+        {
+            FoundClass = USceneComponent::StaticClass();
+        }
         else
         {
             // Try loading the class using LoadClass which is more reliable than FindObject
-            const FString ClassPath = FString::Printf(TEXT("/Script/Engine.%s"), *ClassName);
-            FoundClass = LoadClass<AActor>(nullptr, *ClassPath);
+            // First try as an Actor class
+            const FString ActorClassPath = FString::Printf(TEXT("/Script/Engine.%s"), *ClassName);
+            FoundClass = LoadClass<UObject>(nullptr, *ActorClassPath);
+            
+            if (!FoundClass)
+            {
+                // Try as a Component class if not found
+                const FString ComponentClassPath = FString::Printf(TEXT("/Script/Engine.%s"), *ClassName);
+                FoundClass = LoadObject<UClass>(nullptr, *ComponentClassPath);
+            }
             
             if (!FoundClass)
             {
                 // Try alternate paths if not found
                 const FString GameClassPath = FString::Printf(TEXT("/Script/Game.%s"), *ClassName);
-                FoundClass = LoadClass<AActor>(nullptr, *GameClassPath);
+                FoundClass = LoadClass<UObject>(nullptr, *GameClassPath);
             }
         }
 
