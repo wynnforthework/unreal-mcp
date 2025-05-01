@@ -181,6 +181,24 @@ def register_blueprint_node_tools(mcp: FastMCP):
                 variable_type="/Game/DataStructures/PlayerStats",
                 is_exposed=True
             )
+
+            # Add a widget blueprint reference
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="BP_HUDController",
+                variable_name="MainMenuWidget",
+                variable_type="Game/Widgets/WBP_MainMenu",
+                is_exposed=True
+            )
+
+            # Add a blueprint class reference
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="BP_GameMode",
+                variable_name="PlayerPawnClass",
+                variable_type="Game/Blueprints/BP_PlayerPawn",
+                is_exposed=True
+            )
         """
         return add_variable_impl(ctx, blueprint_name, variable_name, variable_type, is_exposed)
     
