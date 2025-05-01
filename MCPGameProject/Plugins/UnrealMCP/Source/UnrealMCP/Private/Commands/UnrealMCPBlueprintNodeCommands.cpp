@@ -824,17 +824,64 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                         OutPinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
                         OutPinType.PinSubCategoryObject = FoundEnum;
                         bResolved = true;
+                    } else {
+                        // Try object/class
+                        UClass* FoundClass = nullptr;
+                        
+                        // Clean up the path by removing any redundant slashes
+                        FString CleanPath = InType;
+                        CleanPath.TrimStartAndEndInline();
+                        
+                        // Handle Game prefix variations
+                        if (!CleanPath.StartsWith(TEXT("/")))
+                        {
+                            if (CleanPath.StartsWith(TEXT("Game/")))
+                            {
+                                CleanPath = FString::Printf(TEXT("/%s"), *CleanPath);
+                            }
+                            else
+                            {
+                                CleanPath = FString::Printf(TEXT("/Game/%s"), *CleanPath);
+                            }
+                        }
+                        
+                        // Try direct path first
+                        FString DirectPath = FString::Printf(TEXT("%s.%s_C"), *CleanPath, *FPaths::GetBaseFilename(CleanPath));
+                        UE_LOG(LogTemp, Display, TEXT("Trying direct path: %s"), *DirectPath);
+                        FoundClass = LoadClass<UObject>(nullptr, *DirectPath);
+                        
+                        // If not found, try standard class loading
+                        if (!FoundClass)
+                        {
+                            FoundClass = LoadObject<UClass>(nullptr, *CleanPath);
+                        }
+                        
+                        // Try engine path if still not found
+                        if (!FoundClass)
+                        {
+                            FString EngineClassName = FUnrealMCPCommonUtils::BuildEnginePath(CleanPath);
+                            FoundClass = LoadObject<UClass>(nullptr, *EngineClassName);
+                        }
+                        
+                        if (FoundClass)
+                        {
+                            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+                            OutPinType.PinSubCategoryObject = FoundClass;
+                            bResolved = true;
+                        }
                     }
                 }
             }
+            
+            // Always return success, the bResolved flag will indicate if the type was actually resolved
+            return TSharedPtr<FJsonObject>();
         };
+
         ResolveType(InnerType, InnerPinType, bInnerResolved);
         if (bInnerResolved) {
             PinType = InnerPinType;
             PinType.ContainerType = EPinContainerType::Array;
             bTypeResolved = true;
-        } else {
-            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unsupported or unknown array inner type: %s"), *InnerType));
         }
     } else {
         // Built-in types
@@ -880,28 +927,51 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
             if (FoundStruct) {
                 SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, FoundStruct);
             } else {
-                // Try enum
-                UEnum* FoundEnum = LoadObject<UEnum>(nullptr, *TypeStr);
-                if (!FoundEnum) {
-                    FoundEnum = LoadObject<UEnum>(nullptr, *TypeStr);
+                // Try object/class
+                UClass* FoundClass = nullptr;
+                
+                // Clean up the path by removing any redundant slashes
+                FString CleanPath = TypeStr;
+                CleanPath.TrimStartAndEndInline();
+                
+                // Handle Game prefix variations
+                if (!CleanPath.StartsWith(TEXT("/")))
+                {
+                    if (CleanPath.StartsWith(TEXT("Game/")))
+                    {
+                        CleanPath = FString::Printf(TEXT("/%s"), *CleanPath);
+                    }
+                    else
+                    {
+                        CleanPath = FString::Printf(TEXT("/Game/%s"), *CleanPath);
+                    }
                 }
-                if (FoundEnum) {
-                    SetPinTypeForCategory(UEdGraphSchema_K2::PC_Byte, FoundEnum);
-                } else {
-                    // Try object/class
-                    UClass* FoundClass = LoadObject<UClass>(nullptr, *TypeStr);
-                    if (!FoundClass) {
-                        // Try with Engine module path
-                        FString EngineClassName = FUnrealMCPCommonUtils::BuildEnginePath(TypeStr);
-                        FoundClass = LoadObject<UClass>(nullptr, *EngineClassName);
-                    }
-                    if (FoundClass) {
-                        SetPinTypeForCategory(UEdGraphSchema_K2::PC_Object, FoundClass);
-                    } else {
-                        // Try delegate (not implemented here, but could be added)
-                        // ...
-                        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unsupported or unknown variable type: %s"), *TypeStr));
-                    }
+                
+                // Try direct path first
+                FString DirectPath = FString::Printf(TEXT("%s.%s_C"), *CleanPath, *FPaths::GetBaseFilename(CleanPath));
+                UE_LOG(LogTemp, Display, TEXT("Trying direct path: %s"), *DirectPath);
+                FoundClass = LoadClass<UObject>(nullptr, *DirectPath);
+                
+                // If not found, try standard class loading
+                if (!FoundClass)
+                {
+                    FoundClass = LoadObject<UClass>(nullptr, *CleanPath);
+                }
+                
+                // Try engine path if still not found
+                if (!FoundClass)
+                {
+                    FString EngineClassName = FUnrealMCPCommonUtils::BuildEnginePath(CleanPath);
+                    FoundClass = LoadObject<UClass>(nullptr, *EngineClassName);
+                }
+                
+                if (FoundClass)
+                {
+                    SetPinTypeForCategory(UEdGraphSchema_K2::PC_Object, FoundClass);
+                }
+                else
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find class for type: %s"), *TypeStr));
                 }
             }
         }
