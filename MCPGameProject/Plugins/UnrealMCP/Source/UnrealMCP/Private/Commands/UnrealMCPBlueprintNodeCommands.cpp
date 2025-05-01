@@ -2,6 +2,7 @@
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/DataTable.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
@@ -983,7 +984,33 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                 }
                 else
                 {
-                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find class for type: %s"), *TypeStr));
+                    // Special handling for DataTable references
+                    if (TypeStr.Contains(TEXT("Game/")))
+                    {
+                        // Ensure path starts with a forward slash
+                        FString DataTablePath = TypeStr;
+                        if (!DataTablePath.StartsWith(TEXT("/")))
+                        {
+                            DataTablePath = TEXT("/") + DataTablePath;
+                        }
+                        
+                        // Try to load the DataTable asset
+                        UDataTable* DataTableAsset = LoadObject<UDataTable>(nullptr, *DataTablePath);
+                        if (DataTableAsset)
+                        {
+                            // For DataTables, we use Object reference with DataTable class
+                            UClass* DataTableClass = UDataTable::StaticClass();
+                            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Object, DataTableClass);
+                        }
+                        else
+                        {
+                            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find DataTable asset: %s"), *DataTablePath));
+                        }
+                    }
+                    else
+                    {
+                        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find class for type: %s"), *TypeStr));
+                    }
                 }
             }
         }
