@@ -16,7 +16,8 @@ from utils.blueprints.blueprint_operations import (
     compile_blueprint as compile_blueprint_impl,
     set_blueprint_property as set_blueprint_property_impl,
     set_pawn_properties as set_pawn_properties_impl,
-    add_blueprint_custom_event_node as add_blueprint_custom_event_node_impl
+    add_blueprint_custom_event_node as add_blueprint_custom_event_node_impl,
+    add_blueprint_variable as add_blueprint_variable_impl
 )
 
 # Get logger
@@ -56,6 +57,93 @@ def register_blueprint_tools(mcp: FastMCP):
             create_blueprint(name="MyBlueprint", parent_class="Actor", folder_path="Success")
         """
         return create_blueprint_impl(ctx, name, parent_class, folder_path)
+    
+    @mcp.tool()
+    def add_blueprint_variable(
+        ctx: Context,
+        blueprint_name: str,
+        variable_name: str,
+        variable_type: str,
+        is_exposed: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Add a variable to a Blueprint.
+        Supports built-in, user-defined struct, and delegate types.
+
+        Args:
+            blueprint_name: Name of the target Blueprint
+            variable_name: Name of the variable
+            variable_type: Type of the variable (Boolean, Integer, Float, Vector, StructName, StructName[], Delegate, etc.)
+            is_exposed: Whether to expose the variable to the editor
+
+        Returns:
+            Response indicating success or failure
+
+        Examples:
+            # Add a basic integer variable
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="Score",
+                variable_type="Integer",
+                is_exposed=True
+            )
+
+            # Add a string variable
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="PlayerName",
+                variable_type="String",
+                is_exposed=True
+            )
+
+            # Add a vector variable
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="Position",
+                variable_type="Vector",
+                is_exposed=True
+            )
+
+            # Add an array variable
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="Inventory",
+                variable_type="String[]",
+                is_exposed=True
+            )
+
+            # Add a custom struct variable (using full path)
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="PlayerBlueprint",
+                variable_name="Stats",
+                variable_type="/Game/DataStructures/PlayerStats",
+                is_exposed=True
+            )
+
+            # Add a widget blueprint reference
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="BP_HUDController",
+                variable_name="MainMenuWidget",
+                variable_type="Game/Widgets/WBP_MainMenu",
+                is_exposed=True
+            )
+
+            # Add a blueprint class reference
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="BP_GameMode",
+                variable_name="PlayerPawnClass",
+                variable_type="Game/Blueprints/BP_PlayerPawn",
+                is_exposed=True
+            )
+        """
+        return add_blueprint_variable_impl(ctx, blueprint_name, variable_name, variable_type, is_instance_editable=is_exposed)
     
     @mcp.tool()
     def add_component_to_blueprint(
