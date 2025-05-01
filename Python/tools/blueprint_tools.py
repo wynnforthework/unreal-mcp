@@ -210,15 +210,87 @@ def register_blueprint_tools(mcp: FastMCP):
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Set one or more properties on a component in a Blueprint.
-        Args:
+        Set one or more properties on a specific component within a UMG Widget Blueprint.
+
+        Parameters:
             blueprint_name: Name of the target Blueprint
-            component_name: Name of the component
-            kwargs: Properties to set (as keyword arguments or a dict). Each key is a property name, value is the value to set.
+            component_name: Name of the component to modify
+            kwargs: Properties to set as a JSON string. Must be formatted as a valid JSON string.
+                   Example format: '{"PropertyName": value}'
+                
+                Light Component Properties:
+                - Intensity: Float value for brightness
+                - AttenuationRadius: Float value for light reach
+                - SourceRadius: Float value for light source size
+                - SoftSourceRadius: Float value for soft light border
+                - CastShadows: Boolean for shadow casting
+
+                Transform Properties:
+                - RelativeLocation: [x, y, z] float values for position
+                - RelativeScale3D: [x, y, z] float values for scale
+                
+                Collision Properties:
+                - CollisionEnabled: String enum value, one of:
+                    - "ECollisionEnabled::NoCollision"
+                    - "ECollisionEnabled::QueryOnly"
+                    - "ECollisionEnabled::PhysicsOnly"
+                    - "ECollisionEnabled::QueryAndPhysics"
+                - CollisionProfileName: String name of collision profile (e.g. "BlockAll")
+                
+                Sphere Collision Properties (for SphereComponent):
+                - SphereRadius: Float value for collision sphere radius
+
+                For Static Mesh Components:
+                - StaticMesh: String path to mesh asset (e.g. "/Game/StarterContent/Shapes/Shape_Cube")
+
         Returns:
-            Response indicating success or failure for each property.
-        Example:
-            set_component_property(ctx, "MyActor", "Mesh", StaticMesh="/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", Mobility="Movable")
+            Dict containing:
+                - success: Boolean indicating overall success
+                - success_properties: List of property names successfully set
+                - failed_properties: List of property names that failed to set, with error messages
+                
+        Examples:
+            # Set light properties
+            set_component_property(
+                blueprint_name="MyBlueprint",
+                component_name="PointLight1",
+                kwargs='{"Intensity": 5000.0, "AttenuationRadius": 1000.0, "SourceRadius": 10.0, "SoftSourceRadius": 20.0, "CastShadows": true}'
+            )
+            
+            # Set transform
+            set_component_property(
+                blueprint_name="MyBlueprint",
+                component_name="Mesh1",
+                kwargs='{"RelativeLocation": [100.0, 200.0, 50.0], "RelativeScale3D": [1.0, 1.0, 1.0]}'
+            )
+            
+            # Set collision
+            set_component_property(
+                blueprint_name="MyBlueprint",
+                component_name="Mesh1",
+                kwargs='{"CollisionEnabled": "ECollisionEnabled::QueryAndPhysics", "CollisionProfileName": "BlockAll"}'
+            )
+
+            # Set sphere collision radius
+            set_component_property(
+                blueprint_name="MyBlueprint",
+                component_name="SphereCollision",
+                kwargs='{"SphereRadius": 100.0}'
+            )
+
+            # Example of incorrect usage (this will not work):
+            # set_component_property(
+            #     kwargs=SphereRadius=100.0,  # Wrong! Don't use Python kwargs
+            #     blueprint_name="BP_DialogueNPC",
+            #     component_name="InteractionSphere"
+            # )
+
+            # Correct usage with JSON string:
+            set_component_property(
+                blueprint_name="BP_DialogueNPC",
+                component_name="InteractionSphere",
+                kwargs='{"SphereRadius": 100.0}'  # Correct! Use JSON string
+            )
         """
         return set_component_property_impl(ctx, blueprint_name, component_name, **kwargs)
     
