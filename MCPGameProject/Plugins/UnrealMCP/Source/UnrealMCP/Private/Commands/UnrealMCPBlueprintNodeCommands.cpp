@@ -744,6 +744,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
     };
 
     FString TypeStr = VariableType;
+    if (TypeStr.StartsWith(TEXT("/")))
+    {
+        TypeStr.RemoveFromStart(TEXT("/"));
+    }
     TypeStr.TrimStartAndEndInline();
 
     // Handle array, set, map containers
@@ -830,6 +834,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                         
                         // Clean up the path by removing any redundant slashes
                         FString CleanPath = InType;
+                        if (CleanPath.StartsWith(TEXT("/")))
+                        {
+                            CleanPath.RemoveFromStart(TEXT("/"));
+                        }
                         CleanPath.TrimStartAndEndInline();
                         
                         // Handle Game prefix variations
@@ -932,6 +940,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                 
                 // Clean up the path by removing any redundant slashes
                 FString CleanPath = TypeStr;
+                if (CleanPath.StartsWith(TEXT("/")))
+                {
+                    CleanPath.RemoveFromStart(TEXT("/"));
+                }
                 CleanPath.TrimStartAndEndInline();
                 
                 // Handle Game prefix variations

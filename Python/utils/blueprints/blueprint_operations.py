@@ -73,7 +73,7 @@ def get_blueprint_variables(ctx: Context, blueprint_path: str) -> List[Dict[str,
 
 def add_blueprint_variable(
     ctx: Context,
-    blueprint_path: str,
+    blueprint_name: str,
     var_name: str,
     var_type: str,
     default_value: Any = None,
@@ -83,10 +83,10 @@ def add_blueprint_variable(
 ) -> Dict[str, Any]:
     """Implementation for adding a new variable to a blueprint."""
     params = {
-        "blueprint_path": blueprint_path,
-        "var_name": var_name,
-        "var_type": var_type,
-        "is_instance_editable": is_instance_editable,
+        "blueprint_name": blueprint_name,
+        "variable_name": var_name,
+        "variable_type": var_type,
+        "is_exposed": is_instance_editable,
         "is_blueprint_read_only": is_blueprint_read_only,
         "category": category
     }

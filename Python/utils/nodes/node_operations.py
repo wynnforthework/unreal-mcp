@@ -325,25 +325,6 @@ def add_function_node(
         
     return send_unreal_command("add_blueprint_function_node", command_params)
 
-def add_variable(
-    ctx: Context,
-    blueprint_name: str,
-    variable_name: str,
-    variable_type: str,
-    is_exposed: bool = False
-) -> Dict[str, Any]:
-    """Implementation for adding a variable to a Blueprint.
-    Supports built-in, user-defined struct, and delegate types.
-    """
-    params = {
-        "blueprint_name": blueprint_name,
-        "variable_name": variable_name,
-        "variable_type": variable_type,
-        "is_exposed": is_exposed
-    }
-    
-    return send_unreal_command("add_blueprint_variable", params)
-
 def add_self_component_reference(
     ctx: Context,
     blueprint_name: str,
