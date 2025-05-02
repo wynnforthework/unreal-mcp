@@ -1013,38 +1013,51 @@ def info():
     
     ## Best Practices
     
+    ### General
+    - Read the documentation: Always refer to the up-to-date info() docstring for detailed arguments, return values, and usage examples for every tool.
+    - Check command responses: Always check the returned dictionary for 'success' or 'status' fields to confirm operation results and handle errors gracefully.
+    - Log important operations: Use logging for all major actions, especially those that modify assets, actors, or project settings.
+    - Validate parameters: Double-check all arguments (names, paths, types) before invoking a tool to avoid runtime errors.
+    - Clean up resources: Remove temporary actors, folders, or data after tests or experiments to keep the project clean.
+    
     ### UMG Widget Development
-    - Create widgets with descriptive names that reflect their purpose
-    - Use consistent naming conventions for widget components
-    - Organize widget hierarchy logically
-    - Set appropriate anchors and alignment for responsive layouts
-    - Use property bindings for dynamic updates instead of direct setting
-    - Handle widget events appropriately with meaningful function names
-    - Clean up widgets when no longer needed
-    - Test widget layouts at different resolutions
+    - Use descriptive names: Name widgets and components clearly to reflect their purpose and avoid confusion.
+    - Consistent naming: Stick to a naming convention for all widget components and Blueprints.
+    - Organize hierarchies: Structure widget hierarchies logically for easier maintenance and extensibility.
+    - Responsive layouts: Set anchors, alignment, and size rules for widgets to ensure they look good at all resolutions.
+    - Property bindings: Prefer property bindings for dynamic UI updates instead of direct property setting.
+    - Event handling: Bind widget events to clearly named functions and keep event logic modular.
+    - Test layouts: Preview widgets at multiple resolutions and aspect ratios.
     
-    ### Editor and Actor Management
-    - Use unique names for actors to avoid conflicts
-    - Clean up temporary actors
-    - Validate transforms before applying
-    - Check actor existence before modifications
-    - Take regular viewport screenshots during development
-    - Keep the viewport focused on relevant actors during operations
+    ### Actor and Editor Management
+    - Unique actor names: Always use unique names for actors to prevent conflicts and accidental overwrites.
+    - Transform validation: Validate locations, rotations, and scales before applying transforms.
+    - Existence checks: Use find_actors_by_name or get_actors_in_level to confirm an actor exists before modifying or deleting it.
+    - Regular screenshots: Use the screenshot tool to document progress and catch visual regressions.
+    - Viewport focus: Use viewport focus tools to keep the editor centered on relevant actors during development.
     
-    ### Blueprint Development
-    - Compile Blueprints after changes
-    - Use meaningful names for variables and functions
-    - Organize nodes logically
-    - Test functionality in isolation
-    - Consider performance implications
-    - Document complex setups
+    ### Blueprint Management
+    - Compile after changes: Always compile Blueprints after making changes to ensure they are up to date and error-free.
+    - Meaningful variable names: Use clear, descriptive names for Blueprint variables and functions.
+    - Logical node layout: Organize Blueprint nodes for readability and maintainability.
+    - Test in isolation: Test new Blueprint logic in isolation before integrating into larger systems.
+    - Document complex setups: Add comments or documentation for complex Blueprint graphs or custom logic.
+    
+    ### DataTable Management
+    - Use structs for rows: Always define a struct for your DataTable rows and keep it updated as your data model evolves.
+    - Field name consistency: Use get_datatable_row_names to retrieve the correct GUID-based field names before adding or updating rows.
+    - Batch operations: Use batch add/update/delete functions for efficiency when working with multiple rows.
+    - Backup before bulk edits: Consider exporting or backing up DataTables before performing large-scale changes.
+    
+    ### Project Structure
+    - Organize content: Use the folder creation tools to keep your Content Browser and project directories organized.
+    - Consistent structs: Keep struct definitions consistent and up to date with your gameplay and UI needs.
+    - Input mapping: Use the input mapping tool to centralize and standardize input actions across your project.
     
     ### Error Handling
-    - Check command responses for success
-    - Handle errors gracefully
-    - Log important operations
-    - Validate parameters
-    - Clean up resources on errors
+    - Graceful degradation: If a tool fails, log the error and provide a user-friendly message or fallback.
+    - Resource cleanup: Always clean up temporary or test resources, especially after failed operations.
+    - Avoid duplicates: Check for existing assets, actors, or data before creating new ones to prevent duplication.
     """
 
 # ... rest of the file remains unchanged ...
