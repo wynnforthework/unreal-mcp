@@ -619,8 +619,9 @@ def info():
         add_blueprint_variable(blueprint_name="PlayerBlueprint", variable_name="Inventory", variable_type="String[]", is_exposed=True)
         add_blueprint_variable(blueprint_name="PlayerBlueprint", variable_name="WBP_Widget", variable_type="Game/Widget/WBP_Widget", is_exposed=True)
         add_blueprint_variable(blueprint_name="PlayerBlueprint", variable_name="MyStruct", variable_type="Game/DataStructures/MyStruct", is_exposed=True)
-        add_blueprint_variable(blueprint_name="PlayerBlueprint", variable_name="MyStruct[]", variable_type="Game/DataStructures/MyStruct[]", is_exposed=True)
+        add_blueprint_variable(blueprint_name="PlayerBlueprint", variable_name="MyStructs", variable_type="Game/DataStructures/MyStruct[]", is_exposed=True)
         add_blueprint_variable(blueprint_name="PlayerBlueprint", variable_name="Datatable", variable_type="Game/DataTables/MyDatatable", is_exposed=True)
+        add_blueprint_variable(blueprint_name="PlayerBlueprint", variable_name="BP_Manager", variable_type="Game/Blueprints/BP_Manager", is_exposed=True)
     
     - **add_component_to_blueprint(blueprint_name, component_type, component_name, location=None, rotation=None, scale=None, component_properties=None)**
       
@@ -754,7 +755,7 @@ def info():
     
     - **connect_blueprint_nodes(blueprint_name, source_node_id, source_pin, target_node_id, target_pin)**
       
-      Connect two nodes in a Blueprint's event graph.
+      Connect two nodes in a Blueprint's event graph. You must determine the correct node IDs and pins to connect.
       
       Args:
         - blueprint_name (str): Name of the target Blueprint
