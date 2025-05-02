@@ -1060,4 +1060,6 @@ def info():
     - Avoid duplicates: Check for existing assets, actors, or data before creating new ones to prevent duplication.
     """
 
-# ... rest of the file remains unchanged ...
+if __name__ == "__main__":
+    logger.info("Starting MCP server with stdio transport")
+    mcp.run(transport='stdio')
