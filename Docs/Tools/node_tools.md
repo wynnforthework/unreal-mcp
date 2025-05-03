@@ -114,34 +114,6 @@ Connect two nodes in a Blueprint's event graph.
 }
 ```
 
-### add_blueprint_variable
-
-Add a variable to a Blueprint.
-
-**Parameters:**
-- `blueprint_name` (string) - Name of the target Blueprint
-- `variable_name` (string) - Name of the variable
-- `variable_type` (string) - Type of the variable (Boolean, Integer, Float, Vector, etc.)
-- `default_value` (any, optional) - Default value for the variable
-- `is_exposed` (boolean, optional) - Whether to expose the variable to the editor (default: false)
-
-**Returns:**
-- Response indicating success or failure
-
-**Example:**
-```json
-{
-  "command": "add_blueprint_variable",
-  "params": {
-    "blueprint_name": "MyActor",
-    "variable_name": "Health",
-    "variable_type": "Float",
-    "default_value": 100.0,
-    "is_exposed": true
-  }
-}
-```
-
 ### create_input_mapping
 
 Create an input mapping for the project.
@@ -260,15 +232,3 @@ Common node types for the `find_blueprint_nodes` command:
 - `Component` - Component reference nodes
 - `Self` - Self reference nodes
 
-### Variable Types
-
-Common variable types for the `add_blueprint_variable` command:
-
-- `Boolean` - True/false values
-- `Integer` - Whole numbers
-- `Float` - Decimal numbers
-- `Vector` - 3D vector values
-- `String` - Text values
-- `Object Reference` - References to other objects
-- `Actor Reference` - References to actors
-- `Component Reference` - References to components

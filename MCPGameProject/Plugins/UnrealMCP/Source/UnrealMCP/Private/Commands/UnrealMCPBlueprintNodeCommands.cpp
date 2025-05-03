@@ -2,6 +2,7 @@
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/DataTable.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
@@ -17,6 +18,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "EdGraphSchema_K2.h"
 #include "K2Node_CustomEvent.h"
+#include "K2Node_IfThenElse.h"
+#include "K2Node_ExecutionSequence.h"
 
 // No longer needed as we're using LogTemp
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -270,6 +273,17 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintEvent
     return ResultObj;
 }
 
+// Helper function to create special Blueprint nodes by name
+static UEdGraphNode* CreateSpecialNodeByName(const FString& NodeType, UEdGraph* Graph) {
+    if (NodeType.Equals(TEXT("Branch"), ESearchCase::IgnoreCase)) {
+        return NewObject<UK2Node_IfThenElse>(Graph);
+    }
+    if (NodeType.Equals(TEXT("Sequence"), ESearchCase::IgnoreCase)) {
+        return NewObject<UK2Node_ExecutionSequence>(Graph);
+    }
+    return nullptr;
+}
+
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunctionCall(const TSharedPtr<FJsonObject>& Params)
 {
     // Get required parameters
@@ -308,6 +322,22 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
     if (!EventGraph)
     {
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
+    }
+
+    // Generic special node creation
+    UEdGraphNode* SpecialNode = CreateSpecialNodeByName(FunctionName, EventGraph);
+    if (SpecialNode)
+    {
+        SpecialNode->NodePosX = NodePosition.X;
+        SpecialNode->NodePosY = NodePosition.Y;
+        EventGraph->AddNode(SpecialNode, true);
+        SpecialNode->CreateNewGuid();
+        SpecialNode->PostPlacedNewNode();
+        SpecialNode->AllocateDefaultPins();
+        FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetStringField(TEXT("node_id"), SpecialNode->NodeGuid.ToString());
+        return ResultObj;
     }
 
     // Find the function
@@ -983,7 +1013,33 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                 }
                 else
                 {
-                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find class for type: %s"), *TypeStr));
+                    // Special handling for DataTable references
+                    if (TypeStr.Contains(TEXT("Game/")))
+                    {
+                        // Ensure path starts with a forward slash
+                        FString DataTablePath = TypeStr;
+                        if (!DataTablePath.StartsWith(TEXT("/")))
+                        {
+                            DataTablePath = TEXT("/") + DataTablePath;
+                        }
+                        
+                        // Try to load the DataTable asset
+                        UDataTable* DataTableAsset = LoadObject<UDataTable>(nullptr, *DataTablePath);
+                        if (DataTableAsset)
+                        {
+                            // For DataTables, we use Object reference with DataTable class
+                            UClass* DataTableClass = UDataTable::StaticClass();
+                            SetPinTypeForCategory(UEdGraphSchema_K2::PC_Object, DataTableClass);
+                        }
+                        else
+                        {
+                            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find DataTable asset: %s"), *DataTablePath));
+                        }
+                    }
+                    else
+                    {
+                        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find class for type: %s"), *TypeStr));
+                    }
                 }
             }
         }
