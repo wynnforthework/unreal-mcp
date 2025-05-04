@@ -20,9 +20,9 @@
 #include "K2Node_CustomEvent.h"
 #include "K2Node_IfThenElse.h"
 #include "K2Node_ExecutionSequence.h"
-#include "Commands/K2Node_MCPForEach.h"
 #include "K2Node_MacroInstance.h"
 #include "Misc/PackageName.h"
+#include "K2Node_BreakStruct.h"
 
 // No longer needed as we're using LogTemp
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -68,6 +68,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleCommand(const FSt
     else if (CommandType == TEXT("add_blueprint_custom_event_node"))
     {
         return HandleAddBlueprintCustomEventNode(Params);
+    }
+    else if (CommandType == TEXT("get_variable_info"))
+    {
+        return HandleGetVariableInfo(Params);
     }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint node command: %s"), *CommandType));
@@ -284,9 +288,6 @@ static UEdGraphNode* CreateSpecialNodeByName(const FString& NodeType, UEdGraph* 
     if (NodeType.Equals(TEXT("Sequence"), ESearchCase::IgnoreCase)) {
         return NewObject<UK2Node_ExecutionSequence>(Graph);
     }
-    if (NodeType.Equals(TEXT("MCPForEach"), ESearchCase::IgnoreCase)) {
-        return NewObject<UK2Node_MCPForEach>(Graph);
-    }
     auto CreateMacroInstance = [&](const FString& MacroName) -> UK2Node_MacroInstance* {
         const FString MacroAssetPath = TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros");
         UBlueprint* MacroBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *MacroAssetPath));
@@ -380,6 +381,36 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
         return ResultObj;
     }
 
+    // Special case: Break Struct node
+    if (FunctionName.Equals(TEXT("BreakStruct"), ESearchCase::IgnoreCase) && Params->HasField(TEXT("struct_type")))
+    {
+        FString StructTypeName = Params->GetStringField(TEXT("struct_type"));
+        UScriptStruct* StructType = nullptr;
+        // Try to find the struct by name (try F prefix and without)
+        FString TryNames[] = { StructTypeName, FString::Printf(TEXT("F%s"), *StructTypeName) };
+        for (const FString& Name : TryNames)
+        {
+            StructType = FindObject<UScriptStruct>(ANY_PACKAGE, *Name);
+            if (StructType) break;
+        }
+        if (!StructType)
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Struct type not found: %s"), *StructTypeName));
+        }
+        UK2Node_BreakStruct* BreakNode = NewObject<UK2Node_BreakStruct>(EventGraph);
+        BreakNode->StructType = StructType;
+        BreakNode->NodePosX = NodePosition.X;
+        BreakNode->NodePosY = NodePosition.Y;
+        EventGraph->AddNode(BreakNode, true);
+        BreakNode->CreateNewGuid();
+        BreakNode->PostPlacedNewNode();
+        BreakNode->AllocateDefaultPins();
+        FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetStringField(TEXT("node_id"), BreakNode->NodeGuid.ToString());
+        return ResultObj;
+    }
+
     // Find the function
     UFunction* Function = nullptr;
     UK2Node_CallFunction* FunctionNode = nullptr;
@@ -428,13 +459,6 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
 
         // For UGameplayStatics specific lookup
         if (!TargetClass && Target.Equals(TEXT("GameplayStatics")))
-        {
-            TargetClass = LoadObject<UClass>(nullptr, TEXT("/Script/Engine.GameplayStatics"));
-        }
-
-        // Special case handling for common classes like UGameplayStatics
-        if (TargetClass && TargetClass->GetName() == TEXT("GameplayStatics") && 
-            (FunctionName == TEXT("GetActorOfClass") || FunctionName.Equals(TEXT("GetActorOfClass"), ESearchCase::IgnoreCase)))
         {
             UE_LOG(LogTemp, Display, TEXT("Using special case handling for GameplayStatics::GetActorOfClass"));
             
@@ -1326,5 +1350,59 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintCusto
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetStringField(TEXT("node_id"), NewEventNode->NodeGuid.ToString());
     ResultObj->SetStringField(TEXT("event_name"), EventName);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleGetVariableInfo(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+    }
+    FString VariableName;
+    if (!Params->TryGetStringField(TEXT("variable_name"), VariableName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'variable_name' parameter"));
+    }
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+    if (!Blueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+    }
+    FString TypeString = TEXT("Unknown");
+    for (const FBPVariableDescription& Var : Blueprint->NewVariables)
+    {
+        if (Var.VarName == FName(*VariableName))
+        {
+            if (Var.VarType.PinCategory == UEdGraphSchema_K2::PC_Struct && Var.VarType.PinSubCategoryObject.IsValid())
+            {
+                // User-defined struct: return full asset path
+                UScriptStruct* StructObj = Cast<UScriptStruct>(Var.VarType.PinSubCategoryObject.Get());
+                if (StructObj)
+                {
+                    FString StructPath = StructObj->GetPathName();
+                    // Remove dot notation if present (e.g., /Game/Blueprints/DialogueData.DialogueData -> /Game/Blueprints/DialogueData)
+                    int32 DotIndex;
+                    if (StructPath.FindChar('.', DotIndex))
+                    {
+                        StructPath = StructPath.Left(DotIndex);
+                    }
+                    TypeString = StructPath;
+                }
+            }
+            else if (!Var.VarType.PinCategory.IsNone())
+            {
+                TypeString = Var.VarType.PinCategory.ToString();
+            }
+            else
+            {
+                TypeString = Var.FriendlyName;
+            }
+            break;
+        }
+    }
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetStringField(TEXT("variable_type"), TypeString);
     return ResultObj;
 } 
