@@ -20,6 +20,9 @@
 #include "K2Node_CustomEvent.h"
 #include "K2Node_IfThenElse.h"
 #include "K2Node_ExecutionSequence.h"
+#include "Commands/K2Node_MCPForEach.h"
+#include "K2Node_MacroInstance.h"
+#include "Misc/PackageName.h"
 
 // No longer needed as we're using LogTemp
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -281,6 +284,41 @@ static UEdGraphNode* CreateSpecialNodeByName(const FString& NodeType, UEdGraph* 
     if (NodeType.Equals(TEXT("Sequence"), ESearchCase::IgnoreCase)) {
         return NewObject<UK2Node_ExecutionSequence>(Graph);
     }
+    if (NodeType.Equals(TEXT("MCPForEach"), ESearchCase::IgnoreCase)) {
+        return NewObject<UK2Node_MCPForEach>(Graph);
+    }
+    auto CreateMacroInstance = [&](const FString& MacroName) -> UK2Node_MacroInstance* {
+        const FString MacroAssetPath = TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros");
+        UBlueprint* MacroBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *MacroAssetPath));
+        if (!MacroBP) {
+            UE_LOG(LogTemp, Error, TEXT("Failed to load StandardMacros asset at %s"), *MacroAssetPath);
+            return nullptr;
+        }
+        // Log all macro graph names for debugging (use MacroGraphs, not UbergraphPages)
+        FString AllMacroNames;
+        for (UEdGraph* MacroGraph : MacroBP->MacroGraphs) {
+            if (MacroGraph) {
+                AllMacroNames += MacroGraph->GetName() + TEXT(", ");
+            }
+        }
+        UE_LOG(LogTemp, Display, TEXT("Available macro graphs in StandardMacros: %s"), *AllMacroNames);
+        // Find the macro graph by exact name
+        for (UEdGraph* MacroGraph : MacroBP->MacroGraphs) {
+            if (MacroGraph && MacroGraph->GetName().Equals(MacroName, ESearchCase::CaseSensitive)) {
+                UK2Node_MacroInstance* MacroNode = NewObject<UK2Node_MacroInstance>(Graph);
+                MacroNode->SetMacroGraph(MacroGraph);
+                return MacroNode;
+            }
+        }
+        UE_LOG(LogTemp, Error, TEXT("Macro graph '%s' not found in StandardMacros asset!"), *MacroName);
+        return nullptr;
+    };
+    if (NodeType.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase)) {
+        return CreateMacroInstance(TEXT("ForEachLoop"));
+    }
+    if (NodeType.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase)) {
+        return CreateMacroInstance(TEXT("ForLoop"));
+    }
     return nullptr;
 }
 
@@ -330,6 +368,8 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
     {
         SpecialNode->NodePosX = NodePosition.X;
         SpecialNode->NodePosY = NodePosition.Y;
+        // If this is a comment node, set text and size if provided
+        
         EventGraph->AddNode(SpecialNode, true);
         SpecialNode->CreateNewGuid();
         SpecialNode->PostPlacedNewNode();
