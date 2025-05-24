@@ -52,19 +52,19 @@ SpinBox ✓
 Supported kwargs: min_value, max_value, value, delta
 WrapBox ✓
 Supported kwargs: horizontal_alignment, vertical_alignment
-ScaleBox
+ScaleBox ✓
 Container that scales its child
-NamedSlot
+NamedSlot ✓
 Container for named content
 RadialSlider ✓
 Supported kwargs: value, slider_handle_start_angle, slider_handle_end_angle
-ListView
+ListView ✓
 List-based container
-TileView
+TileView ✓
 Grid-based container
-TreeView
+TreeView ✓
 Hierarchical container
-SafeZone
+SafeZone ✓
 Container that respects device safe zones
 MenuAnchor ✗
 Supported kwargs: menu_placement
