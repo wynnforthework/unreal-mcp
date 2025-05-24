@@ -1209,6 +1209,16 @@ UWidget* FWidgetComponentService::CreateRadialSlider(UWidgetBlueprint* WidgetBlu
     KwargsObject->TryGetNumberField(TEXT("value"), Value);
     RadialSlider->SetValue(Value);
     
+    // Add support for start/end angle
+    float StartAngle = 0.0f;
+    if (KwargsObject->TryGetNumberField(TEXT("slider_handle_start_angle"), StartAngle)) {
+        RadialSlider->SetSliderHandleStartAngle(StartAngle);
+    }
+    float EndAngle = 360.0f;
+    if (KwargsObject->TryGetNumberField(TEXT("slider_handle_end_angle"), EndAngle)) {
+        RadialSlider->SetSliderHandleEndAngle(EndAngle);
+    }
+    
     float MinValue = 0.0f;
     KwargsObject->TryGetNumberField(TEXT("min_value"), MinValue);
     // RadialSlider->MinValue = MinValue; // Directly setting the member variable - Caused compilation error
