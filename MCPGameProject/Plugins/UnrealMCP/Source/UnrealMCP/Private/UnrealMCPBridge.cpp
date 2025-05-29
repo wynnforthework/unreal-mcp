@@ -253,7 +253,9 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("set_blueprint_property"), 
                     TEXT("set_static_mesh_properties"),
                     TEXT("set_pawn_properties"),
-                    TEXT("call_function_by_name")
+                    TEXT("call_function_by_name"),
+                    TEXT("add_interface_to_blueprint"),
+                    TEXT("create_blueprint_interface")
                 };
                 
                 static const TArray<FString> BlueprintNodeCommandsList = {
