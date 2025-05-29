@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// This is now an Editor-only module. It will not be included in packaged builds.
+
 using UnrealBuildTool;
 
 public class UnrealMCP : ModuleRules

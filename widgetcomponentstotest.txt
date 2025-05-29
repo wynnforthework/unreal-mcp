@@ -13,7 +13,7 @@ Supported kwargs: min_value, max_value, value, bar_color
 ProgressBar ✓
 Supported kwargs: percent, bar_color, fill_color
 Border ✓
-Supported kwargs: background_color, padding
+Supported kwargs: background_color, padding, horizontal_alignment, vertical_alignment
 ScrollBox ✓
 Supported kwargs: scroll_bar_visibility
 Spacer ✓
@@ -28,43 +28,43 @@ RichTextBlock ✓
 Supported kwargs: text, auto_wrap_text
 MultiLineEditableText ✓
 Supported kwargs: text, hint_text
-VerticalBox
+VerticalBox ✓
 Container that stacks widgets vertically
-HorizontalBox
+HorizontalBox ✓
 Container that arranges widgets horizontally
-Overlay
-Container that overlays widgets
-GridPanel
-Container that arranges widgets in a grid
-SizeBox
-Container that enforces size constraints
-CanvasPanel
-Container with free positioning
+Overlay ✓
+Supported kwargs: horizontal_alignment, vertical_alignment
+GridPanel ✓
+Supported kwargs: horizontal_alignment, vertical_alignment
+SizeBox ✓
+Supported kwargs: horizontal_alignment, vertical_alignment
+CanvasPanel ✓
+Supported kwargs: alignment (as [X, Y] float values)
 ComboBox ✓
 Supported kwargs: options, selected_option
 EditableText ✓
 Supported kwargs: text, hint_text, is_password, is_read_only
 EditableTextBox ✓
 Supported kwargs: text, hint_text, is_password, is_read_only
-CircularThrobber ✗
-Supported kwargs: number_of_pieces
+CircularThrobber ✓
+Supported kwargs: number_of_pieces, period
 SpinBox ✓
 Supported kwargs: min_value, max_value, value, delta
-WrapBox
-Container that wraps child widgets
-ScaleBox
+WrapBox ✓
+Supported kwargs: horizontal_alignment, vertical_alignment
+ScaleBox ✓
 Container that scales its child
-NamedSlot
+NamedSlot ✓
 Container for named content
-RadialSlider ✗
-Supported kwargs: value, min_angle, max_angle
-ListView
+RadialSlider ✓
+Supported kwargs: value, slider_handle_start_angle, slider_handle_end_angle
+ListView ✓
 List-based container
-TileView
+TileView ✓
 Grid-based container
-TreeView
+TreeView ✓
 Hierarchical container
-SafeZone
+SafeZone ✓
 Container that respects device safe zones
 MenuAnchor ✗
 Supported kwargs: menu_placement
@@ -72,5 +72,5 @@ NativeWidgetHost
 Container for native widgets
 BackgroundBlur ✓
 Supported kwargs: blur_strength
-UniformGridPanel
-Container with uniform cells
+UniformGridPanel ✓
+Supported kwargs: horizontal_alignment, vertical_alignment

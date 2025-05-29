@@ -17,7 +17,9 @@ from utils.blueprints.blueprint_operations import (
     set_blueprint_property as set_blueprint_property_impl,
     set_pawn_properties as set_pawn_properties_impl,
     add_blueprint_custom_event_node as add_blueprint_custom_event_node_impl,
-    add_blueprint_variable as add_blueprint_variable_impl
+    add_blueprint_variable as add_blueprint_variable_impl,
+    add_interface_to_blueprint as add_interface_to_blueprint_impl,
+    create_blueprint_interface as create_blueprint_interface_impl
 )
 
 # Get logger
@@ -437,5 +439,52 @@ def register_blueprint_tools(mcp: FastMCP):
             "string_params": string_params or []
         }
         return ctx.mcp.command("call_function_by_name", payload)
+    
+    @mcp.tool()
+    def add_interface_to_blueprint(
+        ctx: Context,
+        blueprint_name: str,
+        interface_name: str
+    ) -> Dict[str, Any]:
+        """
+        Add an interface to a Blueprint.
+
+        Args:
+            blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
+            interface_name: Name or path of the interface to add (e.g., "/Game/Blueprints/BPI_MyInterface")
+
+        Returns:
+            Response indicating success or failure
+
+        Example:
+            add_interface_to_blueprint(
+                ctx,
+                blueprint_name="BP_MyActor",
+                interface_name="/Game/Blueprints/BPI_MyInterface"
+            )
+        """
+        return add_interface_to_blueprint_impl(ctx, blueprint_name, interface_name)
+    
+    @mcp.tool()
+    def create_blueprint_interface(
+        ctx: Context,
+        name: str,
+        folder_path: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Create a new Blueprint Interface asset.
+
+        Args:
+            name: Name of the new Blueprint Interface (can include path with "/")
+            folder_path: Optional folder path where the interface should be created
+                         If name contains a path, folder_path is ignored unless explicitly specified
+
+        Returns:
+            Dictionary containing information about the created Blueprint Interface including path and success status
+
+        Example:
+            create_blueprint_interface(name="MyInterface", folder_path="Blueprints")
+        """
+        return create_blueprint_interface_impl(ctx, name, folder_path)
     
     logger.info("Blueprint tools registered successfully")

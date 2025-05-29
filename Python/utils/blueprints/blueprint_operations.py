@@ -395,3 +395,27 @@ def add_blueprint_custom_event_node(
     if node_position is not None:
         params["node_position"] = node_position
     return send_unreal_command("add_blueprint_custom_event_node", params)
+
+def add_interface_to_blueprint(
+    ctx: Context,
+    blueprint_name: str,
+    interface_name: str
+) -> Dict[str, Any]:
+    """Implementation for adding an interface to a blueprint."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "interface_name": interface_name
+    }
+    return send_unreal_command("add_interface_to_blueprint", params)
+
+def create_blueprint_interface(
+    ctx: Context,
+    name: str,
+    folder_path: str = ""
+) -> Dict[str, Any]:
+    """Implementation for creating a Blueprint Interface asset."""
+    params = {
+        "name": name,
+        "folder_path": folder_path
+    }
+    return send_unreal_command("create_blueprint_interface", params)

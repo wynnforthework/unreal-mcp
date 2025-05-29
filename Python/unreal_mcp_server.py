@@ -718,6 +718,12 @@ def info():
 
     ## Blueprint Node Management
     
+    ### Important Limitation: Loop Nodes (ForEach, ForLoop, etc.)
+    
+    > **Note:**
+    > The standard Blueprint loop nodes such as **ForEach** and **ForLoop** are implemented as Blueprint Macros, not as native K2 nodes. Due to Unreal Engine's public API limitations, these macro nodes **cannot be added programmatically** via the MCP tool or any C++ plugin. Only native K2 nodes (such as Branch, Sequence, etc.) can be added programmatically.
+    > If you need loop logic in your Blueprint, please provide a comment for user in place of the loop node. This is a known limitation of Unreal Engine and is not specific to this plugin.
+    
     - **add_blueprint_event_node(blueprint_name, event_name, node_position=None)**
       
       Add an event node to a Blueprint's event graph.

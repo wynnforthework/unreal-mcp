@@ -27,6 +27,8 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Kismet/GameplayStatics.h"
+#include "UObject/TopLevelAssetPath.h"
+#include "Factories/BlueprintInterfaceFactory.h"
 
 // Using LogTemp instead of a custom log category for UE5.5 compatibility
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -76,6 +78,14 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCommand(const FString
     else if (CommandType == TEXT("call_function_by_name"))
     {
         return HandleCallFunctionByName(Params);
+    }
+    else if (CommandType == TEXT("add_interface_to_blueprint"))
+    {
+        return HandleAddInterfaceToBlueprint(Params);
+    }
+    else if (CommandType == TEXT("create_blueprint_interface"))
+    {
+        return HandleCreateBlueprintInterface(Params);
     }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint command: %s"), *CommandType));
@@ -288,7 +298,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const
         *AssetName, *FullAssetPath, *SelectedParentClass->GetName());
 
     // Create the package
-    UPackage* Package = CreatePackage(*FullAssetPath);
+    UObject* Package = CreatePackage(*FullAssetPath);
     if (!Package)
     {
         UE_LOG(LogTemp, Error, TEXT("Failed to create package for path: '%s'"), *FullAssetPath);
@@ -1195,4 +1205,185 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCallFunctionByName(co
         return FUnrealMCPCommonUtils::CreateErrorResponse(Error);
 
     return FUnrealMCPCommonUtils::CreateSuccessResponse();
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddInterfaceToBlueprint(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+    }
+    FString InterfaceName;
+    if (!Params->TryGetStringField(TEXT("interface_name"), InterfaceName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'interface_name' parameter"));
+    }
+
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+    if (!Blueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+    }
+
+    // Try to load the interface class
+    UClass* InterfaceClass = nullptr;
+    FString InterfacePath = InterfaceName;
+    if (!InterfacePath.EndsWith(TEXT("_C")))
+    {
+        InterfacePath += TEXT("_C");
+    }
+    InterfaceClass = LoadObject<UClass>(nullptr, *InterfacePath);
+    if (!InterfaceClass)
+    {
+        // Try as BlueprintInterface asset (without _C)
+        InterfaceClass = LoadObject<UClass>(nullptr, *InterfaceName);
+    }
+    if (!InterfaceClass)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find interface: %s"), *InterfaceName));
+    }
+
+    // Check if already implemented
+    if (FBlueprintEditorUtils::ImplementsInterface(Blueprint, false, InterfaceClass))
+    {
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
+        ResultObj->SetStringField(TEXT("interface_name"), InterfaceName);
+        ResultObj->SetBoolField(TEXT("already_implemented"), true);
+        return ResultObj;
+    }
+
+    // Add the interface
+    FBlueprintEditorUtils::ImplementNewInterface(Blueprint, FTopLevelAssetPath(InterfacePath));
+    FKismetEditorUtilities::CompileBlueprint(Blueprint);
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
+    ResultObj->SetStringField(TEXT("interface_name"), InterfaceName);
+    ResultObj->SetBoolField(TEXT("success"), true);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprintInterface(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get required parameters
+    FString InterfaceFullPath;
+    if (!Params->TryGetStringField(TEXT("name"), InterfaceFullPath))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'name' parameter"));
+    }
+
+    // Extract folder path and interface name if the name contains path separators
+    FString InterfaceName;
+    FString ProvidedFolderPath;
+    if (InterfaceFullPath.Contains(TEXT("/")))
+    {
+        int32 LastSlashIndex = INDEX_NONE;
+        if (InterfaceFullPath.FindLastChar('/', LastSlashIndex))
+        {
+            ProvidedFolderPath = InterfaceFullPath.Left(LastSlashIndex);
+            InterfaceName = InterfaceFullPath.RightChop(LastSlashIndex + 1);
+        }
+        else
+        {
+            InterfaceName = InterfaceFullPath;
+        }
+    }
+    else
+    {
+        InterfaceName = InterfaceFullPath;
+    }
+
+    FString FolderPath;
+    Params->TryGetStringField(TEXT("folder_path"), FolderPath);
+    if (!ProvidedFolderPath.IsEmpty() && FolderPath.IsEmpty())
+    {
+        FolderPath = ProvidedFolderPath;
+    }
+    if (FolderPath.StartsWith(TEXT("/")))
+    {
+        FolderPath = FolderPath.RightChop(1);
+    }
+    if (FolderPath.StartsWith(TEXT("Content/")))
+    {
+        FolderPath = FolderPath.RightChop(8);
+    }
+    if (FolderPath.StartsWith(TEXT("Game/")))
+    {
+        FolderPath = FolderPath.RightChop(5);
+    }
+    if (FolderPath.EndsWith(TEXT("/")))
+    {
+        FolderPath = FolderPath.LeftChop(1);
+    }
+    FString PackagePath = TEXT("/Game/");
+    if (!FolderPath.IsEmpty())
+    {
+        PackagePath += FolderPath + TEXT("/");
+    }
+    if (!FolderPath.IsEmpty() && !UEditorAssetLibrary::DoesDirectoryExist(PackagePath))
+    {
+        TArray<FString> FolderLevels;
+        FolderPath.ParseIntoArray(FolderLevels, TEXT("/"));
+        FString CurrentPath = TEXT("/Game/");
+        for (const FString& FolderLevel : FolderLevels)
+        {
+            CurrentPath += FolderLevel + TEXT("/");
+            if (!UEditorAssetLibrary::DoesDirectoryExist(CurrentPath))
+            {
+                if (!UEditorAssetLibrary::MakeDirectory(CurrentPath))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to create directory: %s"), *CurrentPath));
+                }
+            }
+        }
+    }
+    FString AssetName = InterfaceName;
+    FString FullAssetPath = PackagePath + AssetName;
+    if (UEditorAssetLibrary::DoesAssetExist(FullAssetPath))
+    {
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetStringField(TEXT("name"), InterfaceFullPath);
+        ResultObj->SetStringField(TEXT("path"), FullAssetPath);
+        ResultObj->SetBoolField(TEXT("already_exists"), true);
+        return ResultObj;
+    }
+
+    // Create the package
+    UObject* Package = CreatePackage(*FullAssetPath);
+    if (!Package)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create package for Blueprint Interface"));
+    }
+
+    // Use FKismetEditorUtilities to create the Blueprint Interface (UE5.5)
+    UBlueprint* NewInterface = FKismetEditorUtilities::CreateBlueprint(
+        UInterface::StaticClass(), // Use UInterface as the parent class for interfaces
+        Package,
+        *AssetName,
+        BPTYPE_Interface,
+        UBlueprint::StaticClass(),
+        UBlueprintGeneratedClass::StaticClass(),
+        NAME_None
+    );
+
+    if (!NewInterface)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create Blueprint Interface asset"));
+    }
+
+    // Register with asset registry and save
+    FAssetRegistryModule::AssetCreated(NewInterface);
+    Package->MarkPackageDirty();
+    if (!UEditorAssetLibrary::SaveLoadedAsset(NewInterface))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to save Blueprint Interface asset"));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetStringField(TEXT("name"), InterfaceFullPath);
+    ResultObj->SetStringField(TEXT("path"), FullAssetPath);
+    ResultObj->SetBoolField(TEXT("success"), true);
+    return ResultObj;
 }

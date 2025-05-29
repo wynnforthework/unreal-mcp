@@ -16,6 +16,7 @@ from utils.nodes.node_operations import (
     add_self_reference as add_self_reference_impl,
     find_nodes as find_nodes_impl
 )
+from utils.unreal_connection_utils import send_unreal_command
 
 # Get logger
 logger = logging.getLogger("UnrealMCP")
@@ -172,5 +173,27 @@ def register_blueprint_node_tools(mcp: FastMCP):
             Response containing array of found node IDs and success status
         """
         return find_nodes_impl(ctx, blueprint_name, node_type, event_type)
+    
+    @mcp.tool()
+    def get_variable_info(
+        ctx: Context,
+        blueprint_name: str,
+        variable_name: str
+    ) -> Dict[str, Any]:
+        """
+        Get the type information for a variable in a Blueprint.
+
+        Args:
+            blueprint_name: Name of the target Blueprint
+            variable_name: Name of the variable to query
+        Returns:
+            Dict with at least 'variable_type' (e.g., 'Vector', 'Float', 'MyStruct', etc.)
+        
+        Usage for struct/array automation:
+            - Use this tool to get the struct type of a variable.
+            - Pass the returned struct type as 'struct_type' to add_blueprint_function_node with function_name='BreakStruct'.
+        """
+        params = {"blueprint_name": blueprint_name, "variable_name": variable_name}
+        return send_unreal_command("get_variable_info", params)
     
     logger.info("Blueprint node tools registered successfully")
