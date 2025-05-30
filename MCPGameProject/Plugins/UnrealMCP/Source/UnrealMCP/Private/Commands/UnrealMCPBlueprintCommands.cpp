@@ -87,6 +87,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCommand(const FString
     {
         return HandleCreateBlueprintInterface(Params);
     }
+    else if (CommandType == TEXT("list_blueprint_components"))
+    {
+        return HandleListBlueprintComponents(Params);
+    }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint command: %s"), *CommandType));
 }
@@ -609,14 +613,33 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetComponentProperty(
             break;
         }
     }
-    if (!ComponentNode)
+    UObject* ComponentTemplate = nullptr;
+    if (ComponentNode)
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Component not found: %s"), *ComponentName));
+        ComponentTemplate = ComponentNode->ComponentTemplate;
     }
-    UObject* ComponentTemplate = ComponentNode->ComponentTemplate;
+    else
+    {
+        // If not found in construction script, search inherited components on the CDO
+        UObject* DefaultObject = Blueprint->GeneratedClass ? Blueprint->GeneratedClass->GetDefaultObject() : nullptr;
+        AActor* DefaultActor = Cast<AActor>(DefaultObject);
+        if (DefaultActor)
+        {
+            TArray<UActorComponent*> AllComponents;
+            DefaultActor->GetComponents(AllComponents);
+            for (UActorComponent* Comp : AllComponents)
+            {
+                if (Comp && Comp->GetName() == ComponentName)
+                {
+                    ComponentTemplate = Comp;
+                    break;
+                }
+            }
+        }
+    }
     if (!ComponentTemplate)
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Invalid component template"));
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Component not found: %s"), *ComponentName));
     }
 
     // Loop over all properties in kwargs
@@ -1385,5 +1408,45 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprintInterf
     ResultObj->SetStringField(TEXT("name"), InterfaceFullPath);
     ResultObj->SetStringField(TEXT("path"), FullAssetPath);
     ResultObj->SetBoolField(TEXT("success"), true);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleListBlueprintComponents(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+    }
+
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+    if (!Blueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+    }
+
+    // Use the class default object (CDO) to get all components, including inherited
+    UObject* DefaultObject = Blueprint->GeneratedClass->GetDefaultObject();
+    AActor* DefaultActor = Cast<AActor>(DefaultObject);
+    TArray<UActorComponent*> AllComponents;
+    if (DefaultActor)
+    {
+        DefaultActor->GetComponents(AllComponents);
+    }
+
+    TArray<TSharedPtr<FJsonValue>> ComponentArray;
+    for (UActorComponent* Comp : AllComponents)
+    {
+        if (Comp)
+        {
+            TSharedPtr<FJsonObject> CompObj = MakeShared<FJsonObject>();
+            CompObj->SetStringField(TEXT("name"), Comp->GetName());
+            CompObj->SetStringField(TEXT("type"), Comp->GetClass()->GetName());
+            ComponentArray.Add(MakeShared<FJsonValueObject>(CompObj));
+        }
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetArrayField(TEXT("components"), ComponentArray);
     return ResultObj;
 }

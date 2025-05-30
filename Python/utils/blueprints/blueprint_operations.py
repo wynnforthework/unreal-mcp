@@ -419,3 +419,8 @@ def create_blueprint_interface(
         "folder_path": folder_path
     }
     return send_unreal_command("create_blueprint_interface", params)
+
+def list_blueprint_components(ctx: Context, blueprint_name: str) -> Dict[str, Any]:
+    """Implementation for listing all components in a Blueprint class."""
+    params = {"blueprint_name": blueprint_name}
+    return send_unreal_command("list_blueprint_components", params)
