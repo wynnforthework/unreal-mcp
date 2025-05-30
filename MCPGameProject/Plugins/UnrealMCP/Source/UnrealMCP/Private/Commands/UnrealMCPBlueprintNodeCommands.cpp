@@ -9,6 +9,7 @@
 #include "K2Node_Event.h"
 #include "K2Node_CallFunction.h"
 #include "K2Node_VariableGet.h"
+#include "K2Node_VariableSet.h"
 #include "K2Node_InputAction.h"
 #include "K2Node_Self.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -23,6 +24,7 @@
 #include "K2Node_MacroInstance.h"
 #include "Misc/PackageName.h"
 #include "K2Node_BreakStruct.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 // No longer needed as we're using LogTemp
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -288,6 +290,14 @@ static UEdGraphNode* CreateSpecialNodeByName(const FString& NodeType, UEdGraph* 
     if (NodeType.Equals(TEXT("Sequence"), ESearchCase::IgnoreCase)) {
         return NewObject<UK2Node_ExecutionSequence>(Graph);
     }
+    if (NodeType.Equals(TEXT("Print String"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* PrintStringNode = NewObject<UK2Node_CallFunction>(Graph);
+        PrintStringNode->FunctionReference.SetExternalMember(
+            FName(TEXT("PrintString")),
+            UKismetSystemLibrary::StaticClass()
+        );
+        return PrintStringNode;
+    }
     auto CreateMacroInstance = [&](const FString& MacroName) -> UK2Node_MacroInstance* {
         const FString MacroAssetPath = TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros");
         UBlueprint* MacroBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *MacroAssetPath));
@@ -390,7 +400,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
         FString TryNames[] = { StructTypeName, FString::Printf(TEXT("F%s"), *StructTypeName) };
         for (const FString& Name : TryNames)
         {
-            StructType = FindObject<UScriptStruct>(ANY_PACKAGE, *Name);
+            StructType = FindObject<UScriptStruct>(nullptr, *Name);
             if (StructType) break;
         }
         if (!StructType)
@@ -1249,10 +1259,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
     }
 
+    // Get optional node_type parameter
     FString NodeType;
     if (!Params->TryGetStringField(TEXT("node_type"), NodeType))
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'node_type' parameter"));
+        NodeType = TEXT("All"); // Default to finding all nodes
     }
 
     // Find the blueprint
@@ -1272,27 +1283,109 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
     // Create a JSON array for the node GUIDs
     TArray<TSharedPtr<FJsonValue>> NodeGuidArray;
     
-    // Filter nodes by the exact requested type
-    if (NodeType == TEXT("Event"))
+    UE_LOG(LogTemp, Display, TEXT("Searching for nodes of type '%s' in blueprint '%s'"), *NodeType, *BlueprintName);
+    UE_LOG(LogTemp, Display, TEXT("Total nodes in graph: %d"), EventGraph->Nodes.Num());
+    
+    // Filter nodes by the requested type
+    if (NodeType.Equals(TEXT("Event"), ESearchCase::IgnoreCase))
     {
+        // Get optional event_name parameter for specific event filtering
         FString EventName;
-        if (!Params->TryGetStringField(TEXT("event_name"), EventName))
-        {
-            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'event_name' parameter for Event node search"));
-        }
+        bool bHasSpecificEvent = Params->TryGetStringField(TEXT("event_name"), EventName);
         
-        // Look for nodes with exact event name (e.g., ReceiveBeginPlay)
+        UE_LOG(LogTemp, Display, TEXT("Looking for Event nodes%s"), 
+               bHasSpecificEvent ? *FString::Printf(TEXT(" with name '%s'"), *EventName) : TEXT(" (all events)"));
+        
+        // Look for event nodes
         for (UEdGraphNode* Node : EventGraph->Nodes)
         {
             UK2Node_Event* EventNode = Cast<UK2Node_Event>(Node);
-            if (EventNode && EventNode->EventReference.GetMemberName() == FName(*EventName))
+            if (EventNode)
             {
-                UE_LOG(LogTemp, Display, TEXT("Found event node with name %s: %s"), *EventName, *EventNode->NodeGuid.ToString());
-                NodeGuidArray.Add(MakeShared<FJsonValueString>(EventNode->NodeGuid.ToString()));
+                FString EventNodeName = EventNode->EventReference.GetMemberName().ToString();
+                UE_LOG(LogTemp, Display, TEXT("Found event node: %s"), *EventNodeName);
+                
+                // If specific event name is provided, filter by it
+                if (bHasSpecificEvent)
+                {
+                    if (EventNodeName.Equals(EventName, ESearchCase::IgnoreCase))
+                    {
+                        UE_LOG(LogTemp, Display, TEXT("Event node matches filter: %s"), *EventNode->NodeGuid.ToString());
+                        NodeGuidArray.Add(MakeShared<FJsonValueString>(EventNode->NodeGuid.ToString()));
+                    }
+                }
+                else
+                {
+                    // Add all event nodes
+                    UE_LOG(LogTemp, Display, TEXT("Adding event node: %s"), *EventNode->NodeGuid.ToString());
+                    NodeGuidArray.Add(MakeShared<FJsonValueString>(EventNode->NodeGuid.ToString()));
+                }
             }
         }
     }
-    // Add other node types as needed (InputAction, etc.)
+    else if (NodeType.Equals(TEXT("Function"), ESearchCase::IgnoreCase))
+    {
+        // Look for function call nodes
+        for (UEdGraphNode* Node : EventGraph->Nodes)
+        {
+            UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(Node);
+            if (FunctionNode)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Found function node: %s"), *FunctionNode->NodeGuid.ToString());
+                NodeGuidArray.Add(MakeShared<FJsonValueString>(FunctionNode->NodeGuid.ToString()));
+            }
+        }
+    }
+    else if (NodeType.Equals(TEXT("Variable"), ESearchCase::IgnoreCase))
+    {
+        // Look for variable nodes (get/set)
+        for (UEdGraphNode* Node : EventGraph->Nodes)
+        {
+            UK2Node_VariableGet* VarGetNode = Cast<UK2Node_VariableGet>(Node);
+            if (VarGetNode)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Found variable get node: %s"), *VarGetNode->NodeGuid.ToString());
+                NodeGuidArray.Add(MakeShared<FJsonValueString>(VarGetNode->NodeGuid.ToString()));
+                continue;
+            }
+            
+            UK2Node_VariableSet* VarSetNode = Cast<UK2Node_VariableSet>(Node);
+            if (VarSetNode)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Found variable set node: %s"), *VarSetNode->NodeGuid.ToString());
+                NodeGuidArray.Add(MakeShared<FJsonValueString>(VarSetNode->NodeGuid.ToString()));
+            }
+        }
+    }
+    else if (NodeType.Equals(TEXT("All"), ESearchCase::IgnoreCase))
+    {
+        // Return all nodes
+        for (UEdGraphNode* Node : EventGraph->Nodes)
+        {
+            if (Node)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Found node: %s (Type: %s)"), 
+                       *Node->NodeGuid.ToString(), 
+                       *Node->GetClass()->GetName());
+                NodeGuidArray.Add(MakeShared<FJsonValueString>(Node->NodeGuid.ToString()));
+            }
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Unsupported node type: %s"), *NodeType);
+        // For unsupported types, we'll still search by class name
+        for (UEdGraphNode* Node : EventGraph->Nodes)
+        {
+            if (Node && Node->GetClass()->GetName().Contains(NodeType))
+            {
+                UE_LOG(LogTemp, Display, TEXT("Found node matching type '%s': %s"), *NodeType, *Node->NodeGuid.ToString());
+                NodeGuidArray.Add(MakeShared<FJsonValueString>(Node->NodeGuid.ToString()));
+            }
+        }
+    }
+    
+    UE_LOG(LogTemp, Display, TEXT("Found %d matching nodes"), NodeGuidArray.Num());
     
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetArrayField(TEXT("node_guids"), NodeGuidArray);
