@@ -266,12 +266,12 @@ mcp = FastMCP(
 )
 
 # Import and register tools
-from tools.editor_tools import register_editor_tools
-from tools.blueprint_tools import register_blueprint_tools
-from tools.node_tools import register_blueprint_node_tools
-from tools.project_tools import register_project_tools
-from tools.umg_tools import register_umg_tools
-from tools.datatable_tools import register_datatable_tools
+from editor_tools.editor_tools import register_editor_tools
+from blueprint_tools.blueprint_tools import register_blueprint_tools
+from node_tools.node_tools import register_blueprint_node_tools
+from project_tools.project_tools import register_project_tools
+from umg_tools.umg_tools import register_umg_tools
+from datatable_tools.datatable_tools import register_datatable_tools
 
 # Register tools
 register_editor_tools(mcp)
