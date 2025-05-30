@@ -1161,6 +1161,24 @@ bool FUnrealMCPCommonUtils::SetPropertyFromJson(FProperty* Property, void* Conta
         }
         // ... existing code ...
     }
+    else if (FClassProperty* ClassProperty = CastField<FClassProperty>(Property))
+    {
+        FString Value;
+        if (JsonValue->TryGetString(Value))
+        {
+            UClass* LoadedClass = LoadObject<UClass>(nullptr, *Value);
+            if (LoadedClass && LoadedClass->IsChildOf(ClassProperty->MetaClass))
+            {
+                ClassProperty->SetPropertyValue(ContainerPtr, LoadedClass);
+                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Set UClass* property '%s' to '%s'"), *Property->GetName(), *Value);
+                return true;
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to load or type mismatch for UClass* property '%s' with value '%s'"), *Property->GetName(), *Value);
+            }
+        }
+    }
     // ... existing code ...
 
     // Log failure if no suitable type handler was found
