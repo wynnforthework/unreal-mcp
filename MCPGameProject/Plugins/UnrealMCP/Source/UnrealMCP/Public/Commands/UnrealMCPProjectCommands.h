@@ -22,4 +22,11 @@ private:
     TSharedPtr<FJsonObject> HandleUpdateStruct(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleShowStructVariables(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleListFolderContents(const TSharedPtr<FJsonObject>& Params);
+    
+    // Enhanced Input specific handlers
+    TSharedPtr<FJsonObject> HandleCreateEnhancedInputAction(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleCreateInputMappingContext(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleAddMappingToContext(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleListInputActions(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleListInputMappingContexts(const TSharedPtr<FJsonObject>& Params);
 };

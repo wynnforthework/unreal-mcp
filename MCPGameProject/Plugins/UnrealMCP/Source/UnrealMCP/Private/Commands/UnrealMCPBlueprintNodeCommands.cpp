@@ -25,6 +25,9 @@
 #include "Misc/PackageName.h"
 #include "K2Node_BreakStruct.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "EditorAssetLibrary.h"
+#include "EnhancedInput/Public/InputAction.h"
+#include "EnhancedInput/Public/InputMappingContext.h"
 
 // No longer needed as we're using LogTemp
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -74,6 +77,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleCommand(const FSt
     else if (CommandType == TEXT("get_variable_info"))
     {
         return HandleGetVariableInfo(Params);
+    }
+    else if (CommandType == TEXT("add_enhanced_input_action_node"))
+    {
+        return HandleAddEnhancedInputActionNode(Params);
     }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint node command: %s"), *CommandType));
@@ -1497,5 +1504,98 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleGetVariableInfo(c
     }
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetStringField(TEXT("variable_type"), TypeString);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddEnhancedInputActionNode(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get required parameters
+    FString BlueprintName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+    }
+
+    FString ActionPath;
+    if (!Params->TryGetStringField(TEXT("action_path"), ActionPath))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'action_path' parameter"));
+    }
+
+    // Get position parameters (optional)
+    FVector2D NodePosition(0.0f, 0.0f);
+    if (Params->HasField(TEXT("node_position")))
+    {
+        NodePosition = FUnrealMCPCommonUtils::GetVector2DFromJson(Params, TEXT("node_position"));
+    }
+
+    // Find the blueprint
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+    if (!Blueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+    }
+
+    // Get the event graph
+    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
+    if (!EventGraph)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
+    }
+
+    // Load the Input Action asset
+    UInputAction* InputAction = Cast<UInputAction>(UEditorAssetLibrary::LoadAsset(ActionPath));
+    if (!InputAction)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to load Input Action: %s"), *ActionPath));
+    }
+
+    // Check if we already have an Enhanced Input Action node for this action
+    for (UEdGraphNode* Node : EventGraph->Nodes)
+    {
+        // In UE5, Enhanced Input uses specific node types
+        // We need to check for the appropriate Enhanced Input event node type
+        if (UK2Node_Event* EventNode = Cast<UK2Node_Event>(Node))
+        {
+            // Check if this is an Enhanced Input event for our action
+            if (EventNode->EventReference.GetMemberName().ToString().Contains(InputAction->GetName()))
+            {
+                TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+                ResultObj->SetStringField(TEXT("node_id"), EventNode->NodeGuid.ToString());
+                ResultObj->SetStringField(TEXT("action_path"), ActionPath);
+                ResultObj->SetBoolField(TEXT("already_exists"), true);
+                return ResultObj;
+            }
+        }
+    }
+
+    // For Enhanced Input in UE5, we need to create an Input Action event node
+    // This is typically done differently than legacy input actions
+    UK2Node_Event* NewEventNode = NewObject<UK2Node_Event>(EventGraph);
+    if (!NewEventNode)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create Enhanced Input Action event node"));
+    }
+
+    // Set up the event reference for Enhanced Input
+    // The exact implementation depends on how UE5's Enhanced Input system works
+    FName EventName = FName(*FString::Printf(TEXT("InputAction_%s"), *InputAction->GetName()));
+    NewEventNode->EventReference.SetFromField<UFunction>(
+        FindUField<UFunction>(AActor::StaticClass(), EventName), false);
+
+    NewEventNode->NodePosX = NodePosition.X;
+    NewEventNode->NodePosY = NodePosition.Y;
+    EventGraph->AddNode(NewEventNode, true);
+    NewEventNode->CreateNewGuid();
+    NewEventNode->PostPlacedNewNode();
+    NewEventNode->AllocateDefaultPins();
+
+    // Mark the blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetStringField(TEXT("node_id"), NewEventNode->NodeGuid.ToString());
+    ResultObj->SetStringField(TEXT("action_path"), ActionPath);
+    ResultObj->SetBoolField(TEXT("already_exists"), false);
     return ResultObj;
 } 
