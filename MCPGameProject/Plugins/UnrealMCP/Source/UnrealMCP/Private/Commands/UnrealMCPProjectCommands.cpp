@@ -12,6 +12,10 @@
 #include "AssetToolsModule.h"
 #include "Factories/StructureFactory.h"
 #include "UserDefinedStructure/UserDefinedStructEditorData.h"
+#include "EnhancedInput/Public/InputAction.h"
+#include "EnhancedInput/Public/InputMappingContext.h"
+#include "Factories/Factory.h"
+#include "Misc/PackageName.h"
 
 // Helper to get a user-friendly type string for a property
 static FString GetPropertyTypeString(const FProperty* Property)
@@ -84,6 +88,26 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCommand(const FString& 
     else if (CommandType == TEXT("list_folder_contents"))
     {
         return HandleListFolderContents(Params);
+    }
+    else if (CommandType == TEXT("create_enhanced_input_action"))
+    {
+        return HandleCreateEnhancedInputAction(Params);
+    }
+    else if (CommandType == TEXT("create_input_mapping_context"))
+    {
+        return HandleCreateInputMappingContext(Params);
+    }
+    else if (CommandType == TEXT("add_mapping_to_context"))
+    {
+        return HandleAddMappingToContext(Params);
+    }
+    else if (CommandType == TEXT("list_input_actions"))
+    {
+        return HandleListInputActions(Params);
+    }
+    else if (CommandType == TEXT("list_input_mapping_contexts"))
+    {
+        return HandleListInputMappingContexts(Params);
     }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown project command: %s"), *CommandType));
@@ -1058,5 +1082,393 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleListFolderContents(cons
     ResultObj->SetBoolField(TEXT("success"), true);
     ResultObj->SetArrayField(TEXT("subfolders"), SubfoldersJson);
     ResultObj->SetArrayField(TEXT("files"), FilesJson);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCreateEnhancedInputAction(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get required parameters
+    FString ActionName;
+    if (!Params->TryGetStringField(TEXT("action_name"), ActionName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'action_name' parameter"));
+    }
+
+    // Get optional parameters
+    FString Path = TEXT("/Game/Input/Actions");
+    Params->TryGetStringField(TEXT("path"), Path);
+
+    FString Description = TEXT("");
+    Params->TryGetStringField(TEXT("description"), Description);
+
+    FString ValueType = TEXT("Digital");  // Digital, Analog, Axis2D, Axis3D
+    Params->TryGetStringField(TEXT("value_type"), ValueType);
+
+    // Make sure the path exists
+    if (!UEditorAssetLibrary::DoesDirectoryExist(Path))
+    {
+        if (!UEditorAssetLibrary::MakeDirectory(Path))
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to create directory: %s"), *Path));
+        }
+    }
+
+    // Create the asset name with IA_ prefix if not already present
+    FString AssetName = ActionName;
+    if (!AssetName.StartsWith(TEXT("IA_")))
+    {
+        AssetName = TEXT("IA_") + AssetName;
+    }
+
+    FString PackagePath = Path;
+    if (!PackagePath.EndsWith(TEXT("/")))
+    {
+        PackagePath += TEXT("/");
+    }
+    FString PackageName = PackagePath + AssetName;
+
+    // Check if the action already exists
+    if (UEditorAssetLibrary::DoesAssetExist(PackageName))
+    {
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetBoolField(TEXT("success"), true);
+        ResultObj->SetStringField(TEXT("action_name"), ActionName);
+        ResultObj->SetStringField(TEXT("asset_name"), AssetName);
+        ResultObj->SetStringField(TEXT("path"), Path);
+        ResultObj->SetStringField(TEXT("full_path"), PackageName);
+        ResultObj->SetBoolField(TEXT("already_exists"), true);
+        return ResultObj;
+    }
+
+    // Create the input action asset using proper UE5.5 workflow
+    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+    
+    // Create the package first
+    UPackage* Package = CreatePackage(*PackageName);
+    if (!Package)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create package"));
+    }
+    Package->FullyLoad();
+
+    // Create the input action asset directly in the target package
+    UInputAction* NewInputAction = NewObject<UInputAction>(Package, UInputAction::StaticClass(), *AssetName, RF_Public | RF_Standalone);
+    if (!NewInputAction)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create Input Action asset"));
+    }
+
+    // Set value type
+    if (ValueType == TEXT("Digital"))
+    {
+        NewInputAction->ValueType = EInputActionValueType::Boolean;
+    }
+    else if (ValueType == TEXT("Analog"))
+    {
+        NewInputAction->ValueType = EInputActionValueType::Axis1D;
+    }
+    else if (ValueType == TEXT("Axis2D"))
+    {
+        NewInputAction->ValueType = EInputActionValueType::Axis2D;
+    }
+    else if (ValueType == TEXT("Axis3D"))
+    {
+        NewInputAction->ValueType = EInputActionValueType::Axis3D;
+    }
+
+    // Mark package dirty and register with asset registry
+    Package->MarkPackageDirty();
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    AssetRegistryModule.AssetCreated(NewInputAction);
+
+    // Save the asset and package
+    if (!UEditorAssetLibrary::SaveAsset(PackageName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to save Input Action asset"));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetStringField(TEXT("action_name"), ActionName);
+    ResultObj->SetStringField(TEXT("asset_name"), AssetName);
+    ResultObj->SetStringField(TEXT("path"), Path);
+    ResultObj->SetStringField(TEXT("full_path"), PackageName);
+    ResultObj->SetStringField(TEXT("value_type"), ValueType);
+    ResultObj->SetBoolField(TEXT("already_exists"), false);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCreateInputMappingContext(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get required parameters
+    FString ContextName;
+    if (!Params->TryGetStringField(TEXT("context_name"), ContextName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'context_name' parameter"));
+    }
+
+    // Get optional parameters
+    FString Path = TEXT("/Game/Input");
+    Params->TryGetStringField(TEXT("path"), Path);
+
+    FString Description = TEXT("");
+    Params->TryGetStringField(TEXT("description"), Description);
+
+    // Make sure the path exists
+    if (!UEditorAssetLibrary::DoesDirectoryExist(Path))
+    {
+        if (!UEditorAssetLibrary::MakeDirectory(Path))
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to create directory: %s"), *Path));
+        }
+    }
+
+    // Create the asset name with IMC_ prefix if not already present
+    FString AssetName = ContextName;
+    if (!AssetName.StartsWith(TEXT("IMC_")))
+    {
+        AssetName = TEXT("IMC_") + AssetName;
+    }
+
+    FString PackagePath = Path;
+    if (!PackagePath.EndsWith(TEXT("/")))
+    {
+        PackagePath += TEXT("/");
+    }
+    FString PackageName = PackagePath + AssetName;
+
+    // Check if the context already exists
+    if (UEditorAssetLibrary::DoesAssetExist(PackageName))
+    {
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetBoolField(TEXT("success"), true);
+        ResultObj->SetStringField(TEXT("context_name"), ContextName);
+        ResultObj->SetStringField(TEXT("asset_name"), AssetName);
+        ResultObj->SetStringField(TEXT("path"), Path);
+        ResultObj->SetStringField(TEXT("full_path"), PackageName);
+        ResultObj->SetBoolField(TEXT("already_exists"), true);
+        return ResultObj;
+    }
+
+    // Create the input mapping context asset using proper UE5.5 workflow
+    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+    
+    // Create the package first
+    UPackage* Package = CreatePackage(*PackageName);
+    if (!Package)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create package"));
+    }
+    Package->FullyLoad();
+
+    // Create the input mapping context asset directly in the target package
+    UInputMappingContext* NewMappingContext = NewObject<UInputMappingContext>(Package, UInputMappingContext::StaticClass(), *AssetName, RF_Public | RF_Standalone);
+    if (!NewMappingContext)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create Input Mapping Context asset"));
+    }
+
+    // Mark package dirty and register with asset registry
+    Package->MarkPackageDirty();
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    AssetRegistryModule.AssetCreated(NewMappingContext);
+
+    // Save the asset and package
+    if (!UEditorAssetLibrary::SaveAsset(PackageName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to save Input Mapping Context asset"));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetStringField(TEXT("context_name"), ContextName);
+    ResultObj->SetStringField(TEXT("asset_name"), AssetName);
+    ResultObj->SetStringField(TEXT("path"), Path);
+    ResultObj->SetStringField(TEXT("full_path"), PackageName);
+    ResultObj->SetBoolField(TEXT("already_exists"), false);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleAddMappingToContext(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get required parameters
+    FString ContextPath;
+    if (!Params->TryGetStringField(TEXT("context_path"), ContextPath))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'context_path' parameter"));
+    }
+
+    FString ActionPath;
+    if (!Params->TryGetStringField(TEXT("action_path"), ActionPath))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'action_path' parameter"));
+    }
+
+    FString Key;
+    if (!Params->TryGetStringField(TEXT("key"), Key))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'key' parameter"));
+    }
+
+    // Load the mapping context
+    UInputMappingContext* MappingContext = Cast<UInputMappingContext>(UEditorAssetLibrary::LoadAsset(ContextPath));
+    if (!MappingContext)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to load Input Mapping Context: %s"), *ContextPath));
+    }
+
+    // Load the input action
+    UInputAction* InputAction = Cast<UInputAction>(UEditorAssetLibrary::LoadAsset(ActionPath));
+    if (!InputAction)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to load Input Action: %s"), *ActionPath));
+    }
+
+    // Create the mapping
+    FEnhancedActionKeyMapping& NewMapping = MappingContext->MapKey(InputAction, FKey(*Key));
+
+    // Set optional modifiers if provided
+    if (Params->HasField(TEXT("shift")))
+    {
+        bool bShift = Params->GetBoolField(TEXT("shift"));
+        // Note: Enhanced Input uses different modifiers system than legacy
+        // This would need to be implemented with proper modifiers/triggers
+    }
+
+    // Mark the context as dirty and save
+    MappingContext->MarkPackageDirty();
+    UEditorAssetLibrary::SaveAsset(ContextPath);
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetStringField(TEXT("context_path"), ContextPath);
+    ResultObj->SetStringField(TEXT("action_path"), ActionPath);
+    ResultObj->SetStringField(TEXT("key"), Key);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleListInputActions(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get optional path parameter
+    FString Path = TEXT("/Game");
+    Params->TryGetStringField(TEXT("path"), Path);
+
+    // Get all Input Action assets using ListAssets instead of FindAssetData for UE 5.5
+    TArray<FString> AllAssets = UEditorAssetLibrary::ListAssets(Path, true, false);
+    TArray<FString> InputActionPaths;
+    
+    // Filter for Input Action assets
+    for (const FString& AssetPath : AllAssets)
+    {
+        if (UObject* Asset = UEditorAssetLibrary::LoadAsset(AssetPath))
+        {
+            if (Asset->IsA<UInputAction>())
+            {
+                InputActionPaths.Add(AssetPath);
+            }
+        }
+    }
+
+    TArray<TSharedPtr<FJsonValue>> ActionsJson;
+    for (const FString& ActionPath : InputActionPaths)
+    {
+        TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
+        ActionObj->SetStringField(TEXT("path"), ActionPath);
+        
+        // Extract asset name from path
+        FString AssetName = FPaths::GetBaseFilename(ActionPath);
+        ActionObj->SetStringField(TEXT("name"), AssetName);
+        
+        // Try to load the asset to get more details
+        if (UInputAction* InputAction = Cast<UInputAction>(UEditorAssetLibrary::LoadAsset(ActionPath)))
+        {
+            FString ValueTypeString;
+            switch (InputAction->ValueType)
+            {
+                case EInputActionValueType::Boolean:
+                    ValueTypeString = TEXT("Digital");
+                    break;
+                case EInputActionValueType::Axis1D:
+                    ValueTypeString = TEXT("Analog");
+                    break;
+                case EInputActionValueType::Axis2D:
+                    ValueTypeString = TEXT("Axis2D");
+                    break;
+                case EInputActionValueType::Axis3D:
+                    ValueTypeString = TEXT("Axis3D");
+                    break;
+                default:
+                    ValueTypeString = TEXT("Unknown");
+                    break;
+            }
+            ActionObj->SetStringField(TEXT("value_type"), ValueTypeString);
+        }
+        
+        ActionsJson.Add(MakeShared<FJsonValueObject>(ActionObj));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetStringField(TEXT("path"), Path);
+    ResultObj->SetArrayField(TEXT("input_actions"), ActionsJson);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleListInputMappingContexts(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get optional path parameter
+    FString Path = TEXT("/Game");
+    Params->TryGetStringField(TEXT("path"), Path);
+
+    // Get all Input Mapping Context assets using ListAssets instead of FindAssetData for UE 5.5
+    TArray<FString> AllAssets = UEditorAssetLibrary::ListAssets(Path, true, false);
+    TArray<FString> ContextPaths;
+    
+    // Filter for Input Mapping Context assets
+    for (const FString& AssetPath : AllAssets)
+    {
+        if (UObject* Asset = UEditorAssetLibrary::LoadAsset(AssetPath))
+        {
+            if (Asset->IsA<UInputMappingContext>())
+            {
+                ContextPaths.Add(AssetPath);
+            }
+        }
+    }
+
+    TArray<TSharedPtr<FJsonValue>> ContextsJson;
+    for (const FString& ContextPath : ContextPaths)
+    {
+        TSharedPtr<FJsonObject> ContextObj = MakeShared<FJsonObject>();
+        ContextObj->SetStringField(TEXT("path"), ContextPath);
+        
+        // Extract asset name from path
+        FString AssetName = FPaths::GetBaseFilename(ContextPath);
+        ContextObj->SetStringField(TEXT("name"), AssetName);
+        
+        // Try to load the asset to get more details
+        if (UInputMappingContext* MappingContext = Cast<UInputMappingContext>(UEditorAssetLibrary::LoadAsset(ContextPath)))
+        {
+            TArray<TSharedPtr<FJsonValue>> MappingsJson;
+            for (const FEnhancedActionKeyMapping& Mapping : MappingContext->GetMappings())
+            {
+                TSharedPtr<FJsonObject> MappingObj = MakeShared<FJsonObject>();
+                if (Mapping.Action)
+                {
+                    MappingObj->SetStringField(TEXT("action"), Mapping.Action->GetName());
+                }
+                MappingObj->SetStringField(TEXT("key"), Mapping.Key.ToString());
+                MappingsJson.Add(MakeShared<FJsonValueObject>(MappingObj));
+            }
+            ContextObj->SetArrayField(TEXT("mappings"), MappingsJson);
+        }
+        
+        ContextsJson.Add(MakeShared<FJsonValueObject>(ContextObj));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetStringField(TEXT("path"), Path);
+    ResultObj->SetArrayField(TEXT("input_mapping_contexts"), ContextsJson);
     return ResultObj;
 }

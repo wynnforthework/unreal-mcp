@@ -275,6 +275,11 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 
                 static const TArray<FString> ProjectCommandsList = {
                     TEXT("create_input_mapping"),
+                    TEXT("create_enhanced_input_action"),
+                    TEXT("create_input_mapping_context"),
+                    TEXT("add_mapping_to_context"),
+                    TEXT("list_input_actions"),
+                    TEXT("list_input_mapping_contexts"),
                     TEXT("create_folder"),
                     TEXT("create_struct"),
                     TEXT("update_struct"),

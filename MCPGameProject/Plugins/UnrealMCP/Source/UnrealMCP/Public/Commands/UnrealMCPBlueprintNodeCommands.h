@@ -26,4 +26,7 @@ private:
     TSharedPtr<FJsonObject> HandleFindBlueprintNodes(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleAddBlueprintCustomEventNode(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleGetVariableInfo(const TSharedPtr<FJsonObject>& Params);
+    
+    // Enhanced Input specific handlers
+    TSharedPtr<FJsonObject> HandleAddEnhancedInputActionNode(const TSharedPtr<FJsonObject>& Params);
 }; 
