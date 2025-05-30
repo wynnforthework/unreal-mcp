@@ -37,86 +37,20 @@ The Unreal MCP integration provides comprehensive tools for controlling Unreal E
 
 All these capabilities are accessible through natural language commands via AI assistants, making it easy to automate and control Unreal Engine workflows.
 
-## 🎮 Enhanced Input System Integration
+## 📖 Comprehensive Documentation
 
-The Unreal MCP integration includes comprehensive support for Unreal Engine 5.5+'s Enhanced Input system, providing modern input handling capabilities through natural language commands.
+For detailed guides, examples, and best practices, see our **[Complete Documentation](Docs/README.md)** which includes:
 
-### 🛠️ Enhanced Input Features
+- **[Blueprint Tools](Docs/Blueprint-Tools.md)** - Creating and managing Blueprint classes, components, and variables
+- **[Editor Tools](Docs/Editor-Tools.md)** - Controlling actors, transforms, and scene management  
+- **[Node Tools](Docs/Node-Tools.md)** - Building Blueprint visual scripting logic and event chains
+- **[UMG Tools](Docs/UMG-Tools.md)** - Creating user interfaces and interactive UI elements
+- **[DataTable Tools](Docs/DataTable-Tools.md)** - Managing structured game data and tables
+- **[Project Tools](Docs/Project-Tools.md)** - Organizing projects, input systems, and structs
 
-| Feature | Description | Example Usage |
-|---------|-------------|---------------|
-| **Input Action Creation** | Create Enhanced Input Action assets with configurable value types | "Create a digital input action called 'Jump' for jumping mechanics" |
-| **Input Mapping Context** | Create Input Mapping Context assets for organized input handling | "Create an input mapping context called 'PlayerContext' for player controls" |
-| **Key Mapping Management** | Add key bindings between contexts and actions with modifier support | "Map the Space key to the Jump action in the PlayerContext" |
-| **Asset Discovery** | List and query all Enhanced Input assets with metadata | "Show me all Enhanced Input Actions in the project" |
-| **Blueprint Integration** | Add Enhanced Input Action event nodes to Blueprint graphs | "Add an Enhanced Input Action node for the Jump action to my player Blueprint" |
+Each guide includes natural language usage examples, advanced patterns, and real-world workflows.
 
-### 🔧 Available Input Value Types
 
-- **Digital**: Simple on/off input (buttons, keys)
-- **Analog**: Single-axis input with continuous values (triggers, mouse wheel)
-- **Axis2D**: Two-dimensional input (mouse movement, gamepad sticks)
-- **Axis3D**: Three-dimensional input (3D controllers, VR inputs)
-
-### 🎯 Key Features
-
-- **Automatic Asset Naming**: Follows UE conventions with `IA_` and `IMC_` prefixes
-- **Modifier Key Support**: Full support for Shift, Ctrl, Alt, and Cmd modifiers
-- **Asset Persistence**: Proper UE 5.5 asset creation workflow ensuring assets are saved correctly
-- **Metadata Extraction**: Complete asset information including mappings, value types, and descriptions
-- **Blueprint Node Support**: Create Enhanced Input Action event nodes for Blueprint scripting
-- **Path Management**: Automatic directory creation and organized asset placement
-
-### 🔍 Example Natural Language Commands
-
-```
-"Create a digital Enhanced Input Action called 'Interact' for player interactions"
-
-"Create an input mapping context called 'MainGameplay' for core game controls"
-
-"Map the E key to the Interact action in the MainGameplay context"
-
-"Add the F key with Shift modifier to the Jump action"
-
-"Show me all Enhanced Input Actions in the /Game/Input directory"
-
-"List all Input Mapping Contexts and their current key mappings"
-
-"Add an Enhanced Input Action event node for the Jump action to my PlayerBlueprint"
-```
-
-### ⚙️ Technical Implementation
-
-The Enhanced Input integration includes:
-
-#### **C++ Plugin Components**:
-- `HandleCreateEnhancedInputAction`: Creates Input Action assets with proper UE 5.5 workflow
-- `HandleCreateInputMappingContext`: Creates Input Mapping Context assets with package management
-- `HandleAddMappingToContext`: Manages key mappings using FEnhancedActionKeyMapping system
-- `HandleListInputActions`: Asset discovery with metadata extraction and filtering
-- `HandleListInputMappingContexts`: Context enumeration with complete mapping details
-
-#### **Python MCP Tools**:
-- `create_enhanced_input_action`: Python wrapper for Input Action creation
-- `create_input_mapping_context`: Python wrapper for Mapping Context creation
-- `add_mapping_to_context`: Key mapping management with modifier support
-- `list_input_actions`: Asset listing with path filtering capabilities
-- `list_input_mapping_contexts`: Context discovery with mapping enumeration
-
-#### **Asset Management**:
-- Proper package creation and asset registry integration
-- Asset persistence using target packages instead of transient packages
-- Automatic asset naming with UE conventions (`IA_`, `IMC_` prefixes)
-- Directory creation and path management for organized asset structure
-
-### 🔄 Backward Compatibility
-
-The Enhanced Input tools work alongside existing legacy input mapping functionality, allowing projects to:
-- Migrate gradually from legacy input to Enhanced Input
-- Use both systems simultaneously during transition
-- Maintain existing legacy input mappings while adding Enhanced Input features
-
-This integration provides a complete Enhanced Input toolset that modernizes input handling capabilities while preserving compatibility with existing input systems.
 
 ## 🧩 Components
 
