@@ -266,6 +266,7 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("find_blueprint_nodes"),
                     TEXT("add_blueprint_event_node"),
                     TEXT("add_blueprint_input_action_node"),
+                    TEXT("add_enhanced_input_action_node"),
                     TEXT("add_blueprint_function_node"),
                     TEXT("add_blueprint_get_component_node"),
                     TEXT("add_blueprint_variable"),

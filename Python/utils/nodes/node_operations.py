@@ -107,16 +107,24 @@ def add_input_action_node(
     action_name: str,
     node_position: List[float] = None
 ) -> Dict[str, Any]:
-    """Implementation for adding an input action event node to a Blueprint's event graph."""
+    """Implementation for adding an Enhanced Input action event node to a Blueprint's event graph."""
+    # For Enhanced Input Actions, we need to provide the full path to the asset
+    # If action_name doesn't start with /Game/, assume it's just the name and construct the path
+    if not action_name.startswith("/Game/"):
+        # Try common Enhanced Input Action paths
+        action_path = f"/Game/Input/Actions/{action_name}"
+    else:
+        action_path = action_name
+    
     params = {
         "blueprint_name": blueprint_name,
-        "action_name": action_name
+        "action_path": action_path
     }
     
     if node_position is not None:
         params["node_position"] = node_position
         
-    return send_unreal_command("add_blueprint_input_action_node", params)
+    return send_unreal_command("add_enhanced_input_action_node", params)
 
 def add_function_node(
     ctx: Context,
