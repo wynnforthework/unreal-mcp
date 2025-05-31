@@ -1550,51 +1550,74 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddEnhancedInputA
         return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to load Input Action: %s"), *ActionPath));
     }
 
-    // Check if we already have an Enhanced Input Action node for this action
+    // For Enhanced Input in UE5, we need to create a UK2Node_EnhancedInputAction
+    // First check if we have the Enhanced Input plugin classes available
+    UClass* EnhancedInputActionNodeClass = FindObject<UClass>(ANY_PACKAGE, TEXT("K2Node_EnhancedInputAction"));
+    if (!EnhancedInputActionNodeClass)
+    {
+        // Fallback: Try to find it through the class registry
+        EnhancedInputActionNodeClass = UClass::TryFindTypeSlow<UClass>(TEXT("K2Node_EnhancedInputAction"));
+    }
+    
+    if (!EnhancedInputActionNodeClass)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Enhanced Input node class not found. Make sure Enhanced Input plugin is enabled."));
+    }
+
+    // Check for existing Enhanced Input Action node for this action
     for (UEdGraphNode* Node : EventGraph->Nodes)
     {
-        // In UE5, Enhanced Input uses specific node types
-        // We need to check for the appropriate Enhanced Input event node type
-        if (UK2Node_Event* EventNode = Cast<UK2Node_Event>(Node))
+        if (Node->GetClass() == EnhancedInputActionNodeClass)
         {
-            // Check if this is an Enhanced Input event for our action
-            if (EventNode->EventReference.GetMemberName().ToString().Contains(InputAction->GetName()))
+            // Check if this node is for our specific Input Action
+            // We'll use reflection to check the InputAction property
+            if (UObject** InputActionProperty = (UObject**)Node->GetClass()->FindPropertyByName(FName("InputAction")))
             {
-                TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-                ResultObj->SetStringField(TEXT("node_id"), EventNode->NodeGuid.ToString());
-                ResultObj->SetStringField(TEXT("action_path"), ActionPath);
-                ResultObj->SetBoolField(TEXT("already_exists"), true);
-                return ResultObj;
+                if (*InputActionProperty == InputAction)
+                {
+                    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+                    ResultObj->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
+                    ResultObj->SetStringField(TEXT("action_path"), ActionPath);
+                    ResultObj->SetBoolField(TEXT("already_exists"), true);
+                    return ResultObj;
+                }
             }
         }
     }
 
-    // For Enhanced Input in UE5, we need to create an Input Action event node
-    // This is typically done differently than legacy input actions
-    UK2Node_Event* NewEventNode = NewObject<UK2Node_Event>(EventGraph);
-    if (!NewEventNode)
+    // Create new Enhanced Input Action node
+    UEdGraphNode* NewInputNode = NewObject<UEdGraphNode>(EventGraph, EnhancedInputActionNodeClass);
+    if (!NewInputNode)
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create Enhanced Input Action event node"));
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create Enhanced Input Action node"));
     }
 
-    // Set up the event reference for Enhanced Input
-    // The exact implementation depends on how UE5's Enhanced Input system works
-    FName EventName = FName(*FString::Printf(TEXT("InputAction_%s"), *InputAction->GetName()));
-    NewEventNode->EventReference.SetFromField<UFunction>(
-        FindUField<UFunction>(AActor::StaticClass(), EventName), false);
+    // Set the Input Action property using reflection
+    FProperty* InputActionProperty = NewInputNode->GetClass()->FindPropertyByName(FName("InputAction"));
+    if (InputActionProperty)
+    {
+        FObjectProperty* ObjectProperty = CastField<FObjectProperty>(InputActionProperty);
+        if (ObjectProperty)
+        {
+            ObjectProperty->SetObjectPropertyValue_InContainer(NewInputNode, InputAction);
+        }
+    }
 
-    NewEventNode->NodePosX = NodePosition.X;
-    NewEventNode->NodePosY = NodePosition.Y;
-    EventGraph->AddNode(NewEventNode, true);
-    NewEventNode->CreateNewGuid();
-    NewEventNode->PostPlacedNewNode();
-    NewEventNode->AllocateDefaultPins();
+    // Set position
+    NewInputNode->NodePosX = NodePosition.X;
+    NewInputNode->NodePosY = NodePosition.Y;
+
+    // Add to graph
+    EventGraph->AddNode(NewInputNode, true);
+    NewInputNode->CreateNewGuid();
+    NewInputNode->PostPlacedNewNode();
+    NewInputNode->AllocateDefaultPins();
 
     // Mark the blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-    ResultObj->SetStringField(TEXT("node_id"), NewEventNode->NodeGuid.ToString());
+    ResultObj->SetStringField(TEXT("node_id"), NewInputNode->NodeGuid.ToString());
     ResultObj->SetStringField(TEXT("action_path"), ActionPath);
     ResultObj->SetBoolField(TEXT("already_exists"), false);
     return ResultObj;
