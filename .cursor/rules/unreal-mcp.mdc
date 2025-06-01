@@ -36,3 +36,6 @@ Register the tool with the MCP server in unreal_mcp_server.py
 Test through an AI assistant using natural language commands
 
 This dual-component architecture allows for powerful natural language control of Unreal Engine while maintaining a clean separation of concerns.
+
+After successfull additions you need to compile project running RebuildProject.bat
+If compilation was successfull you ned to run LaunchProject.bat

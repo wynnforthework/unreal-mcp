@@ -18,16 +18,23 @@
 #include "Camera/CameraActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "EdGraphSchema_K2.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Components/SceneComponent.h"
 #include "K2Node_CustomEvent.h"
-#include "K2Node_IfThenElse.h"
 #include "K2Node_ExecutionSequence.h"
+#include "K2Node_IfThenElse.h"
 #include "K2Node_MacroInstance.h"
-#include "Misc/PackageName.h"
 #include "K2Node_BreakStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "EditorAssetLibrary.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "EnhancedInput/Public/InputAction.h"
 #include "EnhancedInput/Public/InputMappingContext.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Blueprint/UserWidget.h"
+#include "K2Node_DynamicCast.h"
+#include "EditorAssetLibrary.h"
+#include "K2Node_ConstructObjectFromClass.h"
 
 // No longer needed as we're using LogTemp
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -305,37 +312,53 @@ static UEdGraphNode* CreateSpecialNodeByName(const FString& NodeType, UEdGraph* 
         );
         return PrintStringNode;
     }
-    auto CreateMacroInstance = [&](const FString& MacroName) -> UK2Node_MacroInstance* {
-        const FString MacroAssetPath = TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros");
-        UBlueprint* MacroBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *MacroAssetPath));
-        if (!MacroBP) {
-            UE_LOG(LogTemp, Error, TEXT("Failed to load StandardMacros asset at %s"), *MacroAssetPath);
-            return nullptr;
-        }
-        // Log all macro graph names for debugging (use MacroGraphs, not UbergraphPages)
-        FString AllMacroNames;
-        for (UEdGraph* MacroGraph : MacroBP->MacroGraphs) {
-            if (MacroGraph) {
-                AllMacroNames += MacroGraph->GetName() + TEXT(", ");
-            }
-        }
-        UE_LOG(LogTemp, Display, TEXT("Available macro graphs in StandardMacros: %s"), *AllMacroNames);
-        // Find the macro graph by exact name
-        for (UEdGraph* MacroGraph : MacroBP->MacroGraphs) {
-            if (MacroGraph && MacroGraph->GetName().Equals(MacroName, ESearchCase::CaseSensitive)) {
-                UK2Node_MacroInstance* MacroNode = NewObject<UK2Node_MacroInstance>(Graph);
-                MacroNode->SetMacroGraph(MacroGraph);
-                return MacroNode;
-            }
-        }
-        UE_LOG(LogTemp, Error, TEXT("Macro graph '%s' not found in StandardMacros asset!"), *MacroName);
-        return nullptr;
-    };
-    if (NodeType.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase)) {
-        return CreateMacroInstance(TEXT("ForEachLoop"));
+    if (NodeType.Equals(TEXT("Is Valid"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* IsValidNode = NewObject<UK2Node_CallFunction>(Graph);
+        IsValidNode->FunctionReference.SetExternalMember(
+            FName(TEXT("IsValid")),
+            UKismetSystemLibrary::StaticClass()
+        );
+        return IsValidNode;
     }
-    if (NodeType.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase)) {
-        return CreateMacroInstance(TEXT("ForLoop"));
+    if (NodeType.Equals(TEXT("Add to Viewport"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* AddToViewportNode = NewObject<UK2Node_CallFunction>(Graph);
+        AddToViewportNode->FunctionReference.SetExternalMember(
+            FName(TEXT("AddToViewport")),
+            UUserWidget::StaticClass()
+        );
+        return AddToViewportNode;
+    }
+    if (NodeType.Equals(TEXT("Get Class"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* GetClassNode = NewObject<UK2Node_CallFunction>(Graph);
+        GetClassNode->FunctionReference.SetExternalMember(
+            FName(TEXT("GetClass")),
+            UObject::StaticClass()
+        );
+        return GetClassNode;
+    }
+    if (NodeType.Equals(TEXT("Cast to PlayerController"), ESearchCase::IgnoreCase)) {
+        UK2Node_DynamicCast* CastNode = NewObject<UK2Node_DynamicCast>(Graph);
+        CastNode->SetPurity(false);
+        CastNode->TargetType = APlayerController::StaticClass();
+        return CastNode;
+    }
+    // Check for specific widget constructor patterns like "Create WBP_DialogueWidget Widget" or "Create WBP_DialogueWidget"
+    if (NodeType.StartsWith(TEXT("Create "), ESearchCase::IgnoreCase)) {
+        FString WidgetTypeName = NodeType.Mid(7); // Remove "Create " prefix
+        
+        // Remove " Widget" suffix if present
+        if (WidgetTypeName.EndsWith(TEXT(" Widget"), ESearchCase::IgnoreCase)) {
+            WidgetTypeName = WidgetTypeName.Left(WidgetTypeName.Len() - 7);
+        }
+        
+        // Simply create a basic ConstructObjectFromClass node without trying to set the class
+        // The user can set the class manually in the UI
+        UK2Node_ConstructObjectFromClass* ConstructorNode = NewObject<UK2Node_ConstructObjectFromClass>(Graph);
+        
+        if (ConstructorNode) {
+            UE_LOG(LogTemp, Display, TEXT("Created basic constructor node for: %s"), *WidgetTypeName);
+            return ConstructorNode;
+        }
     }
     return nullptr;
 }
@@ -1024,6 +1047,58 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
             SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, TBaseStructure<FTransform>::Get());
         } else if (TypeStr.Equals(TEXT("Color"), ESearchCase::IgnoreCase)) {
             SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, TBaseStructure<FLinearColor>::Get());
+        } else if (TypeStr.StartsWith(TEXT("Class<")) && TypeStr.EndsWith(TEXT(">"))) {
+            // Handle class reference types like "Class<WBP_DialogueWidget>" or "Class<UserWidget>"
+            FString InnerType = TypeStr.Mid(6, TypeStr.Len() - 7); // Remove "Class<" and ">"
+            InnerType.TrimStartAndEndInline();
+            
+            UClass* TargetClass = nullptr;
+            
+            // Handle common base classes
+            if (InnerType.Equals(TEXT("UserWidget"), ESearchCase::IgnoreCase)) {
+                TargetClass = UUserWidget::StaticClass();
+            } else if (InnerType.Equals(TEXT("Actor"), ESearchCase::IgnoreCase)) {
+                TargetClass = AActor::StaticClass();
+            } else if (InnerType.Equals(TEXT("Pawn"), ESearchCase::IgnoreCase)) {
+                TargetClass = APawn::StaticClass();
+            } else {
+                // Try to find specific widget blueprint class
+                FString CleanPath = InnerType;
+                if (!CleanPath.StartsWith(TEXT("/"))) {
+                    if (CleanPath.StartsWith(TEXT("WBP_"))) {
+                        CleanPath = FString::Printf(TEXT("/Game/Widgets/%s"), *CleanPath);
+                    } else if (CleanPath.StartsWith(TEXT("BP_"))) {
+                        CleanPath = FString::Printf(TEXT("/Game/Blueprints/%s"), *CleanPath);
+                    } else {
+                        CleanPath = FString::Printf(TEXT("/Game/%s"), *CleanPath);
+                    }
+                }
+                
+                // Try to load the class
+                FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *CleanPath, *FPaths::GetBaseFilename(CleanPath));
+                TargetClass = LoadClass<UObject>(nullptr, *ClassPath);
+                
+                if (!TargetClass) {
+                    UE_LOG(LogTemp, Warning, TEXT("Could not find class for class reference: %s"), *InnerType);
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find class for class reference: %s"), *InnerType));
+                }
+            }
+            
+            if (TargetClass) {
+                SetPinTypeForCategory(UEdGraphSchema_K2::PC_Class, TargetClass);
+            }
+        } else if (TypeStr.StartsWith(TEXT("WBP_")) && TypeStr.EndsWith(TEXT("Class"))) {
+            // Handle "WBP_DialogueWidgetClass" style naming
+            FString WidgetName = TypeStr.LeftChop(5); // Remove "Class"
+            FString WidgetPath = FString::Printf(TEXT("/Game/Widgets/%s.%s_C"), *WidgetName, *WidgetName);
+            UClass* WidgetClass = LoadClass<UObject>(nullptr, *WidgetPath);
+            
+            if (WidgetClass) {
+                SetPinTypeForCategory(UEdGraphSchema_K2::PC_Class, WidgetClass);
+            } else {
+                UE_LOG(LogTemp, Warning, TEXT("Could not find widget class: %s"), *WidgetPath);
+                return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find widget class: %s"), *WidgetPath));
+            }
         } else {
             // Try struct
             UScriptStruct* FoundStruct = nullptr;
@@ -1287,11 +1362,48 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
     }
 
-    // Create a JSON array for the node GUIDs
-    TArray<TSharedPtr<FJsonValue>> NodeGuidArray;
+    // Create a JSON array for detailed node information
+    TArray<TSharedPtr<FJsonValue>> NodesArray;
     
     UE_LOG(LogTemp, Display, TEXT("Searching for nodes of type '%s' in blueprint '%s'"), *NodeType, *BlueprintName);
     UE_LOG(LogTemp, Display, TEXT("Total nodes in graph: %d"), EventGraph->Nodes.Num());
+    
+    // Helper function to create detailed node info
+    auto CreateNodeInfo = [](UEdGraphNode* Node) -> TSharedPtr<FJsonObject> {
+        TSharedPtr<FJsonObject> NodeInfo = MakeShared<FJsonObject>();
+        NodeInfo->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
+        NodeInfo->SetStringField(TEXT("node_type"), Node->GetClass()->GetName());
+        
+        // Get node title/name
+        FText NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView);
+        NodeInfo->SetStringField(TEXT("node_title"), NodeTitle.ToString());
+        
+        // Get all pins
+        TArray<TSharedPtr<FJsonValue>> PinsArray;
+        for (UEdGraphPin* Pin : Node->Pins)
+        {
+            if (Pin)
+            {
+                TSharedPtr<FJsonObject> PinInfo = MakeShared<FJsonObject>();
+                PinInfo->SetStringField(TEXT("pin_name"), Pin->PinName.ToString());
+                PinInfo->SetStringField(TEXT("pin_type"), Pin->PinType.PinCategory.ToString());
+                PinInfo->SetBoolField(TEXT("is_input"), Pin->Direction == EGPD_Input);
+                PinInfo->SetBoolField(TEXT("is_output"), Pin->Direction == EGPD_Output);
+                PinInfo->SetStringField(TEXT("default_value"), Pin->DefaultValue);
+                
+                // Add subcategory if available
+                if (Pin->PinType.PinSubCategoryObject.IsValid())
+                {
+                    PinInfo->SetStringField(TEXT("pin_subcategory"), Pin->PinType.PinSubCategoryObject->GetName());
+                }
+                
+                PinsArray.Add(MakeShared<FJsonValueObject>(PinInfo));
+            }
+        }
+        NodeInfo->SetArrayField(TEXT("pins"), PinsArray);
+        
+        return NodeInfo;
+    };
     
     // Filter nodes by the requested type
     if (NodeType.Equals(TEXT("Event"), ESearchCase::IgnoreCase))
@@ -1318,14 +1430,14 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
                     if (EventNodeName.Equals(EventName, ESearchCase::IgnoreCase))
                     {
                         UE_LOG(LogTemp, Display, TEXT("Event node matches filter: %s"), *EventNode->NodeGuid.ToString());
-                        NodeGuidArray.Add(MakeShared<FJsonValueString>(EventNode->NodeGuid.ToString()));
+                        NodesArray.Add(MakeShared<FJsonValueObject>(CreateNodeInfo(EventNode)));
                     }
                 }
                 else
                 {
                     // Add all event nodes
                     UE_LOG(LogTemp, Display, TEXT("Adding event node: %s"), *EventNode->NodeGuid.ToString());
-                    NodeGuidArray.Add(MakeShared<FJsonValueString>(EventNode->NodeGuid.ToString()));
+                    NodesArray.Add(MakeShared<FJsonValueObject>(CreateNodeInfo(EventNode)));
                 }
             }
         }
@@ -1339,7 +1451,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
             if (FunctionNode)
             {
                 UE_LOG(LogTemp, Display, TEXT("Found function node: %s"), *FunctionNode->NodeGuid.ToString());
-                NodeGuidArray.Add(MakeShared<FJsonValueString>(FunctionNode->NodeGuid.ToString()));
+                NodesArray.Add(MakeShared<FJsonValueObject>(CreateNodeInfo(FunctionNode)));
             }
         }
     }
@@ -1352,7 +1464,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
             if (VarGetNode)
             {
                 UE_LOG(LogTemp, Display, TEXT("Found variable get node: %s"), *VarGetNode->NodeGuid.ToString());
-                NodeGuidArray.Add(MakeShared<FJsonValueString>(VarGetNode->NodeGuid.ToString()));
+                NodesArray.Add(MakeShared<FJsonValueObject>(CreateNodeInfo(VarGetNode)));
                 continue;
             }
             
@@ -1360,13 +1472,13 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
             if (VarSetNode)
             {
                 UE_LOG(LogTemp, Display, TEXT("Found variable set node: %s"), *VarSetNode->NodeGuid.ToString());
-                NodeGuidArray.Add(MakeShared<FJsonValueString>(VarSetNode->NodeGuid.ToString()));
+                NodesArray.Add(MakeShared<FJsonValueObject>(CreateNodeInfo(VarSetNode)));
             }
         }
     }
     else if (NodeType.Equals(TEXT("All"), ESearchCase::IgnoreCase))
     {
-        // Return all nodes
+        // Return all nodes with detailed information
         for (UEdGraphNode* Node : EventGraph->Nodes)
         {
             if (Node)
@@ -1374,7 +1486,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
                 UE_LOG(LogTemp, Display, TEXT("Found node: %s (Type: %s)"), 
                        *Node->NodeGuid.ToString(), 
                        *Node->GetClass()->GetName());
-                NodeGuidArray.Add(MakeShared<FJsonValueString>(Node->NodeGuid.ToString()));
+                NodesArray.Add(MakeShared<FJsonValueObject>(CreateNodeInfo(Node)));
             }
         }
     }
@@ -1387,14 +1499,27 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
             if (Node && Node->GetClass()->GetName().Contains(NodeType))
             {
                 UE_LOG(LogTemp, Display, TEXT("Found node matching type '%s': %s"), *NodeType, *Node->NodeGuid.ToString());
-                NodeGuidArray.Add(MakeShared<FJsonValueString>(Node->NodeGuid.ToString()));
+                NodesArray.Add(MakeShared<FJsonValueObject>(CreateNodeInfo(Node)));
             }
         }
     }
     
-    UE_LOG(LogTemp, Display, TEXT("Found %d matching nodes"), NodeGuidArray.Num());
+    UE_LOG(LogTemp, Display, TEXT("Found %d matching nodes"), NodesArray.Num());
     
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetArrayField(TEXT("nodes"), NodesArray);
+    
+    // Also include the old format for backwards compatibility
+    TArray<TSharedPtr<FJsonValue>> NodeGuidArray;
+    for (const TSharedPtr<FJsonValue>& NodeValue : NodesArray)
+    {
+        const TSharedPtr<FJsonObject>& NodeObj = NodeValue->AsObject();
+        if (NodeObj.IsValid())
+        {
+            FString NodeId = NodeObj->GetStringField(TEXT("node_id"));
+            NodeGuidArray.Add(MakeShared<FJsonValueString>(NodeId));
+        }
+    }
     ResultObj->SetArrayField(TEXT("node_guids"), NodeGuidArray);
     
     return ResultObj;
