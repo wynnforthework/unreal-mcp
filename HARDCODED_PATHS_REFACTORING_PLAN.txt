@@ -1,0 +1,203 @@
+HARDCODED ASSET PATHS REFACTORING PLAN
+======================================
+
+File: MCPGameProject/Plugins/UnrealMCP/Source/UnrealMCP/Private/Commands/UnrealMCPBlueprintNodeCommands.cpp
+
+OVERVIEW:
+---------
+This document outlines all hardcoded asset path searches found in UnrealMCPBlueprintNodeCommands.cpp 
+and provides a plan to replace them with the enhanced asset discovery utilities from UnrealMCPCommonUtils.
+
+The goal is to make the asset discovery more flexible and project-structure-agnostic by leveraging
+the existing discovery utilities instead of assuming specific directory structures.
+
+AVAILABLE ASSET DISCOVERY UTILITIES:
+------------------------------------
+From UnrealMCPCommonUtils.h, we have these enhanced discovery functions:
+- FUnrealMCPCommonUtils::FindWidgetClass(const FString& WidgetPath)
+- FUnrealMCPCommonUtils::FindWidgetBlueprint(const FString& WidgetPath)
+- FUnrealMCPCommonUtils::FindAssetByPath(const FString& AssetPath)
+- FUnrealMCPCommonUtils::FindAssetByName(const FString& AssetName, const FString& AssetType)
+- FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(const FString& AssetName)
+- FUnrealMCPCommonUtils::FindBlueprints(const FString& BlueprintName, const FString& SearchPath)
+- FUnrealMCPCommonUtils::FindDataTables(const FString& TableName, const FString& SearchPath)
+
+IDENTIFIED HARDCODED PATHS AND REFACTORING RECOMMENDATIONS:
+===========================================================
+
+1. CLASS SEARCH PATHS (Lines 649-653)
+--------------------------------------
+CURRENT CODE:
+```cpp
+TArray<FString> ClassPaths;
+ClassPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(Target));
+ClassPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(Target));
+ClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s_C"), *Target, *Target)));
+ClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("%s.%s_C"), *Target, *Target)));
+```
+
+REFACTORING RECOMMENDATION:
+Replace with: FUnrealMCPCommonUtils::FindBlueprints(Target) or FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(Target)
+
+BENEFITS:
+- Removes hardcoded "/Game/Blueprints/" assumption
+- Uses asset registry for better discovery
+- More flexible project organization
+
+2. WIDGET CLASS DISCOVERY (Lines 1252-1276)
+--------------------------------------------
+CURRENT CODE:
+```cpp
+// For WBP_ prefixed widgets
+CleanPath = FString::Printf(TEXT("/Game/Widgets/%s"), *CleanPath);
+// For BP_ prefixed blueprints  
+CleanPath = FString::Printf(TEXT("/Game/Blueprints/%s"), *CleanPath);
+// Default fallback
+CleanPath = FString::Printf(TEXT("/Game/%s"), *CleanPath);
+
+// Widget class lookup
+FString WidgetPath = FString::Printf(TEXT("/Game/Widgets/%s.%s_C"), *WidgetName, *WidgetName);
+```
+
+REFACTORING RECOMMENDATION:
+Replace with: FUnrealMCPCommonUtils::FindWidgetClass(WidgetClassPath)
+
+CURRENT FUNCTION LOCATION: HandleAddBlueprintFunctionCall() - Widget class reference handling
+
+BENEFITS:
+- Already implements sophisticated widget discovery
+- Handles multiple common directory structures
+- Includes asset registry fallback
+
+3. STRUCT SEARCH VARIATIONS (Lines 1121-1122, 1291-1292)
+---------------------------------------------------------
+CURRENT CODE:
+```cpp
+StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *InType, *InType)));
+StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *InType, *InType)));
+```
+
+REFACTORING RECOMMENDATION:
+Create a new utility function: FUnrealMCPCommonUtils::FindStructByName(const FString& StructName)
+or enhance existing FindAssetByName to better handle struct discovery
+
+BENEFITS:
+- Removes hardcoded "/Game/Blueprints/" and "/Game/DataStructures/" assumptions
+- More flexible struct organization
+- Could include asset registry search for UserDefinedStruct assets
+
+4. VARIABLE TYPE RESOLUTION (Lines 1325-1327)
+----------------------------------------------
+CURRENT CODE:
+```cpp
+// For non-prefixed paths
+CleanPath = FString::Printf(TEXT("/Game/%s"), *CleanPath);
+```
+
+REFACTORING RECOMMENDATION:
+Use: FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(CleanPath) and iterate through results
+
+BENEFITS:
+- Removes hardcoded "/Game/" root assumption
+- More thorough asset discovery
+
+5. ERROR MESSAGES WITH HARDCODED EXAMPLES (Line 522)
+----------------------------------------------------
+CURRENT CODE:
+```cpp
+TEXT("Failed to find widget class: %s. Please ensure the widget blueprint exists or provide the full asset path (e.g., /Game/Widgets/WBP_MyWidget).")
+```
+
+REFACTORING RECOMMENDATION:
+Update error message to be more generic:
+```cpp
+TEXT("Failed to find widget class: %s. Please ensure the widget blueprint exists in your project. Common locations searched include Widgets/, UI/, Blueprints/, and other standard directories.")
+```
+
+BENEFITS:
+- Doesn't mislead users about required directory structure
+- More helpful for varied project organizations
+
+6. CREATE WIDGET FUNCTION CLASS PARAMETER (Around line 515)
+------------------------------------------------------------
+CURRENT CONTEXT: Enhanced asset discovery utilities mentioned in comment
+
+REFACTORING RECOMMENDATION:
+Ensure the Create Widget node creation uses FUnrealMCPCommonUtils::FindWidgetClass() 
+for the Class parameter resolution instead of manual path construction.
+
+IMPLEMENTATION PLAN:
+===================
+
+PHASE 1: IMMEDIATE IMPROVEMENTS
+-------------------------------
+1. Replace widget class discovery in HandleAddBlueprintFunctionCall() with FindWidgetClass()
+2. Update error messages to remove hardcoded path examples
+3. Test widget creation functionality
+
+PHASE 2: STRUCT DISCOVERY ENHANCEMENT
+-------------------------------------
+1. Create FUnrealMCPCommonUtils::FindStructByName() utility function
+2. Replace hardcoded struct path variations
+3. Test struct-related variable creation
+
+PHASE 3: BLUEPRINT CLASS DISCOVERY
+----------------------------------
+1. Replace manual class path construction with FindBlueprints() and GetCommonAssetSearchPaths()
+2. Update target class resolution logic
+3. Test blueprint function node creation
+
+PHASE 4: COMPREHENSIVE TESTING
+------------------------------
+1. Test with projects using different directory structures
+2. Verify backward compatibility
+3. Update documentation
+
+TESTING CONSIDERATIONS:
+======================
+- Test with widgets in different directories (/Game/UI/, /Game/UMG/, etc.)
+- Test with blueprints in non-standard locations
+- Test with custom struct locations
+- Verify engine and core class discovery still works
+- Test error handling for missing assets
+
+CODE REVIEW CHECKLIST:
+======================
+□ All hardcoded "/Game/Widgets/" references replaced
+□ All hardcoded "/Game/Blueprints/" references replaced  
+□ All hardcoded "/Game/DataStructures/" references replaced
+□ Error messages updated to be path-agnostic
+□ Asset discovery uses registry when available
+□ Fallback mechanisms preserved for engine/core classes
+□ Backward compatibility maintained
+□ Performance impact evaluated
+□ Logging updated to reflect new discovery methods
+
+FILES TO MODIFY:
+===============
+Primary: MCPGameProject/Plugins/UnrealMCP/Source/UnrealMCP/Private/Commands/UnrealMCPBlueprintNodeCommands.cpp
+Secondary: MCPGameProject/Plugins/UnrealMCP/Source/UnrealMCP/Private/Commands/UnrealMCPCommonUtils.cpp (if new utilities needed)
+
+ESTIMATED EFFORT:
+================
+- Phase 1: 2-3 hours
+- Phase 2: 4-5 hours (includes new utility creation)
+- Phase 3: 3-4 hours
+- Phase 4: 2-3 hours
+Total: 11-15 hours
+
+RISK ASSESSMENT:
+===============
+LOW RISK:
+- Widget class discovery (existing utility available)
+- Error message updates
+
+MEDIUM RISK:
+- Struct discovery changes (may need new utility function)
+- Blueprint class path resolution
+
+HIGH RISK:
+- None identified (all changes use existing patterns)
+
+This refactoring will significantly improve the flexibility and robustness of asset discovery
+while maintaining compatibility with existing functionality. 

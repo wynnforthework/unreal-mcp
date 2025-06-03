@@ -520,7 +520,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
                         {
                             UE_LOG(LogTemp, Error, TEXT("Failed to find widget class: %s"), *WidgetClassPath);
                             return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(
-                                TEXT("Failed to find widget class: %s. Please ensure the widget blueprint exists or provide the full asset path (e.g., /Game/Widgets/WBP_MyWidget)."), 
+                                TEXT("Failed to find widget class: %s. Please ensure the widget blueprint exists in your project. Common locations searched include Widgets/, UI/, Blueprints/, and other standard directories."), 
                                 *WidgetClassPath));
                         }
                         
@@ -646,24 +646,42 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
     // Check if we have a target class specified
     if (!Target.IsEmpty())
     {
-        // Try to find the target class using various paths
-        TArray<FString> ClassPaths;
-        ClassPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(Target));
-        ClassPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(Target));
-        ClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s_C"), *Target, *Target)));
-        ClassPaths.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("%s.%s_C"), *Target, *Target)));
-
+        // Use enhanced asset discovery instead of hardcoded paths
         UClass* TargetClass = nullptr;
-        for (const FString& ClassPath : ClassPaths)
+        
+        // Strategy 1: Try engine and core paths for built-in classes
+        TArray<FString> BuiltInPaths;
+        BuiltInPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(Target));
+        BuiltInPaths.Add(FUnrealMCPCommonUtils::BuildCorePath(Target));
+        
+        for (const FString& ClassPath : BuiltInPaths)
         {
             TargetClass = LoadObject<UClass>(nullptr, *ClassPath);
             if (TargetClass)
             {
+                UE_LOG(LogTemp, Display, TEXT("Found target class via built-in path: %s"), *TargetClass->GetName());
                 break;
             }
         }
+        
+        // Strategy 2: Use enhanced asset discovery for game classes
+        if (!TargetClass)
+        {
+            TArray<FString> SearchPaths = FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(Target);
+            for (const FString& SearchPath : SearchPaths)
+            {
+                // Try to load as blueprint class with _C suffix
+                FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *SearchPath, *FPaths::GetBaseFilename(SearchPath));
+                TargetClass = LoadObject<UClass>(nullptr, *ClassPath);
+                if (TargetClass)
+                {
+                    UE_LOG(LogTemp, Display, TEXT("Found target class via enhanced search: %s"), *TargetClass->GetName());
+                    break;
+                }
+            }
+        }
 
-        // Try with U prefix if not found
+        // Strategy 3: Try with U prefix if not found (for engine classes)
         if (!TargetClass)
         {
             FString TargetWithPrefix = FString::Printf(TEXT("U%s"), *Target);
@@ -676,6 +694,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
                 TargetClass = LoadObject<UClass>(nullptr, *Path);
                 if (TargetClass)
                 {
+                    UE_LOG(LogTemp, Display, TEXT("Found target class with U prefix: %s"), *TargetClass->GetName());
                     break;
                 }
             }
@@ -1114,79 +1133,56 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                 OutPinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
                 bResolved = true;
             } else {
-                // Try struct
-                UScriptStruct* FoundStruct = nullptr;
-                TArray<FString> StructNameVariations;
-                StructNameVariations.Add(InType);
-                StructNameVariations.Add(FString::Printf(TEXT("F%s"), *InType));
-                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *InType, *InType)));
-                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *InType, *InType)));
-                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(InType));
-                for (const FString& StructVariation : StructNameVariations) {
-                    FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
-                    if (FoundStruct) break;
-                }
-                if (!FoundStruct) {
-                    for (const FString& StructVariation : StructNameVariations) {
-                        FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
-                        if (FoundStruct) break;
-                    }
-                }
+                // Use enhanced struct discovery instead of inline searching
+                UScriptStruct* FoundStruct = FUnrealMCPCommonUtils::FindStructType(InType);
                 if (FoundStruct) {
                     OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
                     OutPinType.PinSubCategoryObject = FoundStruct;
                     bResolved = true;
                 } else {
                     // Try enum
-                    UEnum* FoundEnum = LoadObject<UEnum>(nullptr, *InType);
-                    if (!FoundEnum) {
-                        FoundEnum = LoadObject<UEnum>(nullptr, *InType);
+                    UEnum* FoundEnum = nullptr;
+                    TArray<FString> EnumNameVariations;
+                    EnumNameVariations.Add(InType);
+                    EnumNameVariations.Add(FString::Printf(TEXT("E%s"), *InType));
+                    EnumNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(InType));
+                    
+                    for (const FString& EnumVariation : EnumNameVariations) {
+                        FoundEnum = LoadObject<UEnum>(nullptr, *EnumVariation);
+                        if (FoundEnum) break;
                     }
+                    
                     if (FoundEnum) {
                         OutPinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
                         OutPinType.PinSubCategoryObject = FoundEnum;
                         bResolved = true;
                     } else {
-                        // Try object/class
+                        // Try object/class using enhanced asset discovery
                         UClass* FoundClass = nullptr;
                         
-                        // Clean up the path by removing any redundant slashes
-                        FString CleanPath = InType;
-                        if (CleanPath.StartsWith(TEXT("/")))
+                        // Use enhanced asset discovery for class search
+                        TArray<FString> ClassSearchPaths = FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(InType);
+                        for (const FString& SearchPath : ClassSearchPaths)
                         {
-                            CleanPath.RemoveFromStart(TEXT("/"));
-                        }
-                        CleanPath.TrimStartAndEndInline();
-                        
-                        // Handle Game prefix variations
-                        if (!CleanPath.StartsWith(TEXT("/")))
-                        {
-                            if (CleanPath.StartsWith(TEXT("Game/")))
+                            // Try to load as blueprint class with _C suffix
+                            FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *SearchPath, *FPaths::GetBaseFilename(SearchPath));
+                            FoundClass = LoadClass<UObject>(nullptr, *ClassPath);
+                            if (FoundClass)
                             {
-                                CleanPath = FString::Printf(TEXT("/%s"), *CleanPath);
-                            }
-                            else
-                            {
-                                CleanPath = FString::Printf(TEXT("/Game/%s"), *CleanPath);
+                                UE_LOG(LogTemp, Display, TEXT("Found class via enhanced search: %s"), *FoundClass->GetName());
+                                break;
                             }
                         }
                         
-                        // Try direct path first
-                        FString DirectPath = FString::Printf(TEXT("%s.%s_C"), *CleanPath, *FPaths::GetBaseFilename(CleanPath));
-                        UE_LOG(LogTemp, Display, TEXT("Trying direct path: %s"), *DirectPath);
-                        FoundClass = LoadClass<UObject>(nullptr, *DirectPath);
-                        
-                        // If not found, try standard class loading
+                        // Fallback: try engine path
                         if (!FoundClass)
                         {
-                            FoundClass = LoadObject<UClass>(nullptr, *CleanPath);
-                        }
-                        
-                        // Try engine path if still not found
-                        if (!FoundClass)
-                        {
-                            FString EngineClassName = FUnrealMCPCommonUtils::BuildEnginePath(CleanPath);
+                            FString EngineClassName = FUnrealMCPCommonUtils::BuildEnginePath(InType);
                             FoundClass = LoadObject<UClass>(nullptr, *EngineClassName);
+                            if (FoundClass)
+                            {
+                                UE_LOG(LogTemp, Display, TEXT("Found class via engine path: %s"), *FoundClass->GetName());
+                            }
                         }
                         
                         if (FoundClass)
@@ -1194,6 +1190,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                             OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
                             OutPinType.PinSubCategoryObject = FoundClass;
                             bResolved = true;
+                        }
+                        else
+                        {
+                            UE_LOG(LogTemp, Warning, TEXT("Could not find type for array element: %s"), *InType);
+                            bResolved = false;
                         }
                     }
                 }
@@ -1248,23 +1249,33 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
             } else {
                 // Try to find specific widget blueprint class
                 FString CleanPath = InnerType;
-                if (!CleanPath.StartsWith(TEXT("/"))) {
-                    if (CleanPath.StartsWith(TEXT("WBP_"))) {
-                        CleanPath = FString::Printf(TEXT("/Game/Widgets/%s"), *CleanPath);
-                    } else if (CleanPath.StartsWith(TEXT("BP_"))) {
-                        CleanPath = FString::Printf(TEXT("/Game/Blueprints/%s"), *CleanPath);
-                    } else {
-                        CleanPath = FString::Printf(TEXT("/Game/%s"), *CleanPath);
-                    }
+                
+                // Use enhanced asset discovery instead of hardcoded paths
+                UClass* FoundClass = FUnrealMCPCommonUtils::FindWidgetClass(CleanPath);
+                
+                if (FoundClass)
+                {
+                    TargetClass = FoundClass;
                 }
-                
-                // Try to load the class
-                FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *CleanPath, *FPaths::GetBaseFilename(CleanPath));
-                TargetClass = LoadClass<UObject>(nullptr, *ClassPath);
-                
-                if (!TargetClass) {
-                    UE_LOG(LogTemp, Warning, TEXT("Could not find class for class reference: %s"), *InnerType);
-                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find class for class reference: %s"), *InnerType));
+                else
+                {
+                    // Fallback: try to load as blueprint using common asset search paths
+                    TArray<FString> SearchPaths = FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(CleanPath);
+                    for (const FString& SearchPath : SearchPaths)
+                    {
+                        // Try to load the class
+                        FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *SearchPath, *FPaths::GetBaseFilename(SearchPath));
+                        TargetClass = LoadClass<UObject>(nullptr, *ClassPath);
+                        if (TargetClass)
+                        {
+                            break;
+                        }
+                    }
+                    
+                    if (!TargetClass) {
+                        UE_LOG(LogTemp, Warning, TEXT("Could not find class for class reference: %s"), *InnerType);
+                        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find class for class reference: %s"), *InnerType));
+                    }
                 }
             }
             
@@ -1274,14 +1285,15 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
         } else if (TypeStr.StartsWith(TEXT("WBP_")) && TypeStr.EndsWith(TEXT("Class"))) {
             // Handle "WBP_DialogueWidgetClass" style naming
             FString WidgetName = TypeStr.LeftChop(5); // Remove "Class"
-            FString WidgetPath = FString::Printf(TEXT("/Game/Widgets/%s.%s_C"), *WidgetName, *WidgetName);
-            UClass* WidgetClass = LoadClass<UObject>(nullptr, *WidgetPath);
+            
+            // Use enhanced asset discovery instead of hardcoded path
+            UClass* WidgetClass = FUnrealMCPCommonUtils::FindWidgetClass(WidgetName);
             
             if (WidgetClass) {
                 SetPinTypeForCategory(UEdGraphSchema_K2::PC_Class, WidgetClass);
             } else {
-                UE_LOG(LogTemp, Warning, TEXT("Could not find widget class: %s"), *WidgetPath);
-                return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find widget class: %s"), *WidgetPath));
+                UE_LOG(LogTemp, Warning, TEXT("Could not find widget class: %s"), *WidgetName);
+                return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Could not find widget class: %s"), *WidgetName));
             }
         } else {
             // Try struct
@@ -1289,19 +1301,33 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
             TArray<FString> StructNameVariations;
             StructNameVariations.Add(TypeStr);
             StructNameVariations.Add(FString::Printf(TEXT("F%s"), *TypeStr));
-            StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *TypeStr, *TypeStr)));
-            StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *TypeStr, *TypeStr)));
+            
+            // Use enhanced asset discovery for struct search paths instead of hardcoded paths
+            TArray<FString> StructDirectories = {
+                TEXT("/Game/DataStructures/"),
+                TEXT("/Game/Data/"),
+                TEXT("/Game/Blueprints/DataStructures/"),
+                TEXT("/Game/Blueprints/"),
+                TEXT("/Game/")
+            };
+
+            for (const FString& StructDir : StructDirectories)
+            {
+                StructNameVariations.Add(FString::Printf(TEXT("%s%s.%s"), *StructDir, *TypeStr, *TypeStr));
+                StructNameVariations.Add(FString::Printf(TEXT("%sF%s.F%s"), *StructDir, *TypeStr, *TypeStr));
+            }
+            
+            // Add engine paths as fallback
             StructNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(TypeStr));
+            
             for (const FString& StructVariation : StructNameVariations) {
                 FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
-                if (FoundStruct) break;
-            }
-            if (!FoundStruct) {
-                for (const FString& StructVariation : StructNameVariations) {
-                    FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
-                    if (FoundStruct) break;
+                if (FoundStruct) {
+                    UE_LOG(LogTemp, Display, TEXT("Found struct via enhanced search: %s"), *FoundStruct->GetName());
+                    break;
                 }
             }
+            
             if (FoundStruct) {
                 SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, FoundStruct);
             } else {
