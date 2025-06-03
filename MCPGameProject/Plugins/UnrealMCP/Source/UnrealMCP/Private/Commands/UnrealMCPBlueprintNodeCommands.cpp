@@ -1133,38 +1133,8 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintVaria
                 OutPinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
                 bResolved = true;
             } else {
-                // Try struct using proper struct search paths
-                UScriptStruct* FoundStruct = nullptr;
-                TArray<FString> StructNameVariations;
-                StructNameVariations.Add(InType);
-                StructNameVariations.Add(FString::Printf(TEXT("F%s"), *InType));
-                
-                // Use proper struct search paths (not widget paths)
-                TArray<FString> StructDirectories = {
-                    TEXT("/Game/DataStructures/"),
-                    TEXT("/Game/Data/"),
-                    TEXT("/Game/Blueprints/DataStructures/"),
-                    TEXT("/Game/Blueprints/"),
-                    TEXT("/Game/")
-                };
-                
-                for (const FString& StructDir : StructDirectories)
-                {
-                    StructNameVariations.Add(FString::Printf(TEXT("%s%s.%s"), *StructDir, *InType, *InType));
-                    StructNameVariations.Add(FString::Printf(TEXT("%sF%s.F%s"), *StructDir, *InType, *InType));
-                }
-                
-                // Add engine paths as fallback
-                StructNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(InType));
-                
-                for (const FString& StructVariation : StructNameVariations) {
-                    FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
-                    if (FoundStruct) {
-                        UE_LOG(LogTemp, Display, TEXT("Found struct via enhanced search: %s"), *FoundStruct->GetName());
-                        break;
-                    }
-                }
-                
+                // Use enhanced struct discovery instead of inline searching
+                UScriptStruct* FoundStruct = FUnrealMCPCommonUtils::FindStructType(InType);
                 if (FoundStruct) {
                     OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
                     OutPinType.PinSubCategoryObject = FoundStruct;

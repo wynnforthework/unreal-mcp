@@ -1614,6 +1614,126 @@ UObject* FUnrealMCPCommonUtils::FindAssetByName(const FString& AssetName, const 
     return nullptr;
 }
 
+UScriptStruct* FUnrealMCPCommonUtils::FindStructType(const FString& StructPath)
+{
+    UE_LOG(LogTemp, Display, TEXT("FindStructType: Searching for struct: %s"), *StructPath);
+    
+    // Strategy 1: Check built-in struct types first
+    static const TMap<FString, UScriptStruct*> BuiltInStructs = {
+        {TEXT("Vector"), TBaseStructure<FVector>::Get()},
+        {TEXT("Rotator"), TBaseStructure<FRotator>::Get()},
+        {TEXT("Transform"), TBaseStructure<FTransform>::Get()},
+        {TEXT("Color"), TBaseStructure<FLinearColor>::Get()},
+        {TEXT("LinearColor"), TBaseStructure<FLinearColor>::Get()},
+        {TEXT("Vector2D"), TBaseStructure<FVector2D>::Get()},
+        {TEXT("IntPoint"), TBaseStructure<FIntPoint>::Get()},
+        {TEXT("IntVector"), TBaseStructure<FIntVector>::Get()},
+        {TEXT("Guid"), TBaseStructure<FGuid>::Get()},
+        {TEXT("DateTime"), TBaseStructure<FDateTime>::Get()}
+    };
+    
+    // Check for exact built-in match
+    if (const UScriptStruct* const* FoundBuiltIn = BuiltInStructs.Find(StructPath))
+    {
+        UE_LOG(LogTemp, Display, TEXT("FindStructType: Found built-in struct: %s"), *(*FoundBuiltIn)->GetName());
+        return const_cast<UScriptStruct*>(*FoundBuiltIn);
+    }
+    
+    // Strategy 2: Try direct struct loading with various naming conventions
+    TArray<FString> StructNameVariations;
+    StructNameVariations.Add(StructPath);
+    StructNameVariations.Add(FString::Printf(TEXT("F%s"), *StructPath));
+    
+    // If it's already a path, try loading directly
+    if (StructPath.StartsWith(TEXT("/")) || StructPath.Contains(TEXT(".")))
+    {
+        UScriptStruct* DirectStruct = LoadObject<UScriptStruct>(nullptr, *StructPath);
+        if (DirectStruct)
+        {
+            UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via direct path: %s"), *DirectStruct->GetName());
+            return DirectStruct;
+        }
+    }
+    
+    // Strategy 3: Search in common struct directories
+    TArray<FString> StructDirectories = {
+        TEXT("/Game/DataStructures/"),
+        TEXT("/Game/Data/"),
+        TEXT("/Game/Blueprints/DataStructures/"),
+        TEXT("/Game/Blueprints/Structs/"),
+        TEXT("/Game/Blueprints/"),
+        TEXT("/Game/Structs/"),
+        TEXT("/Game/")
+    };
+    
+    for (const FString& StructDir : StructDirectories)
+    {
+        for (const FString& StructVariation : StructNameVariations)
+        {
+            // Try as asset path (e.g., /Game/DataStructures/MyStruct.MyStruct)
+            FString AssetPath = FString::Printf(TEXT("%s%s.%s"), *StructDir, *StructVariation, *StructVariation);
+            UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *AssetPath);
+            if (FoundStruct)
+            {
+                UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via asset search: %s"), *FoundStruct->GetName());
+                return FoundStruct;
+            }
+            
+            // Try with base filename only
+            FString BaseFilename = FPaths::GetBaseFilename(StructPath);
+            if (BaseFilename != StructPath)
+            {
+                AssetPath = FString::Printf(TEXT("%s%s.%s"), *StructDir, *BaseFilename, *BaseFilename);
+                FoundStruct = LoadObject<UScriptStruct>(nullptr, *AssetPath);
+                if (FoundStruct)
+                {
+                    UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via base filename search: %s"), *FoundStruct->GetName());
+                    return FoundStruct;
+                }
+            }
+        }
+    }
+    
+    // Strategy 4: Try engine paths for built-in structs
+    for (const FString& StructVariation : StructNameVariations)
+    {
+        FString EnginePath = BuildEnginePath(StructVariation);
+        UScriptStruct* EngineStruct = LoadObject<UScriptStruct>(nullptr, *EnginePath);
+        if (EngineStruct)
+        {
+            UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via engine path: %s"), *EngineStruct->GetName());
+            return EngineStruct;
+        }
+        
+        FString CorePath = BuildCorePath(StructVariation);
+        UScriptStruct* CoreStruct = LoadObject<UScriptStruct>(nullptr, *CorePath);
+        if (CoreStruct)
+        {
+            UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via core path: %s"), *CoreStruct->GetName());
+            return CoreStruct;
+        }
+    }
+    
+    // Strategy 5: Use asset registry to find user-defined structs
+    TArray<FString> FoundStructs = FindAssetsByType(TEXT("UserDefinedStruct"));
+    for (const FString& FoundPath : FoundStructs)
+    {
+        if (FPaths::GetBaseFilename(FoundPath).Contains(StructPath, ESearchCase::IgnoreCase) ||
+            FPaths::GetBaseFilename(FoundPath).Contains(FString::Printf(TEXT("F%s"), *StructPath), ESearchCase::IgnoreCase))
+        {
+            UScriptStruct* Struct = Cast<UScriptStruct>(FindAssetByPath(FoundPath));
+            if (Struct)
+            {
+                UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via registry search: %s"), *Struct->GetName());
+                return Struct;
+            }
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("FindStructType: Could not find struct for: %s"), *StructPath);
+    return nullptr;
+}
+
 TArray<FString> FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(const FString& AssetName)
 {
     TArray<FString> SearchPaths;

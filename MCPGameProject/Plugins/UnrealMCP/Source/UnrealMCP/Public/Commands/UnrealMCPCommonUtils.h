@@ -125,6 +125,7 @@ public:
     static UBlueprint* FindWidgetBlueprint(const FString& WidgetPath);
     static UObject* FindAssetByPath(const FString& AssetPath);
     static UObject* FindAssetByName(const FString& AssetName, const FString& AssetType = TEXT(""));
+    static UScriptStruct* FindStructType(const FString& StructPath);
     
     // Asset path utilities
     static TArray<FString> GetCommonAssetSearchPaths(const FString& AssetName);
