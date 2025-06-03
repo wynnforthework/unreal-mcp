@@ -113,6 +113,24 @@ public:
         return FString::Printf(TEXT("%s.%s"), *GetUMGScriptPath(), *Path);
     }
 
+    // Asset Discovery utilities
+    static TArray<FString> FindAssetsByType(const FString& AssetType, const FString& SearchPath = TEXT("/Game"));
+    static TArray<FString> FindAssetsByName(const FString& AssetName, const FString& SearchPath = TEXT("/Game"));
+    static TArray<FString> FindWidgetBlueprints(const FString& WidgetName = TEXT(""), const FString& SearchPath = TEXT("/Game"));
+    static TArray<FString> FindBlueprints(const FString& BlueprintName = TEXT(""), const FString& SearchPath = TEXT("/Game"));
+    static TArray<FString> FindDataTables(const FString& TableName = TEXT(""), const FString& SearchPath = TEXT("/Game"));
+    
+    // Enhanced asset loading with discovery
+    static UClass* FindWidgetClass(const FString& WidgetPath);
+    static UBlueprint* FindWidgetBlueprint(const FString& WidgetPath);
+    static UObject* FindAssetByPath(const FString& AssetPath);
+    static UObject* FindAssetByName(const FString& AssetName, const FString& AssetType = TEXT(""));
+    
+    // Asset path utilities
+    static TArray<FString> GetCommonAssetSearchPaths(const FString& AssetName);
+    static FString NormalizeAssetPath(const FString& AssetPath);
+    static bool IsValidAssetPath(const FString& AssetPath);
+
 private:
     // ... existing code ...
 }; 

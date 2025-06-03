@@ -14,7 +14,8 @@ from utils.nodes.node_operations import (
     connect_nodes_impl,
     add_self_component_reference as add_self_component_reference_impl,
     add_self_reference as add_self_reference_impl,
-    find_nodes as find_nodes_impl
+    find_nodes as find_nodes_impl,
+    get_variable_info_impl
 )
 from utils.unreal_connection_utils import send_unreal_command
 
@@ -78,6 +79,12 @@ def register_blueprint_node_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Add a function call node to a Blueprint's event graph.
+        
+        CREATE WIDGET FUNCTION - FIXED:
+        "Create Widget" function nodes now work correctly with proper class parameter support.
+        You can pass widget class information in the params using the "Class" parameter.
+        The implementation properly handles widget class references and will search common
+        paths to find the specified widget blueprint class.
         
         Args:
             blueprint_name: Name of the target Blueprint
@@ -193,7 +200,4 @@ def register_blueprint_node_tools(mcp: FastMCP):
             - Use this tool to get the struct type of a variable.
             - Pass the returned struct type as 'struct_type' to add_blueprint_function_node with function_name='BreakStruct'.
         """
-        params = {"blueprint_name": blueprint_name, "variable_name": variable_name}
-        return send_unreal_command("get_variable_info", params)
-    
-    logger.info("Blueprint node tools registered successfully")
+        return get_variable_info_impl(ctx, blueprint_name, variable_name)

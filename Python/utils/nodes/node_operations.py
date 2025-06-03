@@ -216,3 +216,16 @@ def connect_nodes_impl(
     }
     
     return send_unreal_command("connect_blueprint_nodes", params)
+
+def get_variable_info_impl(
+    ctx: Context,
+    blueprint_name: str,
+    variable_name: str
+) -> Dict[str, Any]:
+    """Implementation for getting variable type information from a Blueprint."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "variable_name": variable_name
+    }
+    
+    return send_unreal_command("get_variable_info", params)

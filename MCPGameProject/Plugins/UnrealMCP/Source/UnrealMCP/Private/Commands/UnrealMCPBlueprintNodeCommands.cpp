@@ -403,6 +403,190 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
     }
 
+    // Special case: Create Widget node - MUST BE BEFORE CreateSpecialNodeByName
+    if (FunctionName.Equals(TEXT("Create Widget"), ESearchCase::IgnoreCase) || 
+        FunctionName.Equals(TEXT("CreateWidget"), ESearchCase::IgnoreCase))
+    {
+        UE_LOG(LogTemp, Display, TEXT("Creating Create Widget node with enhanced UE5.6 compatibility"));
+        
+        // Find the CreateWidget function in UWidgetBlueprintLibrary
+        UClass* WidgetBlueprintLibraryClass = UWidgetBlueprintLibrary::StaticClass();
+        UFunction* CreateWidgetFunction = nullptr;
+        
+        // UE5.6 standard: Try "Create" first as it's the standard name
+        CreateWidgetFunction = WidgetBlueprintLibraryClass->FindFunctionByName(TEXT("Create"));
+        
+        if (!CreateWidgetFunction)
+        {
+            // Fallback to other possible names for older versions
+            TArray<FString> FallbackNames = {
+                TEXT("CreateWidget"),
+                TEXT("CreateWidgetInstance"),
+                TEXT("CreateWidgetOfClass")
+            };
+            
+            for (const FString& FuncName : FallbackNames)
+            {
+                CreateWidgetFunction = WidgetBlueprintLibraryClass->FindFunctionByName(*FuncName);
+                if (CreateWidgetFunction)
+                {
+                    UE_LOG(LogTemp, Display, TEXT("Found CreateWidget function with fallback name: %s"), *FuncName);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Display, TEXT("Found UE5.6 standard Create function"));
+        }
+        
+        if (!CreateWidgetFunction)
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to find CreateWidget function in UWidgetBlueprintLibrary. Ensure UMG module is loaded."));
+        }
+        
+        // Create the function call node
+        UK2Node_CallFunction* FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
+        FunctionNode->FunctionReference.SetExternalMember(FName(*CreateWidgetFunction->GetName()), UWidgetBlueprintLibrary::StaticClass());
+        FunctionNode->NodePosX = NodePosition.X;
+        FunctionNode->NodePosY = NodePosition.Y;
+        
+        EventGraph->AddNode(FunctionNode, true);
+        FunctionNode->CreateNewGuid();
+        FunctionNode->PostPlacedNewNode();
+        FunctionNode->AllocateDefaultPins();
+        
+        UE_LOG(LogTemp, Display, TEXT("Created Create Widget node with function: %s"), *CreateWidgetFunction->GetName());
+        
+        // Find the widget class parameter pin - try multiple possible names for compatibility
+        UEdGraphPin* WidgetTypePin = nullptr;
+        TArray<FString> PossiblePinNames = {
+            TEXT("WidgetType"),  // UE5.6 primary
+            TEXT("Class"),       // Common alternative
+            TEXT("WidgetClass")  // Legacy support
+        };
+        
+        for (const FString& PinName : PossiblePinNames)
+        {
+            WidgetTypePin = FUnrealMCPCommonUtils::FindPin(FunctionNode, PinName, EGPD_Input);
+            if (WidgetTypePin)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Found widget class pin: %s"), *PinName);
+                break;
+            }
+        }
+        
+        if (!WidgetTypePin)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Could not find widget class pin in Create Widget node"));
+            // Debug: List all available input pins
+            for (UEdGraphPin* Pin : FunctionNode->Pins)
+            {
+                if (Pin->Direction == EGPD_Input)
+                {
+                    UE_LOG(LogTemp, Display, TEXT("  Available input pin: %s (Category: %s)"), 
+                           *Pin->PinName.ToString(), *Pin->PinType.PinCategory.ToString());
+                }
+            }
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Could not find widget class pin in Create Widget node. This may indicate a UE version compatibility issue."));
+        }
+        
+        // Set parameters if provided
+        if (Params->HasField(TEXT("params")))
+        {
+            const TSharedPtr<FJsonObject>* ParamsObj;
+            if (Params->TryGetObjectField(TEXT("params"), ParamsObj))
+            {
+                // Process parameters
+                for (const TPair<FString, TSharedPtr<FJsonValue>>& Param : (*ParamsObj)->Values)
+                {
+                    const FString& ParamName = Param.Key;
+                    const TSharedPtr<FJsonValue>& ParamValue = Param.Value;
+                    
+                    // Handle Class parameter with enhanced logic
+                    if ((ParamName.Equals(TEXT("Class"), ESearchCase::IgnoreCase) || 
+                         ParamName.Equals(TEXT("WidgetType"), ESearchCase::IgnoreCase) ||
+                         ParamName.Equals(TEXT("WidgetClass"), ESearchCase::IgnoreCase)) && 
+                        ParamValue->Type == EJson::String)
+                    {
+                        FString WidgetClassPath = ParamValue->AsString();
+                        UE_LOG(LogTemp, Display, TEXT("Processing widget class parameter: %s"), *WidgetClassPath);
+                        
+                        // Use the new enhanced asset discovery utilities
+                        UClass* WidgetClass = FUnrealMCPCommonUtils::FindWidgetClass(WidgetClassPath);
+                        
+                        // Validate the found class
+                        if (!WidgetClass)
+                        {
+                            UE_LOG(LogTemp, Error, TEXT("Failed to find widget class: %s"), *WidgetClassPath);
+                            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(
+                                TEXT("Failed to find widget class: %s. Please ensure the widget blueprint exists or provide the full asset path (e.g., /Game/Widgets/WBP_MyWidget)."), 
+                                *WidgetClassPath));
+                        }
+                        
+                        if (!WidgetClass->IsChildOf(UUserWidget::StaticClass()))
+                        {
+                            UE_LOG(LogTemp, Error, TEXT("Class '%s' is not a UserWidget subclass"), *WidgetClass->GetName());
+                            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(
+                                TEXT("Class '%s' is not a UserWidget subclass. Only UserWidget-derived classes can be used with Create Widget."), 
+                                *WidgetClass->GetName()));
+                        }
+                        
+                        // Set the class on the pin using the most compatible method
+                        const UEdGraphSchema_K2* K2Schema = Cast<const UEdGraphSchema_K2>(EventGraph->GetSchema());
+                        if (K2Schema)
+                        {
+                            K2Schema->TrySetDefaultObject(*WidgetTypePin, WidgetClass);
+                            UE_LOG(LogTemp, Display, TEXT("Set widget class using K2Schema: %s"), *WidgetClass->GetName());
+                        }
+                        else
+                        {
+                            // Fallback: direct assignment
+                            WidgetTypePin->DefaultObject = WidgetClass;
+                            UE_LOG(LogTemp, Display, TEXT("Set widget class using direct assignment: %s"), *WidgetClass->GetName());
+                        }
+                        
+                        // Force node reconstruction to update the UI
+                        FunctionNode->ReconstructNode();
+                    }
+                    else
+                    {
+                        // Handle other parameters (OwningPlayer, etc.)
+                        UEdGraphPin* ParamPin = FUnrealMCPCommonUtils::FindPin(FunctionNode, ParamName, EGPD_Input);
+                        if (ParamPin)
+                        {
+                            if (ParamValue->Type == EJson::String)
+                            {
+                                ParamPin->DefaultValue = ParamValue->AsString();
+                            }
+                            else if (ParamValue->Type == EJson::Number)
+                            {
+                                ParamPin->DefaultValue = FString::SanitizeFloat(ParamValue->AsNumber());
+                            }
+                            else if (ParamValue->Type == EJson::Boolean)
+                            {
+                                ParamPin->DefaultValue = ParamValue->AsBool() ? TEXT("true") : TEXT("false");
+                            }
+                            UE_LOG(LogTemp, Display, TEXT("Set parameter '%s' to '%s'"), *ParamName, *ParamPin->DefaultValue);
+                        }
+                        else
+                        {
+                            UE_LOG(LogTemp, Warning, TEXT("Parameter pin '%s' not found in Create Widget node"), *ParamName);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Mark the blueprint as modified
+        FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+        
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetStringField(TEXT("node_id"), FunctionNode->NodeGuid.ToString());
+        ResultObj->SetStringField(TEXT("function_name"), CreateWidgetFunction->GetName());
+        return ResultObj;
+    }
+
     // Generic special node creation
     UEdGraphNode* SpecialNode = CreateSpecialNodeByName(FunctionName, EventGraph);
     if (SpecialNode)

@@ -82,6 +82,27 @@ TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleCommand(const FString& C
     {
         return HandleTakeScreenshot(Params);
     }
+    // Asset discovery commands
+    else if (CommandType == TEXT("find_assets_by_type"))
+    {
+        return HandleFindAssetsByType(Params);
+    }
+    else if (CommandType == TEXT("find_assets_by_name"))
+    {
+        return HandleFindAssetsByName(Params);
+    }
+    else if (CommandType == TEXT("find_widget_blueprints"))
+    {
+        return HandleFindWidgetBlueprints(Params);
+    }
+    else if (CommandType == TEXT("find_blueprints"))
+    {
+        return HandleFindBlueprints(Params);
+    }
+    else if (CommandType == TEXT("find_data_tables"))
+    {
+        return HandleFindDataTables(Params);
+    }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown editor command: %s"), *CommandType));
 }
@@ -769,4 +790,137 @@ TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleSetLightProperty(const T
     ResultData->SetStringField(TEXT("message"), FString::Printf(TEXT("Set light property %s on %s"), *PropertyName, *ActorName));
     
     return ResultData;
+}
+
+// ==================== Asset Discovery Command Implementations ====================
+
+TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleFindAssetsByType(const TSharedPtr<FJsonObject>& Params)
+{
+    FString AssetType;
+    if (!Params->TryGetStringField(TEXT("asset_type"), AssetType))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'asset_type' parameter"));
+    }
+    
+    FString SearchPath = TEXT("/Game");
+    Params->TryGetStringField(TEXT("search_path"), SearchPath);
+    
+    TArray<FString> FoundAssets = FUnrealMCPCommonUtils::FindAssetsByType(AssetType, SearchPath);
+    
+    TArray<TSharedPtr<FJsonValue>> AssetArray;
+    for (const FString& AssetPath : FoundAssets)
+    {
+        AssetArray.Add(MakeShared<FJsonValueString>(AssetPath));
+    }
+    
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetArrayField(TEXT("assets"), AssetArray);
+    ResultObj->SetNumberField(TEXT("count"), FoundAssets.Num());
+    ResultObj->SetStringField(TEXT("asset_type"), AssetType);
+    ResultObj->SetStringField(TEXT("search_path"), SearchPath);
+    
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleFindAssetsByName(const TSharedPtr<FJsonObject>& Params)
+{
+    FString AssetName;
+    if (!Params->TryGetStringField(TEXT("asset_name"), AssetName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'asset_name' parameter"));
+    }
+    
+    FString SearchPath = TEXT("/Game");
+    Params->TryGetStringField(TEXT("search_path"), SearchPath);
+    
+    TArray<FString> FoundAssets = FUnrealMCPCommonUtils::FindAssetsByName(AssetName, SearchPath);
+    
+    TArray<TSharedPtr<FJsonValue>> AssetArray;
+    for (const FString& AssetPath : FoundAssets)
+    {
+        AssetArray.Add(MakeShared<FJsonValueString>(AssetPath));
+    }
+    
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetArrayField(TEXT("assets"), AssetArray);
+    ResultObj->SetNumberField(TEXT("count"), FoundAssets.Num());
+    ResultObj->SetStringField(TEXT("asset_name"), AssetName);
+    ResultObj->SetStringField(TEXT("search_path"), SearchPath);
+    
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleFindWidgetBlueprints(const TSharedPtr<FJsonObject>& Params)
+{
+    FString WidgetName = TEXT("");
+    Params->TryGetStringField(TEXT("widget_name"), WidgetName);
+    
+    FString SearchPath = TEXT("/Game");
+    Params->TryGetStringField(TEXT("search_path"), SearchPath);
+    
+    TArray<FString> FoundWidgets = FUnrealMCPCommonUtils::FindWidgetBlueprints(WidgetName, SearchPath);
+    
+    TArray<TSharedPtr<FJsonValue>> WidgetArray;
+    for (const FString& WidgetPath : FoundWidgets)
+    {
+        WidgetArray.Add(MakeShared<FJsonValueString>(WidgetPath));
+    }
+    
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetArrayField(TEXT("widgets"), WidgetArray);
+    ResultObj->SetNumberField(TEXT("count"), FoundWidgets.Num());
+    ResultObj->SetStringField(TEXT("widget_name"), WidgetName);
+    ResultObj->SetStringField(TEXT("search_path"), SearchPath);
+    
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleFindBlueprints(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName = TEXT("");
+    Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName);
+    
+    FString SearchPath = TEXT("/Game");
+    Params->TryGetStringField(TEXT("search_path"), SearchPath);
+    
+    TArray<FString> FoundBlueprints = FUnrealMCPCommonUtils::FindBlueprints(BlueprintName, SearchPath);
+    
+    TArray<TSharedPtr<FJsonValue>> BlueprintArray;
+    for (const FString& BlueprintPath : FoundBlueprints)
+    {
+        BlueprintArray.Add(MakeShared<FJsonValueString>(BlueprintPath));
+    }
+    
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetArrayField(TEXT("blueprints"), BlueprintArray);
+    ResultObj->SetNumberField(TEXT("count"), FoundBlueprints.Num());
+    ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
+    ResultObj->SetStringField(TEXT("search_path"), SearchPath);
+    
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleFindDataTables(const TSharedPtr<FJsonObject>& Params)
+{
+    FString TableName = TEXT("");
+    Params->TryGetStringField(TEXT("table_name"), TableName);
+    
+    FString SearchPath = TEXT("/Game");
+    Params->TryGetStringField(TEXT("search_path"), SearchPath);
+    
+    TArray<FString> FoundTables = FUnrealMCPCommonUtils::FindDataTables(TableName, SearchPath);
+    
+    TArray<TSharedPtr<FJsonValue>> TableArray;
+    for (const FString& TablePath : FoundTables)
+    {
+        TableArray.Add(MakeShared<FJsonValueString>(TablePath));
+    }
+    
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetArrayField(TEXT("data_tables"), TableArray);
+    ResultObj->SetNumberField(TEXT("count"), FoundTables.Num());
+    ResultObj->SetStringField(TEXT("table_name"), TableName);
+    ResultObj->SetStringField(TEXT("search_path"), SearchPath);
+    
+    return ResultObj;
 } 
