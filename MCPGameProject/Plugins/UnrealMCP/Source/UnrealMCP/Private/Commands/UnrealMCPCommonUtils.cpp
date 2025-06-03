@@ -2,6 +2,7 @@
 #include "GameFramework/Actor.h"
 #include "Engine/Blueprint.h"
 #include "WidgetBlueprint.h"
+#include "Blueprint/UserWidget.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
