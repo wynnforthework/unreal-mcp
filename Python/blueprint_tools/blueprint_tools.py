@@ -71,12 +71,12 @@ def register_blueprint_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Add a variable to a Blueprint.
-        Supports built-in, user-defined struct, and delegate types.
+        Supports built-in, user-defined struct, delegate types, and class reference types.
 
         Args:
             blueprint_name: Name of the target Blueprint
             variable_name: Name of the variable
-            variable_type: Type of the variable (Boolean, Integer, Float, Vector, StructName, StructName[], Delegate, etc.)
+            variable_type: Type of the variable (Boolean, Integer, Float, Vector, StructName, StructName[], Delegate, Class&lt;ClassName&gt;, etc.)
             is_exposed: Whether to expose the variable to the editor
 
         Returns:
@@ -143,6 +143,15 @@ def register_blueprint_tools(mcp: FastMCP):
                 blueprint_name="BP_GameMode",
                 variable_name="PlayerPawnClass",
                 variable_type="Game/Blueprints/BP_PlayerPawn",
+                is_exposed=True
+            )
+
+            # Add a class reference variable for UserWidget (can hold any widget blueprint class)
+            add_blueprint_variable(
+                ctx,
+                blueprint_name="BP_UIController",
+                variable_name="DialogWidgetClass",
+                variable_type="Class&lt;UserWidget&gt;",
                 is_exposed=True
             )
         """

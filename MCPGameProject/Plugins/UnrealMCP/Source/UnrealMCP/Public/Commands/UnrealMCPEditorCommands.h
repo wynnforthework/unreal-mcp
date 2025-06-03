@@ -32,4 +32,11 @@ private:
     // Editor viewport commands
     TSharedPtr<FJsonObject> HandleFocusViewport(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleTakeScreenshot(const TSharedPtr<FJsonObject>& Params);
+
+    // Asset discovery commands
+    TSharedPtr<FJsonObject> HandleFindAssetsByType(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleFindAssetsByName(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleFindWidgetBlueprints(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleFindBlueprints(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleFindDataTables(const TSharedPtr<FJsonObject>& Params);
 }; 

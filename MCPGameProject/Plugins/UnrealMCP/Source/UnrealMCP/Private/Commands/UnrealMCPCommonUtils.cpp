@@ -1306,3 +1306,391 @@ bool FUnrealMCPCommonUtils::CallFunctionByName(UObject* Target, const FString& F
     Target->ProcessEvent(Function, Params);
     return true;
 }
+
+// ==================== Asset Discovery Implementations ====================
+
+TArray<FString> FUnrealMCPCommonUtils::FindAssetsByType(const FString& AssetType, const FString& SearchPath)
+{
+    TArray<FString> FoundAssets;
+    
+    // Get the Asset Registry
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+    
+    // Create filter for asset type
+    FARFilter Filter;
+    Filter.PackagePaths.Add(FName(*SearchPath));
+    Filter.bRecursivePaths = true;
+    Filter.ClassPaths.Add(FTopLevelAssetPath(*AssetType));
+    
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+    
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        FoundAssets.Add(AssetData.GetSoftObjectPath().ToString());
+    }
+    
+    UE_LOG(LogTemp, Display, TEXT("Found %d assets of type '%s' in path '%s'"), FoundAssets.Num(), *AssetType, *SearchPath);
+    return FoundAssets;
+}
+
+TArray<FString> FUnrealMCPCommonUtils::FindAssetsByName(const FString& AssetName, const FString& SearchPath)
+{
+    TArray<FString> FoundAssets;
+    
+    // Get the Asset Registry
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+    
+    // Create filter for search path
+    FARFilter Filter;
+    Filter.PackagePaths.Add(FName(*SearchPath));
+    Filter.bRecursivePaths = true;
+    
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+    
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        FString AssetBaseName = FPaths::GetBaseFilename(AssetData.AssetName.ToString());
+        if (AssetBaseName.Contains(AssetName, ESearchCase::IgnoreCase) || 
+            AssetData.AssetName.ToString().Contains(AssetName, ESearchCase::IgnoreCase))
+        {
+            FoundAssets.Add(AssetData.GetSoftObjectPath().ToString());
+        }
+    }
+    
+    UE_LOG(LogTemp, Display, TEXT("Found %d assets matching name '%s' in path '%s'"), FoundAssets.Num(), *AssetName, *SearchPath);
+    return FoundAssets;
+}
+
+TArray<FString> FUnrealMCPCommonUtils::FindWidgetBlueprints(const FString& WidgetName, const FString& SearchPath)
+{
+    TArray<FString> FoundWidgets;
+    
+    // Get the Asset Registry
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+    
+    // Create filter for Widget Blueprints
+    FARFilter Filter;
+    Filter.PackagePaths.Add(FName(*SearchPath));
+    Filter.bRecursivePaths = true;
+    Filter.ClassPaths.Add(FTopLevelAssetPath(TEXT("/Script/UMGEditor"), TEXT("WidgetBlueprint")));
+    
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+    
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (WidgetName.IsEmpty() || 
+            AssetData.AssetName.ToString().Contains(WidgetName, ESearchCase::IgnoreCase))
+        {
+            FoundWidgets.Add(AssetData.GetSoftObjectPath().ToString());
+        }
+    }
+    
+    UE_LOG(LogTemp, Display, TEXT("Found %d widget blueprints matching '%s' in path '%s'"), FoundWidgets.Num(), *WidgetName, *SearchPath);
+    return FoundWidgets;
+}
+
+TArray<FString> FUnrealMCPCommonUtils::FindBlueprints(const FString& BlueprintName, const FString& SearchPath)
+{
+    TArray<FString> FoundBlueprints;
+    
+    // Get the Asset Registry
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+    
+    // Create filter for Blueprints
+    FARFilter Filter;
+    Filter.PackagePaths.Add(FName(*SearchPath));
+    Filter.bRecursivePaths = true;
+    Filter.ClassPaths.Add(FTopLevelAssetPath(TEXT("/Script/Engine"), TEXT("Blueprint")));
+    
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+    
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (BlueprintName.IsEmpty() || 
+            AssetData.AssetName.ToString().Contains(BlueprintName, ESearchCase::IgnoreCase))
+        {
+            FoundBlueprints.Add(AssetData.GetSoftObjectPath().ToString());
+        }
+    }
+    
+    UE_LOG(LogTemp, Display, TEXT("Found %d blueprints matching '%s' in path '%s'"), FoundBlueprints.Num(), *BlueprintName, *SearchPath);
+    return FoundBlueprints;
+}
+
+TArray<FString> FUnrealMCPCommonUtils::FindDataTables(const FString& TableName, const FString& SearchPath)
+{
+    TArray<FString> FoundTables;
+    
+    // Get the Asset Registry
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+    
+    // Create filter for Data Tables
+    FARFilter Filter;
+    Filter.PackagePaths.Add(FName(*SearchPath));
+    Filter.bRecursivePaths = true;
+    Filter.ClassPaths.Add(FTopLevelAssetPath(TEXT("/Script/Engine"), TEXT("DataTable")));
+    
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+    
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (TableName.IsEmpty() || 
+            AssetData.AssetName.ToString().Contains(TableName, ESearchCase::IgnoreCase))
+        {
+            FoundTables.Add(AssetData.GetSoftObjectPath().ToString());
+        }
+    }
+    
+    UE_LOG(LogTemp, Display, TEXT("Found %d data tables matching '%s' in path '%s'"), FoundTables.Num(), *TableName, *SearchPath);
+    return FoundTables;
+}
+
+UClass* FUnrealMCPCommonUtils::FindWidgetClass(const FString& WidgetPath)
+{
+    UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Searching for widget class: %s"), *WidgetPath);
+    
+    // Strategy 1: Direct class loading if path looks like a class path
+    if (WidgetPath.Contains(TEXT("_C")) || WidgetPath.StartsWith(TEXT("/Script/")))
+    {
+        UClass* DirectClass = LoadObject<UClass>(nullptr, *WidgetPath);
+        if (DirectClass && DirectClass->IsChildOf(UUserWidget::StaticClass()))
+        {
+            UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Found class via direct loading: %s"), *DirectClass->GetName());
+            return DirectClass;
+        }
+    }
+    
+    // Strategy 2: Asset-based loading
+    UBlueprint* WidgetBlueprint = FindWidgetBlueprint(WidgetPath);
+    if (WidgetBlueprint && WidgetBlueprint->GeneratedClass)
+    {
+        UClass* GeneratedClass = WidgetBlueprint->GeneratedClass;
+        if (GeneratedClass->IsChildOf(UUserWidget::StaticClass()))
+        {
+            UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Found class via blueprint: %s"), *GeneratedClass->GetName());
+            return GeneratedClass;
+        }
+    }
+    
+    // Strategy 3: Search using asset discovery
+    TArray<FString> CommonPaths = GetCommonAssetSearchPaths(WidgetPath);
+    for (const FString& SearchPath : CommonPaths)
+    {
+        UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Trying search path: %s"), *SearchPath);
+        
+        // Try loading as blueprint asset first
+        if (UEditorAssetLibrary::DoesAssetExist(SearchPath))
+        {
+            UObject* Asset = UEditorAssetLibrary::LoadAsset(SearchPath);
+            if (UBlueprint* BP = Cast<UBlueprint>(Asset))
+            {
+                if (BP->GeneratedClass && BP->GeneratedClass->IsChildOf(UUserWidget::StaticClass()))
+                {
+                    UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Found widget class via asset search: %s"), *BP->GeneratedClass->GetName());
+                    return BP->GeneratedClass;
+                }
+            }
+        }
+        
+        // Try loading as class with _C suffix
+        FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *SearchPath, *FPaths::GetBaseFilename(SearchPath));
+        UClass* Class = LoadObject<UClass>(nullptr, *ClassPath);
+        if (Class && Class->IsChildOf(UUserWidget::StaticClass()))
+        {
+            UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Found widget class via class path: %s"), *Class->GetName());
+            return Class;
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("FindWidgetClass: Could not find widget class for: %s"), *WidgetPath);
+    return nullptr;
+}
+
+UBlueprint* FUnrealMCPCommonUtils::FindWidgetBlueprint(const FString& WidgetPath)
+{
+    UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Searching for widget blueprint: %s"), *WidgetPath);
+    
+    // Strategy 1: Direct asset loading
+    if (UEditorAssetLibrary::DoesAssetExist(WidgetPath))
+    {
+        UObject* Asset = UEditorAssetLibrary::LoadAsset(WidgetPath);
+        if (UBlueprint* BP = Cast<UBlueprint>(Asset))
+        {
+            UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found blueprint via direct loading: %s"), *BP->GetName());
+            return BP;
+        }
+    }
+    
+    // Strategy 2: Search using common paths
+    TArray<FString> CommonPaths = GetCommonAssetSearchPaths(WidgetPath);
+    for (const FString& SearchPath : CommonPaths)
+    {
+        UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Trying search path: %s"), *SearchPath);
+        
+        if (UEditorAssetLibrary::DoesAssetExist(SearchPath))
+        {
+            UObject* Asset = UEditorAssetLibrary::LoadAsset(SearchPath);
+            if (UBlueprint* BP = Cast<UBlueprint>(Asset))
+            {
+                UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found blueprint via asset search: %s"), *BP->GetName());
+                return BP;
+            }
+        }
+    }
+    
+    // Strategy 3: Use asset registry search
+    TArray<FString> FoundWidgets = FindWidgetBlueprints(FPaths::GetBaseFilename(WidgetPath));
+    for (const FString& FoundPath : FoundWidgets)
+    {
+        UObject* Asset = UEditorAssetLibrary::LoadAsset(FoundPath);
+        if (UBlueprint* BP = Cast<UBlueprint>(Asset))
+        {
+            UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found blueprint via registry search: %s"), *BP->GetName());
+            return BP;
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("FindWidgetBlueprint: Could not find widget blueprint for: %s"), *WidgetPath);
+    return nullptr;
+}
+
+UObject* FUnrealMCPCommonUtils::FindAssetByPath(const FString& AssetPath)
+{
+    UE_LOG(LogTemp, Display, TEXT("FindAssetByPath: Searching for asset: %s"), *AssetPath);
+    
+    if (UEditorAssetLibrary::DoesAssetExist(AssetPath))
+    {
+        UObject* Asset = UEditorAssetLibrary::LoadAsset(AssetPath);
+        if (Asset)
+        {
+            UE_LOG(LogTemp, Display, TEXT("FindAssetByPath: Found asset: %s"), *Asset->GetName());
+            return Asset;
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("FindAssetByPath: Could not find asset: %s"), *AssetPath);
+    return nullptr;
+}
+
+UObject* FUnrealMCPCommonUtils::FindAssetByName(const FString& AssetName, const FString& AssetType)
+{
+    UE_LOG(LogTemp, Display, TEXT("FindAssetByName: Searching for asset '%s' of type '%s'"), *AssetName, *AssetType);
+    
+    TArray<FString> FoundAssets;
+    if (!AssetType.IsEmpty())
+    {
+        FoundAssets = FindAssetsByType(AssetType);
+    }
+    else
+    {
+        FoundAssets = FindAssetsByName(AssetName);
+    }
+    
+    for (const FString& AssetPath : FoundAssets)
+    {
+        if (FPaths::GetBaseFilename(AssetPath).Contains(AssetName, ESearchCase::IgnoreCase))
+        {
+            UObject* Asset = FindAssetByPath(AssetPath);
+            if (Asset)
+            {
+                UE_LOG(LogTemp, Display, TEXT("FindAssetByName: Found matching asset: %s"), *Asset->GetName());
+                return Asset;
+            }
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("FindAssetByName: Could not find asset '%s'"), *AssetName);
+    return nullptr;
+}
+
+TArray<FString> FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(const FString& AssetName)
+{
+    TArray<FString> SearchPaths;
+    
+    // Clean the asset name
+    FString CleanName = NormalizeAssetPath(AssetName);
+    
+    // Remove common prefixes and suffixes for search
+    if (CleanName.StartsWith(TEXT("WBP_")))
+    {
+        CleanName = CleanName.RightChop(4);
+    }
+    if (CleanName.StartsWith(TEXT("BP_")))
+    {
+        CleanName = CleanName.RightChop(3);
+    }
+    
+    // Common widget directories
+    TArray<FString> CommonDirs = {
+        TEXT("/Game/Widgets/"),
+        TEXT("/Game/UI/"),
+        TEXT("/Game/UMG/"),
+        TEXT("/Game/Blueprints/Widgets/"),
+        TEXT("/Game/Blueprints/UI/"),
+        TEXT("/Game/Blueprints/"),
+        TEXT("/Game/")
+    };
+    
+    // Build search paths
+    for (const FString& Dir : CommonDirs)
+    {
+        // Original name
+        SearchPaths.Add(Dir + AssetName);
+        SearchPaths.Add(Dir + CleanName);
+        
+        // With WBP_ prefix
+        if (!AssetName.StartsWith(TEXT("WBP_")))
+        {
+            SearchPaths.Add(Dir + TEXT("WBP_") + AssetName);
+            SearchPaths.Add(Dir + TEXT("WBP_") + CleanName);
+        }
+        
+        // With BP_ prefix
+        if (!AssetName.StartsWith(TEXT("BP_")))
+        {
+            SearchPaths.Add(Dir + TEXT("BP_") + AssetName);
+            SearchPaths.Add(Dir + TEXT("BP_") + CleanName);
+        }
+    }
+    
+    return SearchPaths;
+}
+
+FString FUnrealMCPCommonUtils::NormalizeAssetPath(const FString& AssetPath)
+{
+    FString CleanPath = AssetPath;
+    CleanPath.TrimStartAndEndInline();
+    
+    // Remove leading slashes and Game/ prefix for normalization
+    if (CleanPath.StartsWith(TEXT("/")))
+    {
+        CleanPath.RemoveFromStart(TEXT("/"));
+    }
+    if (CleanPath.StartsWith(TEXT("Game/")))
+    {
+        CleanPath.RemoveFromStart(TEXT("Game/"));
+    }
+    
+    // Get just the filename if it's a full path
+    if (CleanPath.Contains(TEXT("/")))
+    {
+        CleanPath = FPaths::GetBaseFilename(CleanPath);
+    }
+    
+    return CleanPath;
+}
+
+bool FUnrealMCPCommonUtils::IsValidAssetPath(const FString& AssetPath)
+{
+    return UEditorAssetLibrary::DoesAssetExist(AssetPath);
+}
