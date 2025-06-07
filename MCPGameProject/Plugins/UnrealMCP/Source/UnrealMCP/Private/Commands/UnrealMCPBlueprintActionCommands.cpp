@@ -16,100 +16,162 @@
 #include "GameFramework/PlayerController.h"
 #include "Components/ActorComponent.h"
 
+// Blueprint Action Database includes
+#include "K2Node.h"
+#include "BlueprintActionDatabase.h"
+#include "BlueprintActionFilter.h"
+#include "K2Node_CallFunction.h"
+#include "K2Node_Event.h"
+#include "K2Node_VariableGet.h"
+#include "Engine/UserDefinedStruct.h"
+#include "Engine/UserDefinedEnum.h"
+#include "KismetCompiler.h"
+#include "BlueprintNodeSpawner.h"
+#include "Kismet/KismetMathLibrary.h"
+
+// For pin type analysis
+#include "EdGraph/EdGraphPin.h"
+#include "EdGraph/EdGraphSchema.h"
+
+// Additional includes for node creation
+#include "Commands/UnrealMCPCommonUtils.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/GameplayStatics.h"
+
 FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinType, const FString& PinSubCategory)
 {
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     TArray<TSharedPtr<FJsonValue>> ActionsArray;
     
-    // For now, provide some basic example actions based on pin type
-    TArray<FString> ExampleActions;
+    // Get the blueprint action database
+    FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+    FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
     
-    if (PinType.Equals(TEXT("object"), ESearchCase::IgnoreCase))
+    // Find matching actions based on pin type
+    for (const auto& ActionPair : ActionRegistry)
     {
-        ExampleActions.Add(TEXT("Cast to"));
-        ExampleActions.Add(TEXT("Is Valid"));
-        ExampleActions.Add(TEXT("Get Class"));
-        ExampleActions.Add(TEXT("Get Name"));
-        if (PinSubCategory.Equals(TEXT("Actor"), ESearchCase::IgnoreCase))
+        for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
         {
-            ExampleActions.Add(TEXT("Get Actor Location"));
-            ExampleActions.Add(TEXT("Set Actor Location"));
-            ExampleActions.Add(TEXT("Destroy Actor"));
-        }
-        else if (PinSubCategory.Equals(TEXT("Character"), ESearchCase::IgnoreCase))
-        {
-            ExampleActions.Add(TEXT("Get Velocity"));
-            ExampleActions.Add(TEXT("Jump"));
-            ExampleActions.Add(TEXT("Get Movement Component"));
-        }
-        else if (PinSubCategory.Equals(TEXT("PlayerController"), ESearchCase::IgnoreCase))
-        {
-            ExampleActions.Add(TEXT("Get Pawn"));
-            ExampleActions.Add(TEXT("Possess"));
-            ExampleActions.Add(TEXT("UnPossess"));
-        }
-    }
-    else if (PinType.Equals(TEXT("float"), ESearchCase::IgnoreCase))
-    {
-        ExampleActions.Add(TEXT("Add"));
-        ExampleActions.Add(TEXT("Subtract"));
-        ExampleActions.Add(TEXT("Multiply"));
-        ExampleActions.Add(TEXT("Divide"));
-        ExampleActions.Add(TEXT("Clamp"));
-        ExampleActions.Add(TEXT("Lerp"));
-    }
-    else if (PinType.Equals(TEXT("int"), ESearchCase::IgnoreCase) || PinType.Equals(TEXT("integer"), ESearchCase::IgnoreCase))
-    {
-        ExampleActions.Add(TEXT("Add"));
-        ExampleActions.Add(TEXT("Subtract"));
-        ExampleActions.Add(TEXT("Multiply"));
-        ExampleActions.Add(TEXT("Divide"));
-        ExampleActions.Add(TEXT("Modulo"));
-        ExampleActions.Add(TEXT("Random Integer"));
-    }
-    else if (PinType.Equals(TEXT("bool"), ESearchCase::IgnoreCase) || PinType.Equals(TEXT("boolean"), ESearchCase::IgnoreCase))
-    {
-        ExampleActions.Add(TEXT("AND"));
-        ExampleActions.Add(TEXT("OR"));
-        ExampleActions.Add(TEXT("NOT"));
-        ExampleActions.Add(TEXT("Branch"));
-    }
-    else if (PinType.Equals(TEXT("string"), ESearchCase::IgnoreCase))
-    {
-        ExampleActions.Add(TEXT("Append"));
-        ExampleActions.Add(TEXT("Contains"));
-        ExampleActions.Add(TEXT("Get Length"));
-        ExampleActions.Add(TEXT("To Upper"));
-        ExampleActions.Add(TEXT("To Lower"));
-    }
-    else if (PinType.Equals(TEXT("vector"), ESearchCase::IgnoreCase))
-    {
-        ExampleActions.Add(TEXT("Add"));
-        ExampleActions.Add(TEXT("Subtract"));
-        ExampleActions.Add(TEXT("Multiply"));
-        ExampleActions.Add(TEXT("Normalize"));
-        ExampleActions.Add(TEXT("Length"));
-        ExampleActions.Add(TEXT("Cross Product"));
-        ExampleActions.Add(TEXT("Dot Product"));
+            if (NodeSpawner && IsValid(NodeSpawner))
+            {
+                // Check if this action is relevant to the pin type
+                bool bRelevant = false;
+                
+                // For mathematical operators, check if it's from UKismetMathLibrary
+                if (PinType.Equals(TEXT("float"), ESearchCase::IgnoreCase) || 
+                    PinType.Equals(TEXT("int"), ESearchCase::IgnoreCase) || 
+                    PinType.Equals(TEXT("integer"), ESearchCase::IgnoreCase))
+                {
+                    if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
+                    {
+                        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                        {
+                            if (UFunction* Function = FunctionNode->GetTargetFunction())
+                            {
+                                if (Function->GetOwnerClass() == UKismetMathLibrary::StaticClass())
+                                {
+                                    bRelevant = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // For object types, check class compatibility
+                if (PinType.Equals(TEXT("object"), ESearchCase::IgnoreCase) && !PinSubCategory.IsEmpty())
+                {
+                    UClass* TargetClass = UClass::TryFindTypeSlow<UClass>(PinSubCategory);
+                    if (TargetClass)
+                    {
+                        if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
+                        {
+                            if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                            {
+                                if (UFunction* Function = FunctionNode->GetTargetFunction())
+                                {
+                                    if (Function->GetOwnerClass()->IsChildOf(TargetClass) || TargetClass->IsChildOf(Function->GetOwnerClass()))
+                                    {
+                                        bRelevant = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Default case - include some basic actions
+                if (!bRelevant && (PinType.Equals(TEXT("wildcard"), ESearchCase::IgnoreCase) || PinType.IsEmpty()))
+                {
+                    bRelevant = true;
+                }
+                
+                if (bRelevant)
+                {
+                    TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
+                    
+                    // Get what information we can from the node spawner
+                    FString ActionName = TEXT("Unknown Action");
+                    FString Category = TEXT("Unknown");
+                    FString Tooltip = TEXT("");
+                    FString Keywords = TEXT("");
+                    
+                    if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
+                    {
+                        if (UK2Node* K2Node = Cast<UK2Node>(TemplateNode))
+                        {
+                            ActionName = K2Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+                            if (ActionName.IsEmpty())
+                            {
+                                ActionName = K2Node->GetClass()->GetName();
+                            }
+                            
+                            // Try to get function information if it's a function call
+                            if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(K2Node))
+                            {
+                                if (UFunction* Function = FunctionNode->GetTargetFunction())
+                                {
+                                    ActionName = Function->GetName();
+                                    Category = Function->GetOwnerClass()->GetName();
+                                    
+                                    // Mark math functions
+                                    if (Function->GetOwnerClass() == UKismetMathLibrary::StaticClass())
+                                    {
+                                        Category = TEXT("Math");
+                                        ActionObj->SetBoolField(TEXT("is_math_function"), true);
+                                    }
+                                    
+                                    ActionObj->SetStringField(TEXT("function_name"), Function->GetName());
+                                    ActionObj->SetStringField(TEXT("class_name"), Function->GetOwnerClass()->GetName());
+                                }
+                            }
     }
     else
     {
-        // Generic actions for unknown pin types
-        ExampleActions.Add(TEXT("Set"));
-        ExampleActions.Add(TEXT("Get"));
-        ExampleActions.Add(TEXT("Convert"));
-    }
-    
-    // Create action objects
-    for (const FString& ActionName : ExampleActions)
-    {
-        TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
-        ActionObj->SetStringField(TEXT("title"), ActionName);
-        ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("%s for %s pins"), *ActionName, *PinType));
-        ActionObj->SetStringField(TEXT("category"), TEXT("Math"));
-        ActionObj->SetStringField(TEXT("keywords"), FString::Printf(TEXT("%s %s"), *PinType, *ActionName));
+                            ActionName = TemplateNode->GetClass()->GetName();
+                        }
+                    }
+                    
+                    ActionObj->SetStringField(TEXT("title"), ActionName);
+                    ActionObj->SetStringField(TEXT("tooltip"), Tooltip);
+                    ActionObj->SetStringField(TEXT("category"), Category);
+                    ActionObj->SetStringField(TEXT("keywords"), Keywords);
+                    
+                    ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
+                    
+                    // Limit results to avoid overwhelming output
+                    if (ActionsArray.Num() >= 100)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
         
-        ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
+        if (ActionsArray.Num() >= 100)
+        {
+            break;
+        }
     }
     
     ResultObj->SetBoolField(TEXT("success"), true);
@@ -117,7 +179,7 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
     ResultObj->SetStringField(TEXT("pin_subcategory"), PinSubCategory);
     ResultObj->SetArrayField(TEXT("actions"), ActionsArray);
     ResultObj->SetNumberField(TEXT("action_count"), ActionsArray.Num());
-    ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Found %d example actions for pin type '%s'"), ActionsArray.Num(), *PinType));
+    ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Found %d actions for pin type '%s'"), ActionsArray.Num(), *PinType));
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
@@ -154,72 +216,103 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
     
     if (TargetClass)
     {
-        // Generate example actions based on class type
-        TArray<FString> ClassActions;
+        // Get the blueprint action database
+        FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+        FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
         
-        if (TargetClass->IsChildOf<AActor>())
+        // Find actions relevant to this class
+        for (const auto& ActionPair : ActionRegistry)
         {
-            ClassActions.Add(TEXT("Get Actor Location"));
-            ClassActions.Add(TEXT("Set Actor Location"));
-            ClassActions.Add(TEXT("Get Actor Rotation"));
-            ClassActions.Add(TEXT("Set Actor Rotation"));
-            ClassActions.Add(TEXT("Destroy Actor"));
-            ClassActions.Add(TEXT("Get Owner"));
-            ClassActions.Add(TEXT("Get World"));
-        }
-        
-        if (TargetClass->IsChildOf<APawn>())
-        {
-            ClassActions.Add(TEXT("Get Controller"));
-            ClassActions.Add(TEXT("Get Movement Component"));
-            ClassActions.Add(TEXT("Add Movement Input"));
-        }
-        
-        if (TargetClass->IsChildOf<ACharacter>())
-        {
-            ClassActions.Add(TEXT("Jump"));
-            ClassActions.Add(TEXT("Stop Jumping"));
-            ClassActions.Add(TEXT("Get Velocity"));
-            ClassActions.Add(TEXT("Get Character Movement"));
-        }
-        
-        if (TargetClass->IsChildOf<APlayerController>())
-        {
-            ClassActions.Add(TEXT("Get Pawn"));
-            ClassActions.Add(TEXT("Possess"));
-            ClassActions.Add(TEXT("UnPossess"));
-            ClassActions.Add(TEXT("Get Player State"));
-        }
-        
-        if (TargetClass->IsChildOf<UActorComponent>())
-        {
-            ClassActions.Add(TEXT("Get Owner"));
-            ClassActions.Add(TEXT("Get World"));
-            ClassActions.Add(TEXT("Set Active"));
-        }
-        
-        // Add some generic UObject actions
-        ClassActions.Add(TEXT("Get Class"));
-        ClassActions.Add(TEXT("Get Name"));
-        ClassActions.Add(TEXT("Is Valid"));
-        
-        // Create action objects
-        for (const FString& ActionName : ClassActions)
-        {
-            TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
-            ActionObj->SetStringField(TEXT("title"), ActionName);
-            ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("%s function for %s"), *ActionName, *ClassName));
-            ActionObj->SetStringField(TEXT("category"), TEXT("Call Function"));
-            ActionObj->SetStringField(TEXT("keywords"), FString::Printf(TEXT("%s %s"), *ClassName, *ActionName));
+            for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
+            {
+                if (NodeSpawner && IsValid(NodeSpawner))
+                {
+                    bool bRelevant = false;
+                    
+                    if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
+                    {
+                        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                        {
+                            if (UFunction* Function = FunctionNode->GetTargetFunction())
+                            {
+                                if (Function->GetOwnerClass() == TargetClass || 
+                                    Function->GetOwnerClass()->IsChildOf(TargetClass) || 
+                                    TargetClass->IsChildOf(Function->GetOwnerClass()))
+                                {
+                                    bRelevant = true;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (bRelevant)
+                    {
+                        TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
+                        
+                        FString ActionName = TEXT("Unknown Action");
+                        FString Category = TargetClass->GetName();
+                        FString Tooltip = TEXT("");
+                        FString Keywords = TEXT("");
+                        
+                        if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
+                        {
+                            if (UK2Node* K2Node = Cast<UK2Node>(TemplateNode))
+                            {
+                                ActionName = K2Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+                                if (ActionName.IsEmpty())
+                                {
+                                    ActionName = K2Node->GetClass()->GetName();
+                                }
+                                
+                                if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(K2Node))
+                                {
+                                    if (UFunction* Function = FunctionNode->GetTargetFunction())
+                                    {
+                                        ActionName = Function->GetName();
+                                        ActionObj->SetStringField(TEXT("function_name"), Function->GetName());
+                                        ActionObj->SetStringField(TEXT("class_name"), Function->GetOwnerClass()->GetName());
+                                        
+                                        // Check if it's a math function
+                                        if (Function->GetOwnerClass() == UKismetMathLibrary::StaticClass())
+                                        {
+                                            ActionObj->SetBoolField(TEXT("is_math_function"), true);
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                ActionName = TemplateNode->GetClass()->GetName();
+                            }
+                        }
+                        
+                        ActionObj->SetStringField(TEXT("title"), ActionName);
+                        ActionObj->SetStringField(TEXT("tooltip"), Tooltip);
+                        ActionObj->SetStringField(TEXT("category"), Category);
+                        ActionObj->SetStringField(TEXT("keywords"), Keywords);
+                        
+                        ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
+                        
+                        // Limit results
+                        if (ActionsArray.Num() >= 100)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
             
-            ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
+            if (ActionsArray.Num() >= 100)
+            {
+                break;
+            }
         }
         
         ResultObj->SetBoolField(TEXT("success"), true);
         ResultObj->SetStringField(TEXT("class_name"), ClassName);
         ResultObj->SetArrayField(TEXT("actions"), ActionsArray);
         ResultObj->SetNumberField(TEXT("action_count"), ActionsArray.Num());
-        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Found %d example actions for class '%s'"), ActionsArray.Num(), *ClassName));
+        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Found %d actions for class '%s'"), ActionsArray.Num(), *ClassName));
     }
     else
     {
@@ -278,93 +371,117 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
             CurrentClass = CurrentClass->GetSuperClass();
         }
         
-        // Generate comprehensive actions based on entire hierarchy
-        TArray<FString> HierarchyActions;
+        // Get the blueprint action database
+        FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+        FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
         
-        // Add actions for each class in hierarchy
-        for (UClass* HierarchyClass : ClassHierarchy)
+        // Find actions relevant to this class hierarchy
+        TSet<FString> UniqueActionNames; // To avoid duplicates
+        for (const auto& ActionPair : ActionRegistry)
         {
-            if (HierarchyClass->IsChildOf<AActor>())
+            for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
             {
-                HierarchyActions.Add(TEXT("Get Actor Location"));
-                HierarchyActions.Add(TEXT("Set Actor Location"));
-                HierarchyActions.Add(TEXT("Get Actor Rotation"));
-                HierarchyActions.Add(TEXT("Set Actor Rotation"));
-                HierarchyActions.Add(TEXT("Destroy Actor"));
-                HierarchyActions.Add(TEXT("Get Owner"));
-                HierarchyActions.Add(TEXT("Get World"));
-                HierarchyActions.Add(TEXT("Set Actor Hidden In Game"));
-                HierarchyActions.Add(TEXT("Set Actor Enable Collision"));
+                if (NodeSpawner && IsValid(NodeSpawner))
+                {
+                    bool bRelevant = false;
+                    
+                    if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
+                    {
+                        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                        {
+                            if (UFunction* Function = FunctionNode->GetTargetFunction())
+                            {
+                                for (UClass* HierarchyClass : ClassHierarchy)
+                                {
+                                    if (Function->GetOwnerClass() == HierarchyClass || 
+                                        Function->GetOwnerClass()->IsChildOf(HierarchyClass) || 
+                                        HierarchyClass->IsChildOf(Function->GetOwnerClass()))
+                                    {
+                                        bRelevant = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (bRelevant)
+                    {
+                        FString ActionName = TEXT("Unknown Action");
+                        if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
+                        {
+                            if (UK2Node* K2Node = Cast<UK2Node>(TemplateNode))
+                            {
+                                ActionName = K2Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+                                if (ActionName.IsEmpty())
+                                {
+                                    ActionName = K2Node->GetClass()->GetName();
+                                }
+                                
+                                if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(K2Node))
+                                {
+                                    if (UFunction* Function = FunctionNode->GetTargetFunction())
+                                    {
+                                        ActionName = Function->GetName();
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                ActionName = TemplateNode->GetClass()->GetName();
+                            }
+                        }
+                        
+                        // Skip if we've already seen this action
+                        if (UniqueActionNames.Contains(ActionName))
+                        {
+                            continue;
+                        }
+                        UniqueActionNames.Add(ActionName);
+                        
+                        TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
+                        
+                        FString CategoryName = TargetClass->GetName();
+                        CategoryCounts.FindOrAdd(CategoryName)++;
+                        
+                        ActionObj->SetStringField(TEXT("title"), ActionName);
+                        ActionObj->SetStringField(TEXT("tooltip"), TEXT(""));
+                        ActionObj->SetStringField(TEXT("category"), CategoryName);
+                        ActionObj->SetStringField(TEXT("keywords"), TEXT(""));
+                        
+                        if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
+                        {
+                            if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                            {
+                                if (UFunction* Function = FunctionNode->GetTargetFunction())
+                                {
+                                    ActionObj->SetStringField(TEXT("function_name"), Function->GetName());
+                                    ActionObj->SetStringField(TEXT("class_name"), Function->GetOwnerClass()->GetName());
+                                    
+                                    // Check if it's a math function
+                                    if (Function->GetOwnerClass() == UKismetMathLibrary::StaticClass())
+                                    {
+                                        ActionObj->SetBoolField(TEXT("is_math_function"), true);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
+                        
+                        // Limit results
+                        if (ActionsArray.Num() >= 200)
+                        {
+                            break;
+                        }
+                    }
+                }
             }
             
-            if (HierarchyClass->IsChildOf<APawn>())
+            if (ActionsArray.Num() >= 200)
             {
-                HierarchyActions.Add(TEXT("Get Controller"));
-                HierarchyActions.Add(TEXT("Get Movement Component"));
-                HierarchyActions.Add(TEXT("Add Movement Input"));
-                HierarchyActions.Add(TEXT("Add Controller Pitch Input"));
-                HierarchyActions.Add(TEXT("Add Controller Yaw Input"));
+                break;
             }
-            
-            if (HierarchyClass->IsChildOf<ACharacter>())
-            {
-                HierarchyActions.Add(TEXT("Jump"));
-                HierarchyActions.Add(TEXT("Stop Jumping"));
-                HierarchyActions.Add(TEXT("Get Velocity"));
-                HierarchyActions.Add(TEXT("Get Character Movement"));
-                HierarchyActions.Add(TEXT("Launch Character"));
-            }
-            
-            if (HierarchyClass->IsChildOf<APlayerController>())
-            {
-                HierarchyActions.Add(TEXT("Get Pawn"));
-                HierarchyActions.Add(TEXT("Possess"));
-                HierarchyActions.Add(TEXT("UnPossess"));
-                HierarchyActions.Add(TEXT("Get Player State"));
-                HierarchyActions.Add(TEXT("Client Travel"));
-            }
-        }
-        
-        // Add generic UObject actions
-        HierarchyActions.Add(TEXT("Get Class"));
-        HierarchyActions.Add(TEXT("Get Name"));
-        HierarchyActions.Add(TEXT("Is Valid"));
-        HierarchyActions.Add(TEXT("Get Outer"));
-        
-        // Remove duplicates
-        TSet<FString> UniqueActions(HierarchyActions);
-        HierarchyActions = UniqueActions.Array();
-        
-        // Create action objects and count categories
-        for (const FString& ActionName : HierarchyActions)
-        {
-            FString CategoryName;
-            if (ActionName.Contains(TEXT("Get")))
-            {
-                CategoryName = TEXT("Getter");
-            }
-            else if (ActionName.Contains(TEXT("Set")))
-            {
-                CategoryName = TEXT("Setter");
-            }
-            else if (ActionName.Contains(TEXT("Add")))
-            {
-                CategoryName = TEXT("Input");
-            }
-            else
-            {
-                CategoryName = TEXT("Function");
-            }
-            
-            CategoryCounts.FindOrAdd(CategoryName)++;
-            
-            TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
-            ActionObj->SetStringField(TEXT("title"), ActionName);
-            ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("%s function for %s hierarchy"), *ActionName, *ClassName));
-            ActionObj->SetStringField(TEXT("category"), CategoryName);
-            ActionObj->SetStringField(TEXT("keywords"), FString::Printf(TEXT("%s %s"), *ClassName, *ActionName));
-            
-            ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
         }
         
         // Build category counts object
@@ -541,6 +658,188 @@ FString UUnrealMCPBlueprintActionCommands::GetNodePinInfo(const FString& NodeNam
             ResultObj->SetArrayField(TEXT("available_pins"), AvailablePins);
         }
     }
+    
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+    
+    return OutputString;
+}
+
+FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition)
+{
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    
+    // Find the blueprint
+    UBlueprint* Blueprint = nullptr;
+    
+    // Find blueprint by searching for it in the asset registry
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    TArray<FAssetData> BlueprintAssets;
+    AssetRegistryModule.Get().GetAssetsByClass(UBlueprint::StaticClass()->GetClassPathName(), BlueprintAssets);
+    
+    for (const FAssetData& AssetData : BlueprintAssets)
+    {
+        FString AssetName = AssetData.AssetName.ToString();
+        if (AssetName.Contains(BlueprintName) || BlueprintName.Contains(AssetName))
+        {
+            Blueprint = Cast<UBlueprint>(AssetData.GetAsset());
+            if (Blueprint)
+                break;
+        }
+    }
+    
+    if (!Blueprint)
+    {
+        ResultObj->SetBoolField(TEXT("success"), false);
+        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
+        
+        FString OutputString;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+        return OutputString;
+    }
+    
+    // Get the event graph
+    UEdGraph* EventGraph = nullptr;
+    for (UEdGraph* Graph : Blueprint->UbergraphPages)
+    {
+        if (Graph && Graph->GetFName() == "EventGraph")
+        {
+            EventGraph = Graph;
+            break;
+        }
+    }
+    
+    if (!EventGraph)
+    {
+        ResultObj->SetBoolField(TEXT("success"), false);
+        ResultObj->SetStringField(TEXT("message"), TEXT("Could not find EventGraph in blueprint"));
+        
+        FString OutputString;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+        return OutputString;
+    }
+    
+    // Try to find the function and create the node
+    UFunction* TargetFunction = nullptr;
+    UClass* TargetClass = nullptr;
+    
+    // If a class name is provided, try to find it
+    if (!ClassName.IsEmpty())
+    {
+        TargetClass = UClass::TryFindTypeSlow<UClass>(ClassName);
+        if (!TargetClass)
+        {
+            // Try common prefixes
+            FString TestClassName = ClassName;
+            if (!TestClassName.StartsWith(TEXT("U")) && !TestClassName.StartsWith(TEXT("A")))
+            {
+                TestClassName = TEXT("U") + ClassName;
+                TargetClass = UClass::TryFindTypeSlow<UClass>(TestClassName);
+            }
+        }
+        
+        if (TargetClass)
+        {
+            TargetFunction = TargetClass->FindFunctionByName(*FunctionName);
+        }
+    }
+    else
+    {
+        // Try to find the function in common math/utility classes
+        TArray<UClass*> CommonClasses = {
+            UKismetMathLibrary::StaticClass(),
+            UKismetSystemLibrary::StaticClass(),
+            UGameplayStatics::StaticClass()
+        };
+        
+        for (UClass* TestClass : CommonClasses)
+        {
+            TargetFunction = TestClass->FindFunctionByName(*FunctionName);
+            if (TargetFunction)
+            {
+                TargetClass = TestClass;
+                break;
+            }
+        }
+    }
+    
+    if (!TargetFunction)
+    {
+        ResultObj->SetBoolField(TEXT("success"), false);
+        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Function '%s' not found"), *FunctionName));
+        
+        FString OutputString;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+        return OutputString;
+    }
+    
+    // Create the function call node
+    UK2Node_CallFunction* NewNode = NewObject<UK2Node_CallFunction>(EventGraph);
+    NewNode->FunctionReference.SetExternalMember(TargetFunction->GetFName(), TargetClass);
+    
+    // Parse node position if provided
+    FVector2D Position(0.0f, 0.0f);
+    if (!NodePosition.IsEmpty())
+    {
+        // Try to parse position as "[x, y]" or "x,y"
+        FString CleanPosition = NodePosition;
+        CleanPosition = CleanPosition.Replace(TEXT("["), TEXT(""));
+        CleanPosition = CleanPosition.Replace(TEXT("]"), TEXT(""));
+        
+        TArray<FString> Coords;
+        CleanPosition.ParseIntoArray(Coords, TEXT(","));
+        
+        if (Coords.Num() == 2)
+        {
+            Position.X = FCString::Atof(*Coords[0].TrimStartAndEnd());
+            Position.Y = FCString::Atof(*Coords[1].TrimStartAndEnd());
+        }
+    }
+    
+    // Add the node to the graph
+    EventGraph->AddNode(NewNode, true, true);
+    NewNode->NodePosX = Position.X;
+    NewNode->NodePosY = Position.Y;
+    NewNode->CreateNewGuid();
+    NewNode->PostPlacedNewNode();
+    NewNode->AllocateDefaultPins();
+    
+    // Mark blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    
+    // Create result with node information
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
+    ResultObj->SetStringField(TEXT("function_name"), FunctionName);
+    ResultObj->SetStringField(TEXT("class_name"), TargetClass ? TargetClass->GetName() : TEXT(""));
+    ResultObj->SetStringField(TEXT("node_id"), NewNode->NodeGuid.ToString());
+    ResultObj->SetStringField(TEXT("node_title"), NewNode->GetNodeTitle(ENodeTitleType::ListView).ToString());
+    
+    // Add position info
+    TSharedPtr<FJsonObject> PositionObj = MakeShared<FJsonObject>();
+    PositionObj->SetNumberField(TEXT("x"), Position.X);
+    PositionObj->SetNumberField(TEXT("y"), Position.Y);
+    ResultObj->SetObjectField(TEXT("position"), PositionObj);
+    
+    // Add pin information
+    TArray<TSharedPtr<FJsonValue>> PinsArray;
+    for (UEdGraphPin* Pin : NewNode->Pins)
+    {
+        TSharedPtr<FJsonObject> PinObj = MakeShared<FJsonObject>();
+        PinObj->SetStringField(TEXT("name"), Pin->PinName.ToString());
+        PinObj->SetStringField(TEXT("type"), Pin->PinType.PinCategory.ToString());
+        PinObj->SetStringField(TEXT("direction"), Pin->Direction == EGPD_Input ? TEXT("input") : TEXT("output"));
+        PinObj->SetBoolField(TEXT("is_execution"), Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec);
+        PinsArray.Add(MakeShared<FJsonValueObject>(PinObj));
+    }
+    ResultObj->SetArrayField(TEXT("pins"), PinsArray);
+    
+    ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Successfully created node for function '%s' from class '%s'"), 
+                                                               *FunctionName, TargetClass ? *TargetClass->GetName() : TEXT("Unknown")));
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);

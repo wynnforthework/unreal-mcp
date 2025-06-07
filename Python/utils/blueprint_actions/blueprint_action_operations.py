@@ -5,7 +5,7 @@ This module provides utility functions for discovering Blueprint actions using t
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 from mcp.server.fastmcp import Context
 from utils.unreal_connection_utils import send_unreal_command
 
@@ -54,4 +54,25 @@ def get_node_pin_info(
         "node_name": node_name,
         "pin_name": pin_name
     }
-    return send_unreal_command("get_node_pin_info", params) 
+    return send_unreal_command("get_node_pin_info", params)
+
+def create_node_by_action_name(
+    ctx: Context,
+    blueprint_name: str,
+    function_name: str,
+    class_name: str = "",
+    node_position: List[float] = None
+) -> Dict[str, Any]:
+    """Implementation for creating a blueprint node by discovered action/function name."""
+    params = {
+        "blueprint_name": blueprint_name,
+        "function_name": function_name
+    }
+    
+    if class_name:
+        params["class_name"] = class_name
+        
+    if node_position is not None:
+        params["node_position"] = node_position
+    
+    return send_unreal_command("create_node_by_action_name", params) 

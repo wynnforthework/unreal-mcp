@@ -47,4 +47,15 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Unreal MCP Blueprint Actions")
     static FString GetNodePinInfo(const FString& NodeName, const FString& PinName);
+
+    /**
+     * Create a blueprint node by discovered action/function name
+     * @param BlueprintName - Name of the target Blueprint
+     * @param FunctionName - Name of the function to create a node for (from discovered actions)
+     * @param ClassName - Optional class name if the function is from a specific class
+     * @param NodePosition - Optional [X, Y] position for the node
+     * @return JSON string containing node creation result
+     */
+    UFUNCTION(BlueprintCallable, Category = "Unreal MCP Blueprint Actions")
+    static FString CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName = TEXT(""), const FString& NodePosition = TEXT(""));
 }; 
