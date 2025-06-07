@@ -36,6 +36,9 @@
 #include "EditorAssetLibrary.h"
 #include "K2Node_ConstructObjectFromClass.h"
 
+// Forward declaration
+static UEdGraphNode* CreateSpecialNodeByName(const FString& NodeType, UEdGraph* Graph);
+
 // No longer needed as we're using LogTemp
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
 
@@ -245,6 +248,67 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintGetSe
     return ResultObj;
 }
 
+// Helper function to extract pin information from a node
+static TSharedPtr<FJsonObject> CreateNodeWithPinInfo(UEdGraphNode* Node)
+{
+    if (!Node)
+    {
+        return nullptr;
+    }
+    
+    TSharedPtr<FJsonObject> NodeInfo = MakeShared<FJsonObject>();
+    NodeInfo->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
+    NodeInfo->SetStringField(TEXT("node_type"), Node->GetClass()->GetName());
+    
+    // Get node title/name
+    FText NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView);
+    NodeInfo->SetStringField(TEXT("node_title"), NodeTitle.ToString());
+    
+    // Get all pins with detailed information
+    TArray<TSharedPtr<FJsonValue>> PinsArray;
+    TArray<TSharedPtr<FJsonValue>> OutputPinsArray;
+    TArray<TSharedPtr<FJsonValue>> InputPinsArray;
+    
+    for (UEdGraphPin* Pin : Node->Pins)
+    {
+        if (Pin)
+        {
+            TSharedPtr<FJsonObject> PinInfo = MakeShared<FJsonObject>();
+            PinInfo->SetStringField(TEXT("pin_id"), Pin->PinId.ToString());
+            PinInfo->SetStringField(TEXT("pin_name"), Pin->PinName.ToString());
+            PinInfo->SetStringField(TEXT("pin_type"), Pin->PinType.PinCategory.ToString());
+            PinInfo->SetBoolField(TEXT("is_input"), Pin->Direction == EGPD_Input);
+            PinInfo->SetBoolField(TEXT("is_output"), Pin->Direction == EGPD_Output);
+            PinInfo->SetStringField(TEXT("default_value"), Pin->DefaultValue);
+            
+            // Add subcategory if available
+            if (Pin->PinType.PinSubCategoryObject.IsValid())
+            {
+                PinInfo->SetStringField(TEXT("pin_subcategory"), Pin->PinType.PinSubCategoryObject->GetName());
+            }
+            
+            // Add to main pins array
+            PinsArray.Add(MakeShared<FJsonValueObject>(PinInfo));
+            
+            // Also categorize by direction for easy access
+            if (Pin->Direction == EGPD_Output)
+            {
+                OutputPinsArray.Add(MakeShared<FJsonValueObject>(PinInfo));
+            }
+            else if (Pin->Direction == EGPD_Input)
+            {
+                InputPinsArray.Add(MakeShared<FJsonValueObject>(PinInfo));
+            }
+        }
+    }
+    
+    NodeInfo->SetArrayField(TEXT("pins"), PinsArray);
+    NodeInfo->SetArrayField(TEXT("output_pins"), OutputPinsArray);
+    NodeInfo->SetArrayField(TEXT("input_pins"), InputPinsArray);
+    
+    return NodeInfo;
+}
+
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintEvent(const TSharedPtr<FJsonObject>& Params)
 {
     // Get required parameters
@@ -291,76 +355,8 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintEvent
     // Mark the blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 
-    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-    ResultObj->SetStringField(TEXT("node_id"), EventNode->NodeGuid.ToString());
-    return ResultObj;
-}
-
-// Helper function to create special Blueprint nodes by name
-static UEdGraphNode* CreateSpecialNodeByName(const FString& NodeType, UEdGraph* Graph) {
-    if (NodeType.Equals(TEXT("Branch"), ESearchCase::IgnoreCase)) {
-        return NewObject<UK2Node_IfThenElse>(Graph);
-    }
-    if (NodeType.Equals(TEXT("Sequence"), ESearchCase::IgnoreCase)) {
-        return NewObject<UK2Node_ExecutionSequence>(Graph);
-    }
-    if (NodeType.Equals(TEXT("Print String"), ESearchCase::IgnoreCase)) {
-        UK2Node_CallFunction* PrintStringNode = NewObject<UK2Node_CallFunction>(Graph);
-        PrintStringNode->FunctionReference.SetExternalMember(
-            FName(TEXT("PrintString")),
-            UKismetSystemLibrary::StaticClass()
-        );
-        return PrintStringNode;
-    }
-    if (NodeType.Equals(TEXT("Is Valid"), ESearchCase::IgnoreCase)) {
-        UK2Node_CallFunction* IsValidNode = NewObject<UK2Node_CallFunction>(Graph);
-        IsValidNode->FunctionReference.SetExternalMember(
-            FName(TEXT("IsValid")),
-            UKismetSystemLibrary::StaticClass()
-        );
-        return IsValidNode;
-    }
-    if (NodeType.Equals(TEXT("Add to Viewport"), ESearchCase::IgnoreCase)) {
-        UK2Node_CallFunction* AddToViewportNode = NewObject<UK2Node_CallFunction>(Graph);
-        AddToViewportNode->FunctionReference.SetExternalMember(
-            FName(TEXT("AddToViewport")),
-            UUserWidget::StaticClass()
-        );
-        return AddToViewportNode;
-    }
-    if (NodeType.Equals(TEXT("Get Class"), ESearchCase::IgnoreCase)) {
-        UK2Node_CallFunction* GetClassNode = NewObject<UK2Node_CallFunction>(Graph);
-        GetClassNode->FunctionReference.SetExternalMember(
-            FName(TEXT("GetClass")),
-            UObject::StaticClass()
-        );
-        return GetClassNode;
-    }
-    if (NodeType.Equals(TEXT("Cast to PlayerController"), ESearchCase::IgnoreCase)) {
-        UK2Node_DynamicCast* CastNode = NewObject<UK2Node_DynamicCast>(Graph);
-        CastNode->SetPurity(false);
-        CastNode->TargetType = APlayerController::StaticClass();
-        return CastNode;
-    }
-    // Check for specific widget constructor patterns like "Create WBP_DialogueWidget Widget" or "Create WBP_DialogueWidget"
-    if (NodeType.StartsWith(TEXT("Create "), ESearchCase::IgnoreCase)) {
-        FString WidgetTypeName = NodeType.Mid(7); // Remove "Create " prefix
-        
-        // Remove " Widget" suffix if present
-        if (WidgetTypeName.EndsWith(TEXT(" Widget"), ESearchCase::IgnoreCase)) {
-            WidgetTypeName = WidgetTypeName.Left(WidgetTypeName.Len() - 7);
-        }
-        
-        // Simply create a basic ConstructObjectFromClass node without trying to set the class
-        // The user can set the class manually in the UI
-        UK2Node_ConstructObjectFromClass* ConstructorNode = NewObject<UK2Node_ConstructObjectFromClass>(Graph);
-        
-        if (ConstructorNode) {
-            UE_LOG(LogTemp, Display, TEXT("Created basic constructor node for: %s"), *WidgetTypeName);
-            return ConstructorNode;
-        }
-    }
-    return nullptr;
+    // Return detailed node information including all pins
+    return CreateNodeWithPinInfo(EventNode);
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunctionCall(const TSharedPtr<FJsonObject>& Params)
@@ -581,9 +577,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
         // Mark the blueprint as modified
         FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
         
-        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-        ResultObj->SetStringField(TEXT("node_id"), FunctionNode->NodeGuid.ToString());
-        ResultObj->SetStringField(TEXT("function_name"), CreateWidgetFunction->GetName());
+        TSharedPtr<FJsonObject> ResultObj = CreateNodeWithPinInfo(FunctionNode);
         return ResultObj;
     }
 
@@ -600,9 +594,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
         SpecialNode->PostPlacedNewNode();
         SpecialNode->AllocateDefaultPins();
         FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-        ResultObj->SetStringField(TEXT("node_id"), SpecialNode->NodeGuid.ToString());
-        return ResultObj;
+        return CreateNodeWithPinInfo(SpecialNode);
     }
 
     // Special case: Break Struct node
@@ -630,9 +622,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
         BreakNode->PostPlacedNewNode();
         BreakNode->AllocateDefaultPins();
         FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-        ResultObj->SetStringField(TEXT("node_id"), BreakNode->NodeGuid.ToString());
-        return ResultObj;
+        return CreateNodeWithPinInfo(BreakNode);
     }
 
     // Find the function
@@ -1026,8 +1016,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
     // Mark the blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 
-    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-    ResultObj->SetStringField(TEXT("node_id"), FunctionNode->NodeGuid.ToString());
+    TSharedPtr<FJsonObject> ResultObj = CreateNodeWithPinInfo(FunctionNode);
     return ResultObj;
 }
 
@@ -1763,10 +1752,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintCusto
         UK2Node_CustomEvent* CustomEventNode = Cast<UK2Node_CustomEvent>(Node);
         if (CustomEventNode && CustomEventNode->CustomFunctionName == FName(*EventName))
         {
-            TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
-            Obj->SetStringField(TEXT("node_id"), CustomEventNode->NodeGuid.ToString());
-            Obj->SetStringField(TEXT("event_name"), EventName);
-            return Obj;
+            return CreateNodeWithPinInfo(CustomEventNode);
         }
     }
 
@@ -1782,10 +1768,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintCusto
 
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 
-    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-    ResultObj->SetStringField(TEXT("node_id"), NewEventNode->NodeGuid.ToString());
-    ResultObj->SetStringField(TEXT("event_name"), EventName);
-    return ResultObj;
+    return CreateNodeWithPinInfo(NewEventNode);
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleGetVariableInfo(const TSharedPtr<FJsonObject>& Params)
@@ -1910,11 +1893,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddEnhancedInputA
             {
                 if (*InputActionProperty == InputAction)
                 {
-                    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-                    ResultObj->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
-                    ResultObj->SetStringField(TEXT("action_path"), ActionPath);
-                    ResultObj->SetBoolField(TEXT("already_exists"), true);
-                    return ResultObj;
+                    return CreateNodeWithPinInfo(Node);
                 }
             }
         }
@@ -1951,9 +1930,72 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddEnhancedInputA
     // Mark the blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 
-    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-    ResultObj->SetStringField(TEXT("node_id"), NewInputNode->NodeGuid.ToString());
-    ResultObj->SetStringField(TEXT("action_path"), ActionPath);
-    ResultObj->SetBoolField(TEXT("already_exists"), false);
-    return ResultObj;
-} 
+    return CreateNodeWithPinInfo(NewInputNode);
+}
+
+// Helper function to create special Blueprint nodes by name
+static UEdGraphNode* CreateSpecialNodeByName(const FString& NodeType, UEdGraph* Graph) {
+    if (NodeType.Equals(TEXT("Branch"), ESearchCase::IgnoreCase)) {
+        return NewObject<UK2Node_IfThenElse>(Graph);
+    }
+    if (NodeType.Equals(TEXT("Sequence"), ESearchCase::IgnoreCase)) {
+        return NewObject<UK2Node_ExecutionSequence>(Graph);
+    }
+    if (NodeType.Equals(TEXT("Print String"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* PrintStringNode = NewObject<UK2Node_CallFunction>(Graph);
+        PrintStringNode->FunctionReference.SetExternalMember(
+            FName(TEXT("PrintString")),
+            UKismetSystemLibrary::StaticClass()
+        );
+        return PrintStringNode;
+    }
+    if (NodeType.Equals(TEXT("Is Valid"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* IsValidNode = NewObject<UK2Node_CallFunction>(Graph);
+        IsValidNode->FunctionReference.SetExternalMember(
+            FName(TEXT("IsValid")),
+            UKismetSystemLibrary::StaticClass()
+        );
+        return IsValidNode;
+    }
+    if (NodeType.Equals(TEXT("Add to Viewport"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* AddToViewportNode = NewObject<UK2Node_CallFunction>(Graph);
+        AddToViewportNode->FunctionReference.SetExternalMember(
+            FName(TEXT("AddToViewport")),
+            UUserWidget::StaticClass()
+        );
+        return AddToViewportNode;
+    }
+    if (NodeType.Equals(TEXT("Get Class"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* GetClassNode = NewObject<UK2Node_CallFunction>(Graph);
+        GetClassNode->FunctionReference.SetExternalMember(
+            FName(TEXT("GetClass")),
+            UObject::StaticClass()
+        );
+        return GetClassNode;
+    }
+    if (NodeType.Equals(TEXT("Cast to PlayerController"), ESearchCase::IgnoreCase)) {
+        UK2Node_DynamicCast* CastNode = NewObject<UK2Node_DynamicCast>(Graph);
+        CastNode->SetPurity(false);
+        CastNode->TargetType = APlayerController::StaticClass();
+        return CastNode;
+    }
+    // Check for specific widget constructor patterns like "Create WBP_DialogueWidget Widget" or "Create WBP_DialogueWidget"
+    if (NodeType.StartsWith(TEXT("Create "), ESearchCase::IgnoreCase)) {
+        FString WidgetTypeName = NodeType.Mid(7); // Remove "Create " prefix
+        
+        // Remove " Widget" suffix if present
+        if (WidgetTypeName.EndsWith(TEXT(" Widget"), ESearchCase::IgnoreCase)) {
+            WidgetTypeName = WidgetTypeName.Left(WidgetTypeName.Len() - 7);
+        }
+        
+        // Simply create a basic ConstructObjectFromClass node without trying to set the class
+        // The user can set the class manually in the UI
+        UK2Node_ConstructObjectFromClass* ConstructorNode = NewObject<UK2Node_ConstructObjectFromClass>(Graph);
+        
+        if (ConstructorNode) {
+            UE_LOG(LogTemp, Display, TEXT("Created basic constructor node for: %s"), *WidgetTypeName);
+            return ConstructorNode;
+        }
+    }
+    return nullptr;
+}

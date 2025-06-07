@@ -6,6 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Components/TextBlock.h"
 #include "WidgetBlueprint.h"
+#include <functional>
 // We'll create widgets using regular Factory classes
 #include "Factories/Factory.h"
 // Add missing BlueprintFactory include
@@ -181,7 +182,7 @@ UWidgetBlueprint* FindWidgetBlueprint(const FString& BlueprintNameOrPath)
 bool GetJsonArray(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName, TArray<TSharedPtr<FJsonValue>>& OutArray)
 {
 	const TArray<TSharedPtr<FJsonValue>>* ArrayPtr = nullptr;
-	if (JsonObject->TryGetArrayField(TCHAR_TO_ANSI(*FieldName), ArrayPtr) && ArrayPtr)
+	if (JsonObject->TryGetArrayField(*FieldName, ArrayPtr) && ArrayPtr)
 	{
 		OutArray = *ArrayPtr;
 		return true;
@@ -2060,7 +2061,8 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleGetWidgetComponentLayout(co
     };
 
     // Build a hierarchical representation of the widget tree
-    std::function<TSharedPtr<FJsonObject>(UWidget*)> ProcessWidgetHierarchy = [&ProcessWidgetHierarchy, &ProcessWidgetSlot](UWidget* Widget) -> TSharedPtr<FJsonObject> {
+    TFunction<TSharedPtr<FJsonObject>(UWidget*)> ProcessWidgetHierarchy;
+    ProcessWidgetHierarchy = [&ProcessWidgetHierarchy, &ProcessWidgetSlot](UWidget* Widget) -> TSharedPtr<FJsonObject> {
         if (!Widget)
         {
             return nullptr;
@@ -2107,25 +2109,21 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleGetWidgetComponentLayout(co
     UWidget* RootWidget = WidgetBlueprint->WidgetTree->RootWidget;
     TSharedPtr<FJsonObject> RootObj = ProcessWidgetHierarchy(RootWidget);
     
-    // Create data object with root widget
-    TSharedPtr<FJsonObject> DataObj = MakeShared<FJsonObject>();
     if (RootObj.IsValid())
     {
-        // Set the root component
-        DataObj->SetObjectField(TEXT("root"), RootObj);
+        // Set the hierarchy data directly as a JSON object
+        TSharedPtr<FJsonObject> HierarchyData = MakeShared<FJsonObject>();
+        HierarchyData->SetObjectField(TEXT("root"), RootObj);
         
-        // Serialize to JSON string
-        FString OutputString;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-        FJsonSerializer::Serialize(DataObj.ToSharedRef(), Writer);
-        
-        // Set data field to serialized JSON string
-        Response->SetStringField(TEXT("data"), OutputString);
+        // Set data field to the actual JSON object (not serialized string)
+        Response->SetObjectField(TEXT("data"), HierarchyData);
         Response->SetStringField(TEXT("message"), FString::Printf(TEXT("Successfully analyzed widget component hierarchy")));
     }
     else
     {
-        Response->SetStringField(TEXT("data"), TEXT("{}"));
+        // Set empty hierarchy data
+        TSharedPtr<FJsonObject> EmptyData = MakeShared<FJsonObject>();
+        Response->SetObjectField(TEXT("data"), EmptyData);
         Response->SetStringField(TEXT("message"), TEXT("No root widget found in blueprint"));
     }
     
