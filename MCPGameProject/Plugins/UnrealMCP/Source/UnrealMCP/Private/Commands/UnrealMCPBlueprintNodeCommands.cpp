@@ -1973,6 +1973,38 @@ static UEdGraphNode* CreateSpecialNodeByName(const FString& NodeType, UEdGraph* 
         );
         return GetClassNode;
     }
+    if (NodeType.Equals(TEXT("Get Player Controller"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* GetPlayerControllerNode = NewObject<UK2Node_CallFunction>(Graph);
+        GetPlayerControllerNode->FunctionReference.SetExternalMember(
+            FName(TEXT("GetPlayerController")),
+            UGameplayStatics::StaticClass()
+        );
+        return GetPlayerControllerNode;
+    }
+    if (NodeType.Equals(TEXT("Get Player Pawn"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* GetPlayerPawnNode = NewObject<UK2Node_CallFunction>(Graph);
+        GetPlayerPawnNode->FunctionReference.SetExternalMember(
+            FName(TEXT("GetPlayerPawn")),
+            UGameplayStatics::StaticClass()
+        );
+        return GetPlayerPawnNode;
+    }
+    if (NodeType.Equals(TEXT("Get Player State"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* GetPlayerStateNode = NewObject<UK2Node_CallFunction>(Graph);
+        GetPlayerStateNode->FunctionReference.SetExternalMember(
+            FName(TEXT("GetPlayerState")),
+            UGameplayStatics::StaticClass()
+        );
+        return GetPlayerStateNode;
+    }
+    if (NodeType.Equals(TEXT("Get Game Mode"), ESearchCase::IgnoreCase)) {
+        UK2Node_CallFunction* GetGameModeNode = NewObject<UK2Node_CallFunction>(Graph);
+        GetGameModeNode->FunctionReference.SetExternalMember(
+            FName(TEXT("GetGameMode")),
+            UGameplayStatics::StaticClass()
+        );
+        return GetGameModeNode;
+    }
     if (NodeType.Equals(TEXT("Cast to PlayerController"), ESearchCase::IgnoreCase)) {
         UK2Node_DynamicCast* CastNode = NewObject<UK2Node_DynamicCast>(Graph);
         CastNode->SetPurity(false);
