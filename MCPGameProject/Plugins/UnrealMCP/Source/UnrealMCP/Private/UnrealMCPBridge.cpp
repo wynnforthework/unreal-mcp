@@ -58,6 +58,7 @@
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Commands/UnrealMCPUMGCommands.h"
 #include "Commands/UnrealMCPDataTableCommands.h"
+#include "Commands/UnrealMCPBlueprintActionCommandsHandler.h"
 
 // Default settings
 #define MCP_SERVER_HOST "127.0.0.1"
@@ -71,6 +72,7 @@ UUnrealMCPBridge::UUnrealMCPBridge()
     ProjectCommands = MakeShared<FUnrealMCPProjectCommands>();
     UMGCommands = MakeShared<FUnrealMCPUMGCommands>();
     DataTableCommands = MakeShared<FUnrealMCPDataTableCommands>();
+    BlueprintActionCommands = MakeShared<FUnrealMCPBlueprintActionCommandsHandler>();
 }
 
 UUnrealMCPBridge::~UUnrealMCPBridge()
@@ -81,6 +83,7 @@ UUnrealMCPBridge::~UUnrealMCPBridge()
     ProjectCommands.Reset();
     UMGCommands.Reset();
     DataTableCommands.Reset();
+    BlueprintActionCommands.Reset();
 }
 
 // Initialize subsystem
@@ -304,6 +307,13 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("get_widget_component_layout")
                 };
                 
+                static const TArray<FString> BlueprintActionCommandsList = {
+                    TEXT("get_actions_for_pin"),
+                    TEXT("get_actions_for_class"),
+                    TEXT("get_actions_for_class_hierarchy"),
+                    TEXT("get_node_pin_info")
+                };
+                
                 // Route to the appropriate handler
                 if (EditorCommands.Contains(CommandType))
                 {
@@ -324,6 +334,10 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 else if (UMGCommandsList.Contains(CommandType))
                 {
                     ResultJson = UMGCommands->HandleCommand(CommandType, Params);
+                }
+                else if (BlueprintActionCommandsList.Contains(CommandType))
+                {
+                    ResultJson = BlueprintActionCommands->HandleCommand(CommandType, Params);
                 }
                 else if (CommandType == TEXT("create_datatable") || 
                          CommandType == TEXT("add_rows_to_datatable") || 
