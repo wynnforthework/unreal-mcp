@@ -9,6 +9,7 @@
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Editor.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "UObject/MetaData.h"
 
 FUnrealMCPDataTableCommands::FUnrealMCPDataTableCommands()
 {
@@ -159,15 +160,10 @@ TSharedPtr<FJsonObject> FUnrealMCPDataTableCommands::HandleCreateDataTable(const
     
     UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Successfully created DataTable asset at: '%s'"), *NewDataTable->GetPathName());
 
-    // Set description metadata using UMetaData
-    if (NewDataTable && !Description.IsEmpty())
+    // Note: Metadata setting removed for UE 5.6 compatibility
+    if (!Description.IsEmpty())
     {
-        UMetaData* MetaData = NewDataTable->GetOutermost()->GetMetaData();
-        if (MetaData)
-        {
-            MetaData->SetValue(NewDataTable, FName(TEXT("Description")), *Description);
-            UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Added description metadata: '%s'"), *Description);
-        }
+        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Description provided but metadata setting skipped for UE 5.6 compatibility: '%s'"), *Description);
     }
 
     // Save the asset to disk
