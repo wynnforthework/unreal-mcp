@@ -7,13 +7,14 @@ classes, and class hierarchies.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 from mcp.server.fastmcp import FastMCP, Context
 from utils.blueprint_actions.blueprint_action_operations import (
     get_actions_for_pin as get_actions_for_pin_impl,
     get_actions_for_class as get_actions_for_class_impl,
     get_actions_for_class_hierarchy as get_actions_for_class_hierarchy_impl,
-    get_node_pin_info as get_node_pin_info_impl
+    get_node_pin_info as get_node_pin_info_impl,
+    create_node_by_action_name as create_node_by_action_name_impl
 )
 
 # Get logger
@@ -173,4 +174,51 @@ def register_blueprint_action_tools(mcp: FastMCP):
             # Understand Cast to PlayerController inputs
             get_node_pin_info(node_name="Cast to PlayerController", pin_name="Object")
         """
-        return get_node_pin_info_impl(ctx, node_name, pin_name) 
+        return get_node_pin_info_impl(ctx, node_name, pin_name)
+
+    @mcp.tool()
+    def create_node_by_action_name(
+        ctx: Context,
+        blueprint_name: str,
+        function_name: str,
+        class_name: str = "",
+        node_position: List[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a blueprint node by discovered action/function name.
+        
+        This allows you to create blueprint nodes using the function names discovered from
+        the FBlueprintActionDatabase (via get_actions_for_pin, get_actions_for_class, etc.).
+        
+        Args:
+            blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
+            function_name: Name of the function to create a node for (from discovered actions)
+            class_name: Optional class name if the function is from a specific class (e.g., "KismetMathLibrary")
+            node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
+        
+        Returns:
+            Dict containing node creation result with node info and pins
+        
+        Examples:
+            # Create a math function node
+            create_node_by_action_name(
+                blueprint_name="BP_Calculator",
+                function_name="Add_FloatFloat",
+                class_name="KismetMathLibrary",
+                node_position=[100, 200]
+            )
+            
+            # Create a system function node
+            create_node_by_action_name(
+                blueprint_name="BP_MyActor",
+                function_name="PrintString",
+                class_name="KismetSystemLibrary"
+            )
+            
+            # Create without specifying class (will search common classes)
+            create_node_by_action_name(
+                blueprint_name="BP_MyActor",
+                function_name="GetActorLocation"
+            )
+        """
+        return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position) 

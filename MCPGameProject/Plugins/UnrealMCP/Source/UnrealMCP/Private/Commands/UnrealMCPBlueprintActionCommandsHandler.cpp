@@ -23,6 +23,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::HandleCommand(
     {
         return GetNodePinInfo(Params);
     }
+    else if (CommandType == TEXT("create_node_by_action_name"))
+    {
+        return CreateNodeByActionName(Params);
+    }
     else
     {
         TSharedPtr<FJsonObject> ErrorResponse = MakeShareable(new FJsonObject);
@@ -122,6 +126,32 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::GetNodePinInfo
         TSharedPtr<FJsonObject> ErrorResponse = MakeShareable(new FJsonObject);
         ErrorResponse->SetBoolField(TEXT("success"), false);
         ErrorResponse->SetStringField(TEXT("error"), TEXT("Failed to parse node pin info result"));
+        return ErrorResponse;
+    }
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::CreateNodeByActionName(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName = Params->GetStringField(TEXT("blueprint_name"));
+    FString FunctionName = Params->GetStringField(TEXT("function_name"));
+    FString ClassName = Params->GetStringField(TEXT("class_name"));
+    FString NodePosition = Params->GetStringField(TEXT("node_position"));
+    
+    FString JsonResult = UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition);
+    
+    // Parse the JSON result back into an object
+    TSharedPtr<FJsonObject> ParsedResult;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonResult);
+    
+    if (FJsonSerializer::Deserialize(Reader, ParsedResult) && ParsedResult.IsValid())
+    {
+        return ParsedResult;
+    }
+    else
+    {
+        TSharedPtr<FJsonObject> ErrorResponse = MakeShareable(new FJsonObject);
+        ErrorResponse->SetBoolField(TEXT("success"), false);
+        ErrorResponse->SetStringField(TEXT("error"), TEXT("Failed to parse create node by action name result"));
         return ErrorResponse;
     }
 } 
