@@ -16,34 +16,60 @@ logger = logging.getLogger("UnrealMCP")
 def get_actions_for_pin(
     ctx: Context,
     pin_type: str,
-    pin_subcategory: str = ""
+    pin_subcategory: str = "",
+    search_filter: str = "",
+    max_results: int = 50
 ) -> Dict[str, Any]:
-    """Implementation for getting actions for a specific pin type."""
+    """Implementation for getting actions for a specific pin type with search filtering."""
     params = {
         "pin_type": pin_type,
-        "pin_subcategory": pin_subcategory
+        "pin_subcategory": pin_subcategory,
+        "search_filter": search_filter,
+        "max_results": max_results
     }
     return send_unreal_command("get_actions_for_pin", params)
 
 def get_actions_for_class(
     ctx: Context,
-    class_name: str
+    class_name: str,
+    search_filter: str = "",
+    max_results: int = 50
 ) -> Dict[str, Any]:
-    """Implementation for getting actions for a specific class."""
+    """Implementation for getting actions for a specific class with search filtering."""
     params = {
-        "class_name": class_name
+        "class_name": class_name,
+        "search_filter": search_filter,
+        "max_results": max_results
     }
     return send_unreal_command("get_actions_for_class", params)
 
 def get_actions_for_class_hierarchy(
     ctx: Context,
-    class_name: str
+    class_name: str,
+    search_filter: str = "",
+    max_results: int = 50
 ) -> Dict[str, Any]:
-    """Implementation for getting actions for a class hierarchy."""
+    """Implementation for getting actions for a class hierarchy with search filtering."""
     params = {
-        "class_name": class_name
+        "class_name": class_name,
+        "search_filter": search_filter,
+        "max_results": max_results
     }
     return send_unreal_command("get_actions_for_class_hierarchy", params)
+
+def search_blueprint_actions(
+    ctx: Context,
+    search_query: str,
+    category: str = "",
+    max_results: int = 50
+) -> Dict[str, Any]:
+    """Implementation for searching Blueprint actions using keywords."""
+    params = {
+        "search_query": search_query,
+        "category": category,
+        "max_results": max_results
+    }
+    return send_unreal_command("search_blueprint_actions", params)
 
 def get_node_pin_info(
     ctx: Context,

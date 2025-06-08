@@ -23,6 +23,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::HandleCommand(
     {
         return GetNodePinInfo(Params);
     }
+    else if (CommandType == TEXT("search_blueprint_actions"))
+    {
+        return SearchBlueprintActions(Params);
+    }
     else if (CommandType == TEXT("create_node_by_action_name"))
     {
         return CreateNodeByActionName(Params);
@@ -40,8 +44,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::GetActionsForP
 {
     FString PinType = Params->GetStringField(TEXT("pin_type"));
     FString PinSubCategory = Params->GetStringField(TEXT("pin_subcategory"));
+    FString SearchFilter = Params->GetStringField(TEXT("search_filter"));
+    int32 MaxResults = Params->GetIntegerField(TEXT("max_results"));
+    if (MaxResults <= 0) MaxResults = 50; // Default value
     
-    FString JsonResult = UUnrealMCPBlueprintActionCommands::GetActionsForPin(PinType, PinSubCategory);
+    FString JsonResult = UUnrealMCPBlueprintActionCommands::GetActionsForPin(PinType, PinSubCategory, SearchFilter, MaxResults);
     
     // Parse the JSON result back into an object
     TSharedPtr<FJsonObject> ParsedResult;
@@ -63,8 +70,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::GetActionsForP
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::GetActionsForClass(const TSharedPtr<FJsonObject>& Params)
 {
     FString ClassName = Params->GetStringField(TEXT("class_name"));
+    FString SearchFilter = Params->GetStringField(TEXT("search_filter"));
+    int32 MaxResults = Params->GetIntegerField(TEXT("max_results"));
+    if (MaxResults <= 0) MaxResults = 50; // Default value
     
-    FString JsonResult = UUnrealMCPBlueprintActionCommands::GetActionsForClass(ClassName);
+    FString JsonResult = UUnrealMCPBlueprintActionCommands::GetActionsForClass(ClassName, SearchFilter, MaxResults);
     
     // Parse the JSON result back into an object
     TSharedPtr<FJsonObject> ParsedResult;
@@ -86,8 +96,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::GetActionsForC
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::GetActionsForClassHierarchy(const TSharedPtr<FJsonObject>& Params)
 {
     FString ClassName = Params->GetStringField(TEXT("class_name"));
+    FString SearchFilter = Params->GetStringField(TEXT("search_filter"));
+    int32 MaxResults = Params->GetIntegerField(TEXT("max_results"));
+    if (MaxResults <= 0) MaxResults = 50; // Default value
     
-    FString JsonResult = UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(ClassName);
+    FString JsonResult = UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(ClassName, SearchFilter, MaxResults);
     
     // Parse the JSON result back into an object
     TSharedPtr<FJsonObject> ParsedResult;
@@ -126,6 +139,32 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::GetNodePinInfo
         TSharedPtr<FJsonObject> ErrorResponse = MakeShareable(new FJsonObject);
         ErrorResponse->SetBoolField(TEXT("success"), false);
         ErrorResponse->SetStringField(TEXT("error"), TEXT("Failed to parse node pin info result"));
+        return ErrorResponse;
+    }
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::SearchBlueprintActions(const TSharedPtr<FJsonObject>& Params)
+{
+    FString SearchQuery = Params->GetStringField(TEXT("search_query"));
+    FString Category = Params->GetStringField(TEXT("category"));
+    int32 MaxResults = Params->GetIntegerField(TEXT("max_results"));
+    if (MaxResults <= 0) MaxResults = 50; // Default value
+    
+    FString JsonResult = UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(SearchQuery, Category, MaxResults);
+    
+    // Parse the JSON result back into an object
+    TSharedPtr<FJsonObject> ParsedResult;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonResult);
+    
+    if (FJsonSerializer::Deserialize(Reader, ParsedResult) && ParsedResult.IsValid())
+    {
+        return ParsedResult;
+    }
+    else
+    {
+        TSharedPtr<FJsonObject> ErrorResponse = MakeShareable(new FJsonObject);
+        ErrorResponse->SetBoolField(TEXT("success"), false);
+        ErrorResponse->SetStringField(TEXT("error"), TEXT("Failed to parse search blueprint actions result"));
         return ErrorResponse;
     }
 }

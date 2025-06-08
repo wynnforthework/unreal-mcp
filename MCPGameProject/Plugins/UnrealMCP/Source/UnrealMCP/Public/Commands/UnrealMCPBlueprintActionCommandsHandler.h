@@ -39,6 +39,11 @@ private:
     static TSharedPtr<FJsonObject> GetNodePinInfo(const TSharedPtr<FJsonObject>& Params);
 
     /**
+     * Search for Blueprint actions using keywords
+     */
+    static TSharedPtr<FJsonObject> SearchBlueprintActions(const TSharedPtr<FJsonObject>& Params);
+
+    /**
      * Create a blueprint node by discovered action/function name
      */
     static TSharedPtr<FJsonObject> CreateNodeByActionName(const TSharedPtr<FJsonObject>& Params);

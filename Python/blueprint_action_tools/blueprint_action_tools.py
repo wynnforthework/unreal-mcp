@@ -13,6 +13,7 @@ from utils.blueprint_actions.blueprint_action_operations import (
     get_actions_for_pin as get_actions_for_pin_impl,
     get_actions_for_class as get_actions_for_class_impl,
     get_actions_for_class_hierarchy as get_actions_for_class_hierarchy_impl,
+    search_blueprint_actions as search_blueprint_actions_impl,
     get_node_pin_info as get_node_pin_info_impl,
     create_node_by_action_name as create_node_by_action_name_impl
 )
@@ -27,10 +28,12 @@ def register_blueprint_action_tools(mcp: FastMCP):
     def get_actions_for_pin(
         ctx: Context,
         pin_type: str, 
-        pin_subcategory: str = ""
+        pin_subcategory: str = "",
+        search_filter: str = "",
+        max_results: int = 50
     ) -> Dict[str, Any]:
         """
-        Get all available Blueprint actions for a specific pin type.
+        Get all available Blueprint actions for a specific pin type with search filtering.
         
         This tool uses Unreal's FBlueprintActionDatabase to dynamically discover what nodes/functions
         are available when connecting to a specific pin type, similar to what you see in the context
@@ -39,6 +42,8 @@ def register_blueprint_action_tools(mcp: FastMCP):
         Args:
             pin_type: The type of pin (object, int, float, bool, string, struct, etc.)
             pin_subcategory: The subcategory/class name for object pins (e.g., "PlayerController", "Pawn")
+            search_filter: Optional search string to filter results (searches in name, keywords, category)
+            max_results: Maximum number of results to return (default: 50)
         
         Returns:
             Dict containing:
@@ -59,15 +64,17 @@ def register_blueprint_action_tools(mcp: FastMCP):
             # Get actions for a Vector struct pin
             get_actions_for_pin(pin_type="struct", pin_subcategory="Vector")
         """
-        return get_actions_for_pin_impl(ctx, pin_type, pin_subcategory)
+        return get_actions_for_pin_impl(ctx, pin_type, pin_subcategory, search_filter, max_results)
 
     @mcp.tool()
     def get_actions_for_class(
         ctx: Context,
-        class_name: str
+        class_name: str,
+        search_filter: str = "",
+        max_results: int = 50
     ) -> Dict[str, Any]:
         """
-        Get all available Blueprint actions for a specific class.
+        Get all available Blueprint actions for a specific class with search filtering.
         
         This tool uses Unreal's FBlueprintActionDatabase to discover what functions and nodes
         are available for a specific class. This includes all the BlueprintCallable functions,
@@ -75,6 +82,8 @@ def register_blueprint_action_tools(mcp: FastMCP):
         
         Args:
             class_name: Name or path of the class to get actions for (e.g., "PlayerController", "Pawn", "Actor")
+            search_filter: Optional search string to filter results (searches in name, keywords, category)
+            max_results: Maximum number of results to return (default: 50)
         
         Returns:
             Dict containing:
@@ -94,15 +103,17 @@ def register_blueprint_action_tools(mcp: FastMCP):
             # Get actions using full path
             get_actions_for_class(class_name="/Script/Engine.Pawn")
         """
-        return get_actions_for_class_impl(ctx, class_name)
+        return get_actions_for_class_impl(ctx, class_name, search_filter, max_results)
 
     @mcp.tool()
     def get_actions_for_class_hierarchy(
         ctx: Context,
-        class_name: str
+        class_name: str,
+        search_filter: str = "",
+        max_results: int = 50
     ) -> Dict[str, Any]:
         """
-        Get all available Blueprint actions for a class and its entire inheritance hierarchy.
+        Get all available Blueprint actions for a class and its entire inheritance hierarchy with search filtering.
         
         This tool uses Unreal's FBlueprintActionDatabase to discover what functions and nodes
         are available for a class and all of its parent classes. This gives you the complete
@@ -110,6 +121,8 @@ def register_blueprint_action_tools(mcp: FastMCP):
         
         Args:
             class_name: Name or path of the class to get actions for (e.g., "PlayerController", "Pawn", "Actor")
+            search_filter: Optional search string to filter results (searches in name, keywords, category)
+            max_results: Maximum number of results to return (default: 50)
         
         Returns:
             Dict containing:
@@ -131,7 +144,47 @@ def register_blueprint_action_tools(mcp: FastMCP):
             # This will include actions from Actor, Object, etc.
             get_actions_for_class_hierarchy(class_name="StaticMeshActor")
         """
-        return get_actions_for_class_hierarchy_impl(ctx, class_name)
+        return get_actions_for_class_hierarchy_impl(ctx, class_name, search_filter, max_results)
+
+    @mcp.tool()
+    def search_blueprint_actions(
+        ctx: Context,
+        search_query: str,
+        category: str = "",
+        max_results: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Search for Blueprint actions using keywords.
+        
+        This tool provides a general search interface for finding Blueprint actions by name,
+        category, keywords, or tooltip text. It's similar to typing in the search box in
+        Unreal's Blueprint editor context menu.
+        
+        Args:
+            search_query: Search string to find actions (searches in name, keywords, category, tooltip)
+            category: Optional category filter (Flow Control, Math, Utilities, etc.)
+            max_results: Maximum number of results to return (default: 50)
+        
+        Returns:
+            Dict containing:
+                - success: Boolean indicating if the operation succeeded
+                - actions: List of matching actions with title, tooltip, category, keywords
+                - search_query: The search query that was used
+                - category_filter: The category filter that was applied
+                - action_count: Number of actions found
+                - message: Status message
+        
+        Examples:
+            # Search for math operations
+            search_blueprint_actions(search_query="add")
+            
+            # Search for flow control nodes
+            search_blueprint_actions(search_query="branch", category="Flow Control")
+            
+            # Search for print functions
+            search_blueprint_actions(search_query="print")
+        """
+        return search_blueprint_actions_impl(ctx, search_query, category, max_results)
 
     @mcp.tool()
     def get_node_pin_info(
