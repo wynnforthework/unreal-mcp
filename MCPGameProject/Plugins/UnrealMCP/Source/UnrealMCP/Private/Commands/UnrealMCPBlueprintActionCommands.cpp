@@ -61,7 +61,8 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                 // For mathematical operators, check if it's from UKismetMathLibrary
                 if (PinType.Equals(TEXT("float"), ESearchCase::IgnoreCase) || 
                     PinType.Equals(TEXT("int"), ESearchCase::IgnoreCase) || 
-                    PinType.Equals(TEXT("integer"), ESearchCase::IgnoreCase))
+                    PinType.Equals(TEXT("integer"), ESearchCase::IgnoreCase) ||
+                    PinType.Equals(TEXT("real"), ESearchCase::IgnoreCase))
                 {
                     if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
                     {
@@ -69,9 +70,20 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                         {
                             if (UFunction* Function = FunctionNode->GetTargetFunction())
                             {
-                                if (Function->GetOwnerClass() == UKismetMathLibrary::StaticClass())
+                                UClass* OwnerClass = Function->GetOwnerClass();
+                                if (OwnerClass == UKismetMathLibrary::StaticClass() ||
+                                    OwnerClass == UKismetSystemLibrary::StaticClass())
                                 {
-                                    bRelevant = true;
+                                    // Also check if function has float/int inputs or outputs
+                                    for (TFieldIterator<FProperty> PropIt(Function); PropIt; ++PropIt)
+                                    {
+                                        FProperty* Property = *PropIt;
+                                        if (Property->IsA<FFloatProperty>() || Property->IsA<FIntProperty>() || Property->IsA<FDoubleProperty>())
+                                        {
+                                            bRelevant = true;
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -100,10 +112,25 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                     }
                 }
                 
-                // Default case - include some basic actions
+                // Default case - include some basic actions (but don't include ALL actions)
                 if (!bRelevant && (PinType.Equals(TEXT("wildcard"), ESearchCase::IgnoreCase) || PinType.IsEmpty()))
                 {
-                    bRelevant = true;
+                    if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
+                    {
+                        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                        {
+                            if (UFunction* Function = FunctionNode->GetTargetFunction())
+                            {
+                                UClass* OwnerClass = Function->GetOwnerClass();
+                                if (OwnerClass == UKismetMathLibrary::StaticClass() ||
+                                    OwnerClass == UKismetSystemLibrary::StaticClass() ||
+                                    OwnerClass == UGameplayStatics::StaticClass())
+                                {
+                                    bRelevant = true;
+                                }
+                            }
+                        }
+                    }
                 }
                 
                 if (bRelevant)
@@ -145,9 +172,9 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                                     ActionObj->SetStringField(TEXT("class_name"), Function->GetOwnerClass()->GetName());
                                 }
                             }
-    }
-    else
-    {
+                        }
+                        else
+                        {
                             ActionName = TemplateNode->GetClass()->GetName();
                         }
                     }
@@ -160,7 +187,7 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                     ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
                     
                     // Limit results to avoid overwhelming output
-                    if (ActionsArray.Num() >= 100)
+                    if (ActionsArray.Num() >= 500)
                     {
                         break;
                     }
@@ -168,7 +195,7 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
             }
         }
         
-        if (ActionsArray.Num() >= 100)
+        if (ActionsArray.Num() >= 500)
         {
             break;
         }
@@ -782,31 +809,54 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     NewNode->FunctionReference.SetExternalMember(TargetFunction->GetFName(), TargetClass);
     
     // Parse node position if provided
-    FVector2D Position(0.0f, 0.0f);
+    int32 PositionX = 0;
+    int32 PositionY = 0;
     if (!NodePosition.IsEmpty())
     {
-        // Try to parse position as "[x, y]" or "x,y"
-        FString CleanPosition = NodePosition;
-        CleanPosition = CleanPosition.Replace(TEXT("["), TEXT(""));
-        CleanPosition = CleanPosition.Replace(TEXT("]"), TEXT(""));
+        // Try to parse as JSON array [x, y] first (from Python)
+        TSharedPtr<FJsonValue> JsonValue;
+        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(NodePosition);
         
-        TArray<FString> Coords;
-        CleanPosition.ParseIntoArray(Coords, TEXT(","));
-        
-        if (Coords.Num() == 2)
+        if (FJsonSerializer::Deserialize(Reader, JsonValue) && JsonValue.IsValid())
         {
-            Position.X = FCString::Atof(*Coords[0].TrimStartAndEnd());
-            Position.Y = FCString::Atof(*Coords[1].TrimStartAndEnd());
+            const TArray<TSharedPtr<FJsonValue>>* JsonArray = nullptr;
+            if (JsonValue->TryGetArray(JsonArray) && JsonArray->Num() >= 2)
+            {
+                PositionX = FMath::RoundToInt((*JsonArray)[0]->AsNumber());
+                PositionY = FMath::RoundToInt((*JsonArray)[1]->AsNumber());
+            }
+        }
+        else
+        {
+            // Fallback: parse as string format "[x, y]" or "x,y"
+            FString CleanPosition = NodePosition;
+            CleanPosition = CleanPosition.Replace(TEXT("["), TEXT(""));
+            CleanPosition = CleanPosition.Replace(TEXT("]"), TEXT(""));
+            
+            TArray<FString> Coords;
+            CleanPosition.ParseIntoArray(Coords, TEXT(","));
+            
+            if (Coords.Num() == 2)
+            {
+                PositionX = FCString::Atoi(*Coords[0].TrimStartAndEnd());
+                PositionY = FCString::Atoi(*Coords[1].TrimStartAndEnd());
+            }
         }
     }
     
+    // Create the function call node and set position immediately
+    NewNode->NodePosX = PositionX;
+    NewNode->NodePosY = PositionY;
+    NewNode->CreateNewGuid();
+    
     // Add the node to the graph
     EventGraph->AddNode(NewNode, true, true);
-    NewNode->NodePosX = Position.X;
-    NewNode->NodePosY = Position.Y;
-    NewNode->CreateNewGuid();
     NewNode->PostPlacedNewNode();
     NewNode->AllocateDefaultPins();
+    
+    // Ensure position is set after placement too
+    NewNode->NodePosX = PositionX;
+    NewNode->NodePosY = PositionY;
     
     // Mark blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
@@ -821,8 +871,8 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     
     // Add position info
     TSharedPtr<FJsonObject> PositionObj = MakeShared<FJsonObject>();
-    PositionObj->SetNumberField(TEXT("x"), Position.X);
-    PositionObj->SetNumberField(TEXT("y"), Position.Y);
+    PositionObj->SetNumberField(TEXT("x"), PositionX);
+    PositionObj->SetNumberField(TEXT("y"), PositionY);
     ResultObj->SetObjectField(TEXT("position"), PositionObj);
     
     // Add pin information

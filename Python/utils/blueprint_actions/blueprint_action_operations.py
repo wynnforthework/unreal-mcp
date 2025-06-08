@@ -5,6 +5,7 @@ This module provides utility functions for discovering Blueprint actions using t
 """
 
 import logging
+import json
 from typing import Dict, Any, List
 from mcp.server.fastmcp import Context
 from utils.unreal_connection_utils import send_unreal_command
@@ -73,6 +74,7 @@ def create_node_by_action_name(
         params["class_name"] = class_name
         
     if node_position is not None:
-        params["node_position"] = node_position
+        # Convert List[float] to JSON string that C++ can parse
+        params["node_position"] = json.dumps(node_position)
     
     return send_unreal_command("create_node_by_action_name", params) 
