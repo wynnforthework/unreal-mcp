@@ -1295,6 +1295,70 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         NodeType = TEXT("UK2Node_DynamicCast");
     }
 
+    // Variable getter/setter node creation - check this FIRST before function lookup
+    else if (FunctionName.StartsWith(TEXT("Get ")) || FunctionName.StartsWith(TEXT("Set ")) ||
+        FunctionName.Equals(TEXT("UK2Node_VariableGet"), ESearchCase::IgnoreCase) ||
+        FunctionName.Equals(TEXT("UK2Node_VariableSet"), ESearchCase::IgnoreCase))
+    {
+        FString VarName = FunctionName;
+        bool bIsGetter = false;
+        if (VarName.StartsWith(TEXT("Get ")))
+        {
+            VarName = VarName.RightChop(4);
+            bIsGetter = true;
+        }
+        else if (VarName.StartsWith(TEXT("Set ")))
+        {
+            VarName = VarName.RightChop(4);
+        }
+        // Try to find the variable in the Blueprint
+        bool bFound = false;
+        for (const FBPVariableDescription& VarDesc : Blueprint->NewVariables)
+        {
+            if (VarDesc.VarName.ToString().Equals(VarName, ESearchCase::IgnoreCase))
+            {
+                if (bIsGetter)
+                {
+                    UK2Node_VariableGet* GetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
+                    GetterNode->VariableReference.SetSelfMember(*VarName);
+                    GetterNode->NodePosX = PositionX;
+                    GetterNode->NodePosY = PositionY;
+                    GetterNode->CreateNewGuid();
+                    EventGraph->AddNode(GetterNode, true, true);
+                    GetterNode->PostPlacedNewNode();
+                    GetterNode->AllocateDefaultPins();
+                    NewNode = GetterNode;
+                    NodeTitle = FString::Printf(TEXT("Get %s"), *VarName);
+                    NodeType = TEXT("UK2Node_VariableGet");
+                }
+                else
+                {
+                    UK2Node_VariableSet* SetterNode = NewObject<UK2Node_VariableSet>(EventGraph);
+                    SetterNode->VariableReference.SetSelfMember(*VarName);
+                    SetterNode->NodePosX = PositionX;
+                    SetterNode->NodePosY = PositionY;
+                    SetterNode->CreateNewGuid();
+                    EventGraph->AddNode(SetterNode, true, true);
+                    SetterNode->PostPlacedNewNode();
+                    SetterNode->AllocateDefaultPins();
+                    NewNode = SetterNode;
+                    NodeTitle = FString::Printf(TEXT("Set %s"), *VarName);
+                    NodeType = TEXT("UK2Node_VariableSet");
+                }
+                bFound = true;
+                break;
+            }
+        }
+        if (!bFound)
+        {
+            ResultObj->SetBoolField(TEXT("success"), false);
+            ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Variable '%s' not found in Blueprint '%s'"), *VarName, *BlueprintName));
+            FString OutputString;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+            FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+            return OutputString;
+        }
+    }
     else
     {
         // Try to find the function and create a function call node
@@ -1364,71 +1428,6 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         NewNode = FunctionNode;
         NodeTitle = FunctionName;
         NodeType = TEXT("UK2Node_CallFunction");
-    }
-    
-    // Variable getter/setter node creation
-    if (FunctionName.StartsWith(TEXT("Get ")) || FunctionName.StartsWith(TEXT("Set ")) ||
-        FunctionName.Equals(TEXT("UK2Node_VariableGet"), ESearchCase::IgnoreCase) ||
-        FunctionName.Equals(TEXT("UK2Node_VariableSet"), ESearchCase::IgnoreCase))
-    {
-        FString VarName = FunctionName;
-        bool bIsGetter = false;
-        if (VarName.StartsWith(TEXT("Get ")))
-        {
-            VarName = VarName.RightChop(4);
-            bIsGetter = true;
-        }
-        else if (VarName.StartsWith(TEXT("Set ")))
-        {
-            VarName = VarName.RightChop(4);
-        }
-        // Try to find the variable in the Blueprint
-        bool bFound = false;
-        for (const FBPVariableDescription& VarDesc : Blueprint->NewVariables)
-        {
-            if (VarDesc.VarName.ToString().Equals(VarName, ESearchCase::IgnoreCase))
-            {
-                if (bIsGetter)
-                {
-                    UK2Node_VariableGet* GetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
-                    GetterNode->VariableReference.SetSelfMember(*VarName);
-                    GetterNode->NodePosX = PositionX;
-                    GetterNode->NodePosY = PositionY;
-                    GetterNode->CreateNewGuid();
-                    EventGraph->AddNode(GetterNode, true, true);
-                    GetterNode->PostPlacedNewNode();
-                    GetterNode->AllocateDefaultPins();
-                    NewNode = GetterNode;
-                    NodeTitle = FString::Printf(TEXT("Get %s"), *VarName);
-                    NodeType = TEXT("UK2Node_VariableGet");
-                }
-                else
-                {
-                    UK2Node_VariableSet* SetterNode = NewObject<UK2Node_VariableSet>(EventGraph);
-                    SetterNode->VariableReference.SetSelfMember(*VarName);
-                    SetterNode->NodePosX = PositionX;
-                    SetterNode->NodePosY = PositionY;
-                    SetterNode->CreateNewGuid();
-                    EventGraph->AddNode(SetterNode, true, true);
-                    SetterNode->PostPlacedNewNode();
-                    SetterNode->AllocateDefaultPins();
-                    NewNode = SetterNode;
-                    NodeTitle = FString::Printf(TEXT("Set %s"), *VarName);
-                    NodeType = TEXT("UK2Node_VariableSet");
-                }
-                bFound = true;
-                break;
-            }
-        }
-        if (!bFound)
-        {
-            ResultObj->SetBoolField(TEXT("success"), false);
-            ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Variable '%s' not found in Blueprint '%s'"), *VarName, *BlueprintName));
-            FString OutputString;
-            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-            FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-            return OutputString;
-        }
     }
     
     if (!NewNode)
