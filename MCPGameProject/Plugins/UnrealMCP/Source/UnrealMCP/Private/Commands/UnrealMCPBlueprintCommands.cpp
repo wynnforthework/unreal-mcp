@@ -1425,24 +1425,68 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleListBlueprintComponen
         return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
     }
 
-    // Use the class default object (CDO) to get all components, including inherited
-    UObject* DefaultObject = Blueprint->GeneratedClass->GetDefaultObject();
-    AActor* DefaultActor = Cast<AActor>(DefaultObject);
-    TArray<UActorComponent*> AllComponents;
-    if (DefaultActor)
+    TArray<TSharedPtr<FJsonValue>> ComponentArray;
+    TSet<FString> ProcessedComponents; // To avoid duplicates
+
+    // First, get components from SimpleConstructionScript (Blueprint-specific components)
+    if (Blueprint->SimpleConstructionScript)
     {
-        DefaultActor->GetComponents(AllComponents);
+        for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
+        {
+            if (Node && Node->ComponentTemplate)
+            {
+                FString ComponentName = Node->GetVariableName().ToString();
+                FString ComponentType = Node->ComponentTemplate->GetClass()->GetName();
+                
+                // Remove U prefix from component type for cleaner output
+                if (ComponentType.StartsWith(TEXT("U")))
+                {
+                    ComponentType = ComponentType.RightChop(1);
+                }
+                
+                TSharedPtr<FJsonObject> CompObj = MakeShared<FJsonObject>();
+                CompObj->SetStringField(TEXT("name"), ComponentName);
+                CompObj->SetStringField(TEXT("type"), ComponentType);
+                ComponentArray.Add(MakeShared<FJsonValueObject>(CompObj));
+                ProcessedComponents.Add(ComponentName);
+            }
+        }
     }
 
-    TArray<TSharedPtr<FJsonValue>> ComponentArray;
-    for (UActorComponent* Comp : AllComponents)
+    // Then, get inherited components from the class default object (CDO)
+    UObject* DefaultObject = Blueprint->GeneratedClass ? Blueprint->GeneratedClass->GetDefaultObject() : nullptr;
+    AActor* DefaultActor = Cast<AActor>(DefaultObject);
+    if (DefaultActor)
     {
-        if (Comp)
+        TArray<UActorComponent*> AllComponents;
+        DefaultActor->GetComponents(AllComponents);
+        
+        for (UActorComponent* Comp : AllComponents)
         {
-            TSharedPtr<FJsonObject> CompObj = MakeShared<FJsonObject>();
-            CompObj->SetStringField(TEXT("name"), Comp->GetName());
-            CompObj->SetStringField(TEXT("type"), Comp->GetClass()->GetName());
-            ComponentArray.Add(MakeShared<FJsonValueObject>(CompObj));
+            if (Comp)
+            {
+                FString ComponentName = Comp->GetName();
+                
+                // Skip if we already processed this component from SimpleConstructionScript
+                if (ProcessedComponents.Contains(ComponentName))
+                {
+                    continue;
+                }
+                
+                FString ComponentType = Comp->GetClass()->GetName();
+                
+                // Remove U prefix from component type for cleaner output
+                if (ComponentType.StartsWith(TEXT("U")))
+                {
+                    ComponentType = ComponentType.RightChop(1);
+                }
+                
+                TSharedPtr<FJsonObject> CompObj = MakeShared<FJsonObject>();
+                CompObj->SetStringField(TEXT("name"), ComponentName);
+                CompObj->SetStringField(TEXT("type"), ComponentType);
+                ComponentArray.Add(MakeShared<FJsonValueObject>(CompObj));
+                ProcessedComponents.Add(ComponentName);
+            }
         }
     }
 
