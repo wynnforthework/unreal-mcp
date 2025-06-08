@@ -189,6 +189,15 @@ Use the following JSON for your mcp configuration based on your MCP client.
         "run",
         "project_mcp_server.py"
       ]
+    },
+    "blueprintActionMCP": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "E:\\code\\unreal-mcp\\Python",
+        "run",
+        "blueprint_action_mcp_server.py"
+      ]
     }
   }
 }
