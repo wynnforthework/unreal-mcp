@@ -130,36 +130,6 @@ def add_blueprint_function(
     
     return send_unreal_command("add_blueprint_function", params)
 
-def add_graph_node(
-    ctx: Context,
-    blueprint_path: str,
-    function_name: str,
-    node_type: str,
-    node_name: str,
-    x: float,
-    y: float,
-    inputs: Dict[str, Any] = None,
-    outputs: Dict[str, Any] = None
-) -> Dict[str, Any]:
-    """Implementation for adding a node to a blueprint graph."""
-    if inputs is None:
-        inputs = {}
-    if outputs is None:
-        outputs = {}
-    
-    params = {
-        "blueprint_path": blueprint_path,
-        "function_name": function_name,
-        "node_type": node_type,
-        "node_name": node_name,
-        "x": x,
-        "y": y,
-        "inputs": inputs,
-        "outputs": outputs
-    }
-    
-    return send_unreal_command("add_graph_node", params)
-
 def connect_graph_nodes(
     ctx: Context,
     blueprint_path: str,

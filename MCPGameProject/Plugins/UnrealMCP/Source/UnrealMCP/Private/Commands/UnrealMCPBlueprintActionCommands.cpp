@@ -1135,9 +1135,26 @@ FString UUnrealMCPBlueprintActionCommands::GetNodePinInfo(const FString& NodeNam
     return OutputString;
 }
 
-FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition)
+FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams)
 {
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    
+    // Parse JSON parameters if provided
+    TSharedPtr<FJsonObject> ParamsObject;
+    if (!JsonParams.IsEmpty())
+    {
+        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonParams);
+        if (!FJsonSerializer::Deserialize(Reader, ParamsObject) || !ParamsObject.IsValid())
+        {
+            ResultObj->SetBoolField(TEXT("success"), false);
+            ResultObj->SetStringField(TEXT("message"), TEXT("Invalid JSON parameters"));
+            
+            FString OutputString;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+            FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+            return OutputString;
+        }
+    }
     
     // Find the blueprint
     UBlueprint* Blueprint = nullptr;
@@ -1269,6 +1286,19 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
              FunctionName.Equals(TEXT("UK2Node_CustomEvent"), ESearchCase::IgnoreCase))
     {
         UK2Node_CustomEvent* CustomEventNode = NewObject<UK2Node_CustomEvent>(EventGraph);
+        
+        // Set custom event name from parameters if provided
+        FString EventName = TEXT("CustomEvent"); // Default name
+        if (ParamsObject.IsValid())
+        {
+            FString ParamEventName;
+            if (ParamsObject->TryGetStringField(TEXT("event_name"), ParamEventName) && !ParamEventName.IsEmpty())
+            {
+                EventName = ParamEventName;
+            }
+        }
+        
+        CustomEventNode->CustomFunctionName = FName(*EventName);
         CustomEventNode->NodePosX = PositionX;
         CustomEventNode->NodePosY = PositionY;
         CustomEventNode->CreateNewGuid();
@@ -1276,7 +1306,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         CustomEventNode->PostPlacedNewNode();
         CustomEventNode->AllocateDefaultPins();
         NewNode = CustomEventNode;
-        NodeTitle = TEXT("Custom Event");
+        NodeTitle = EventName;
         NodeType = TEXT("UK2Node_CustomEvent");
     }
     else if (FunctionName.Equals(TEXT("Cast"), ESearchCase::IgnoreCase) ||
