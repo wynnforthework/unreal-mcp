@@ -50,10 +50,11 @@ public:
      * @param SearchQuery - Search string to find actions (searches in name, keywords, category, tooltip)
      * @param Category - Optional category filter (Flow Control, Math, Utilities, etc.)
      * @param MaxResults - Maximum number of results to return (default: 50)
+     * @param BlueprintName - Optional name of the Blueprint asset for local variable discovery
      * @return JSON string containing matching actions
      */
     UFUNCTION(BlueprintCallable, Category = "Unreal MCP Blueprint Actions")
-    static FString SearchBlueprintActions(const FString& SearchQuery, const FString& Category = TEXT(""), int32 MaxResults = 50);
+    static FString SearchBlueprintActions(const FString& SearchQuery, const FString& Category = TEXT(""), int32 MaxResults = 50, const FString& BlueprintName = TEXT(""));
 
     /**
      * Get specific node pin information

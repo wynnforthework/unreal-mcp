@@ -50,6 +50,77 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 
+// Helper: Add Blueprint-local variable getter/setter actions
+void AddBlueprintVariableActions(UBlueprint* Blueprint, const FString& SearchFilter, TArray<TSharedPtr<FJsonValue>>& OutActions)
+{
+    if (!Blueprint) 
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Blueprint is null"));
+        return;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Processing Blueprint '%s' with %d variables"), 
+           *Blueprint->GetName(), Blueprint->NewVariables.Num());
+    
+    FString SearchLower = SearchFilter.ToLower();
+    int32 AddedActions = 0;
+    
+    for (const FBPVariableDescription& VarDesc : Blueprint->NewVariables)
+    {
+        FString VarName = VarDesc.VarName.ToString();
+        FString VarNameLower = VarName.ToLower();
+        
+        UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Checking variable '%s'"), *VarName);
+        
+        if (!SearchFilter.IsEmpty() && !VarNameLower.Contains(SearchLower))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Variable '%s' doesn't match search filter '%s'"), *VarName, *SearchFilter);
+            continue;
+        }
+        
+        // Getter
+        {
+            TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
+            GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *VarName));
+            GetterObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Get the value of variable %s"), *VarName));
+            GetterObj->SetStringField(TEXT("category"), TEXT("Variables"));
+            GetterObj->SetStringField(TEXT("keywords"), FString::Printf(TEXT("variable get %s local blueprint"), *VarName));
+            GetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableGet"));
+            GetterObj->SetStringField(TEXT("variable_name"), VarName);
+            GetterObj->SetStringField(TEXT("pin_type"), VarDesc.VarType.PinCategory.ToString());
+            GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *VarName));
+            GetterObj->SetBoolField(TEXT("is_blueprint_variable"), true);
+            OutActions.Add(MakeShared<FJsonValueObject>(GetterObj));
+            AddedActions++;
+            UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Added getter for '%s'"), *VarName);
+        }
+        
+        // Setter (if not const)
+        if (!VarDesc.VarType.bIsConst)
+        {
+            TSharedPtr<FJsonObject> SetterObj = MakeShared<FJsonObject>();
+            SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *VarName));
+            SetterObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Set the value of variable %s"), *VarName));
+            SetterObj->SetStringField(TEXT("category"), TEXT("Variables"));
+            SetterObj->SetStringField(TEXT("keywords"), FString::Printf(TEXT("variable set %s local blueprint"), *VarName));
+            SetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableSet"));
+            SetterObj->SetStringField(TEXT("variable_name"), VarName);
+            SetterObj->SetStringField(TEXT("pin_type"), VarDesc.VarType.PinCategory.ToString());
+            SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *VarName));
+            SetterObj->SetBoolField(TEXT("is_blueprint_variable"), true);
+            OutActions.Add(MakeShared<FJsonValueObject>(SetterObj));
+            AddedActions++;
+            UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Added setter for '%s'"), *VarName);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Variable '%s' is const, skipping setter"), *VarName);
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Added %d actions total"), AddedActions);
+}
+
 FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinType, const FString& PinSubCategory, const FString& SearchFilter, int32 MaxResults)
 {
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
@@ -672,8 +743,11 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
     return OutputString;
 }
 
-FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString& SearchQuery, const FString& Category, int32 MaxResults)
+FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString& SearchQuery, const FString& Category, int32 MaxResults, const FString& BlueprintName)
 {
+    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions called with: SearchQuery='%s', Category='%s', MaxResults=%d, BlueprintName='%s'"), 
+           *SearchQuery, *Category, MaxResults, *BlueprintName);
+    
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     TArray<TSharedPtr<FJsonValue>> ActionsArray;
     
@@ -688,6 +762,60 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
         TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
         FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
         return OutputString;
+    }
+    
+    // Blueprint-local variable actions
+    if (!BlueprintName.IsEmpty())
+    {
+        UBlueprint* Blueprint = nullptr;
+        FString AssetPath = BlueprintName;
+        
+        // Try different path patterns to find the Blueprint
+        TArray<FString> PathsToTry;
+        
+        if (AssetPath.StartsWith(TEXT("/Game/")))
+        {
+            // Already a full path, use as-is
+            PathsToTry.Add(AssetPath);
+        }
+        else
+        {
+            // Try common Blueprint locations
+            PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s"), *BlueprintName, *BlueprintName));
+            PathsToTry.Add(FString::Printf(TEXT("/Game/%s.%s"), *BlueprintName, *BlueprintName));
+            PathsToTry.Add(FString::Printf(TEXT("/Game/ThirdPerson/Blueprints/%s.%s"), *BlueprintName, *BlueprintName));
+            
+            // Also try without the duplicate name pattern
+            PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/%s"), *BlueprintName));
+            PathsToTry.Add(FString::Printf(TEXT("/Game/%s"), *BlueprintName));
+        }
+        
+        // Try loading from each path
+        for (const FString& PathToTry : PathsToTry)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Trying to load Blueprint from path: %s"), *PathToTry);
+            Blueprint = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *PathToTry));
+            if (Blueprint)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Successfully loaded Blueprint from: %s"), *PathToTry);
+                break;
+            }
+        }
+        
+        if (Blueprint)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Adding variable actions for Blueprint: %s"), *Blueprint->GetName());
+            AddBlueprintVariableActions(Blueprint, SearchQuery, ActionsArray);
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Added %d variable actions"), ActionsArray.Num());
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Failed to load Blueprint: %s. Tried paths:"), *BlueprintName);
+            for (const FString& PathToTry : PathsToTry)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("  - %s"), *PathToTry);
+            }
+        }
     }
     
     // Get the blueprint action database
@@ -1236,6 +1364,71 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         NewNode = FunctionNode;
         NodeTitle = FunctionName;
         NodeType = TEXT("UK2Node_CallFunction");
+    }
+    
+    // Variable getter/setter node creation
+    if (FunctionName.StartsWith(TEXT("Get ")) || FunctionName.StartsWith(TEXT("Set ")) ||
+        FunctionName.Equals(TEXT("UK2Node_VariableGet"), ESearchCase::IgnoreCase) ||
+        FunctionName.Equals(TEXT("UK2Node_VariableSet"), ESearchCase::IgnoreCase))
+    {
+        FString VarName = FunctionName;
+        bool bIsGetter = false;
+        if (VarName.StartsWith(TEXT("Get ")))
+        {
+            VarName = VarName.RightChop(4);
+            bIsGetter = true;
+        }
+        else if (VarName.StartsWith(TEXT("Set ")))
+        {
+            VarName = VarName.RightChop(4);
+        }
+        // Try to find the variable in the Blueprint
+        bool bFound = false;
+        for (const FBPVariableDescription& VarDesc : Blueprint->NewVariables)
+        {
+            if (VarDesc.VarName.ToString().Equals(VarName, ESearchCase::IgnoreCase))
+            {
+                if (bIsGetter)
+                {
+                    UK2Node_VariableGet* GetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
+                    GetterNode->VariableReference.SetSelfMember(*VarName);
+                    GetterNode->NodePosX = PositionX;
+                    GetterNode->NodePosY = PositionY;
+                    GetterNode->CreateNewGuid();
+                    EventGraph->AddNode(GetterNode, true, true);
+                    GetterNode->PostPlacedNewNode();
+                    GetterNode->AllocateDefaultPins();
+                    NewNode = GetterNode;
+                    NodeTitle = FString::Printf(TEXT("Get %s"), *VarName);
+                    NodeType = TEXT("UK2Node_VariableGet");
+                }
+                else
+                {
+                    UK2Node_VariableSet* SetterNode = NewObject<UK2Node_VariableSet>(EventGraph);
+                    SetterNode->VariableReference.SetSelfMember(*VarName);
+                    SetterNode->NodePosX = PositionX;
+                    SetterNode->NodePosY = PositionY;
+                    SetterNode->CreateNewGuid();
+                    EventGraph->AddNode(SetterNode, true, true);
+                    SetterNode->PostPlacedNewNode();
+                    SetterNode->AllocateDefaultPins();
+                    NewNode = SetterNode;
+                    NodeTitle = FString::Printf(TEXT("Set %s"), *VarName);
+                    NodeType = TEXT("UK2Node_VariableSet");
+                }
+                bFound = true;
+                break;
+            }
+        }
+        if (!bFound)
+        {
+            ResultObj->SetBoolField(TEXT("success"), false);
+            ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Variable '%s' not found in Blueprint '%s'"), *VarName, *BlueprintName));
+            FString OutputString;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+            FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+            return OutputString;
+        }
     }
     
     if (!NewNode)

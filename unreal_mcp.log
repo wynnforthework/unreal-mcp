@@ -1,0 +1,19 @@
+2025-06-08 14:47:01,605 - mcp.server.lowlevel.server - DEBUG - [server.py:145] - Initializing server 'UnrealMCP'
+2025-06-08 14:47:01,605 - mcp.server.lowlevel.server - DEBUG - [server.py:384] - Registering handler for ListToolsRequest
+2025-06-08 14:47:01,605 - mcp.server.lowlevel.server - DEBUG - [server.py:406] - Registering handler for CallToolRequest
+2025-06-08 14:47:01,605 - mcp.server.lowlevel.server - DEBUG - [server.py:252] - Registering handler for ListResourcesRequest
+2025-06-08 14:47:01,605 - mcp.server.lowlevel.server - DEBUG - [server.py:286] - Registering handler for ReadResourceRequest
+2025-06-08 14:47:01,605 - mcp.server.lowlevel.server - DEBUG - [server.py:222] - Registering handler for PromptListRequest
+2025-06-08 14:47:01,605 - mcp.server.lowlevel.server - DEBUG - [server.py:239] - Registering handler for GetPromptRequest
+2025-06-08 14:47:01,605 - mcp.server.lowlevel.server - DEBUG - [server.py:267] - Registering handler for ListResourceTemplatesRequest
+2025-06-08 14:47:01,617 - UnrealMCP - INFO - [umg_tools.py:582] - UMG tools module loaded
+2025-06-08 14:47:01,623 - UnrealMCP - INFO - [editor_tools.py:378] - Editor tools registered successfully
+2025-06-08 14:47:01,629 - UnrealMCP - INFO - [blueprint_tools.py:516] - Blueprint tools registered successfully
+2025-06-08 14:47:01,637 - UnrealMCP - INFO - [project_tools.py:472] - Project tools registered successfully
+2025-06-08 14:47:01,643 - UnrealMCP - INFO - [umg_tools.py:579] - UMG tools registered successfully
+2025-06-08 14:47:01,646 - UnrealMCP - INFO - [unreal_mcp_server.py:1075] - Starting MCP server with stdio transport
+2025-06-08 14:47:01,650 - asyncio - DEBUG - [proactor_events.py:631] - Using proactor: IocpProactor
+2025-06-08 14:47:01,651 - UnrealMCP - INFO - [unreal_mcp_server.py:242] - UnrealMCP server starting up
+2025-06-08 14:47:01,651 - UnrealMCP - INFO - [unreal_mcp_server.py:49] - Connecting to Unreal at 127.0.0.1:55557...
+2025-06-08 14:47:01,651 - UnrealMCP - INFO - [unreal_mcp_server.py:63] - Connected to Unreal Engine
+2025-06-08 14:47:01,651 - UnrealMCP - INFO - [unreal_mcp_server.py:246] - Connected to Unreal Engine on startup

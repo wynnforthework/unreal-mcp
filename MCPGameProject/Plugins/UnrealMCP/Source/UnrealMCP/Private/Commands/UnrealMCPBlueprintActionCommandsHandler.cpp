@@ -147,10 +147,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::SearchBlueprin
 {
     FString SearchQuery = Params->GetStringField(TEXT("search_query"));
     FString Category = Params->GetStringField(TEXT("category"));
+    FString BlueprintName = Params->GetStringField(TEXT("blueprint_name"));
     int32 MaxResults = Params->GetIntegerField(TEXT("max_results"));
     if (MaxResults <= 0) MaxResults = 50; // Default value
     
-    FString JsonResult = UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(SearchQuery, Category, MaxResults);
+    FString JsonResult = UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(SearchQuery, Category, MaxResults, BlueprintName);
     
     // Parse the JSON result back into an object
     TSharedPtr<FJsonObject> ParsedResult;

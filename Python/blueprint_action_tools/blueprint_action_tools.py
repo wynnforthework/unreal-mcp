@@ -151,7 +151,8 @@ def register_blueprint_action_tools(mcp: FastMCP):
         ctx: Context,
         search_query: str,
         category: str = "",
-        max_results: int = 50
+        max_results: int = 50,
+        blueprint_name: str = None
     ) -> Dict[str, Any]:
         """
         Search for Blueprint actions using keywords.
@@ -164,6 +165,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
             search_query: Search string to find actions (searches in name, keywords, category, tooltip)
             category: Optional category filter (Flow Control, Math, Utilities, etc.)
             max_results: Maximum number of results to return (default: 50)
+            blueprint_name: Optional name of the Blueprint asset for local variable discovery
         
         Returns:
             Dict containing:
@@ -183,8 +185,11 @@ def register_blueprint_action_tools(mcp: FastMCP):
             
             # Search for print functions
             search_blueprint_actions(search_query="print")
+            
+            # Search for variable nodes in a Blueprint
+            search_blueprint_actions(search_query="myvar", blueprint_name="BP_TestActor")
         """
-        return search_blueprint_actions_impl(ctx, search_query, category, max_results)
+        return search_blueprint_actions_impl(ctx, search_query, category, max_results, blueprint_name)
 
     @mcp.tool()
     def get_node_pin_info(

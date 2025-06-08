@@ -61,7 +61,8 @@ def search_blueprint_actions(
     ctx: Context,
     search_query: str,
     category: str = "",
-    max_results: int = 50
+    max_results: int = 50,
+    blueprint_name: str = None
 ) -> Dict[str, Any]:
     """Implementation for searching Blueprint actions using keywords."""
     params = {
@@ -69,6 +70,8 @@ def search_blueprint_actions(
         "category": category,
         "max_results": max_results
     }
+    if blueprint_name:
+        params["blueprint_name"] = blueprint_name
     return send_unreal_command("search_blueprint_actions", params)
 
 def get_node_pin_info(
