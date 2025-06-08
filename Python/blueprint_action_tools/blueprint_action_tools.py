@@ -240,23 +240,27 @@ def register_blueprint_action_tools(mcp: FastMCP):
         blueprint_name: str,
         function_name: str,
         class_name: str = "",
-        node_position: List[float] = None
+        node_position: List[float] = None,
+        json_params: str = ""
     ) -> Dict[str, Any]:
         """
         Create a blueprint node by discovered action/function name.
-        
+
         This allows you to create blueprint nodes using the function names discovered from
         the FBlueprintActionDatabase (via get_actions_for_pin, get_actions_for_class, etc.).
         
+        Enhanced with JSON parameter support for special nodes like custom events.
+
         Args:
             blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
             function_name: Name of the function to create a node for (from discovered actions)
             class_name: Optional class name if the function is from a specific class (e.g., "KismetMathLibrary")
             node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
-        
+            json_params: Optional JSON string with additional parameters for special nodes
+
         Returns:
             Dict containing node creation result with node info and pins
-        
+
         Examples:
             # Create a math function node
             create_node_by_action_name(
@@ -266,11 +270,11 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 node_position=[100, 200]
             )
             
-            # Create a system function node
+            # Create a custom event with specific name
             create_node_by_action_name(
                 blueprint_name="BP_MyActor",
-                function_name="PrintString",
-                class_name="KismetSystemLibrary"
+                function_name="CustomEvent",
+                json_params='{"event_name": "OnPlayerDied"}'
             )
             
             # Create without specifying class (will search common classes)
@@ -279,4 +283,4 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 function_name="GetActorLocation"
             )
         """
-        return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position) 
+        return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, json_params) 

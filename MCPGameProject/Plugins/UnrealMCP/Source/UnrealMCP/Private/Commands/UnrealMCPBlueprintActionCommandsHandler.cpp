@@ -176,8 +176,9 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::CreateNodeByAc
     FString FunctionName = Params->GetStringField(TEXT("function_name"));
     FString ClassName = Params->GetStringField(TEXT("class_name"));
     FString NodePosition = Params->GetStringField(TEXT("node_position"));
+    FString JsonParams = Params->GetStringField(TEXT("json_params"));
     
-    FString JsonResult = UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition);
+    FString JsonResult = UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition, JsonParams);
     
     // Parse the JSON result back into an object
     TSharedPtr<FJsonObject> ParsedResult;
