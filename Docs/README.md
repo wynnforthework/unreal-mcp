@@ -11,6 +11,7 @@ The Unreal MCP system provides powerful tools for controlling Unreal Engine thro
 ### Core Tools Documentation
 
 - **[Blueprint Tools](Blueprint-Tools.md)** - Create and manage Blueprint classes, components, variables, physics, and compilation
+- **[Blueprint Action Tools](Blueprint-Action-Tools.md)** - Dynamically discover available Blueprint actions and create nodes using Unreal's action database
 - **[Editor Tools](Editor-Tools.md)** - Control the Unreal Engine editor, manage actors, transforms, and scene objects  
 - **[Node Tools](Node-Tools.md)** - Build Blueprint visual scripting logic, event nodes, and node connections
 - **[UMG Tools](UMG-Tools.md)** - Create user interfaces, widgets, layouts, and interactive UI elements
