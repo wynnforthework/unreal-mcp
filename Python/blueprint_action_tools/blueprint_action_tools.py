@@ -249,25 +249,53 @@ def register_blueprint_action_tools(mcp: FastMCP):
         This allows you to create blueprint nodes using the function names discovered from
         the FBlueprintActionDatabase (via get_actions_for_pin, get_actions_for_class, etc.).
         
-        Enhanced with JSON parameter support for special nodes like custom events.
+        **WORKING NODE TYPES**:
+        - Function calls (KismetMathLibrary, GameplayStatics, etc.)
+        - For Each Loop (Map) - UK2Node_MapForEach
+        - For Each Loop (Set) - UK2Node_SetForEach
+        - Control flow nodes (Branch, Sequence, etc.)
+        - Variable get/set nodes
+        - Custom events
+        - Cast nodes
 
         Args:
             blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
             function_name: Name of the function to create a node for (from discovered actions)
-            class_name: Optional class name if the function is from a specific class (e.g., "KismetMathLibrary")
+            class_name: Optional class name (supports both short names like "KismetMathLibrary" 
+                       and full paths like "/Script/Engine.KismetMathLibrary")
             node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
             json_params: Optional JSON string with additional parameters for special nodes
 
         Returns:
-            Dict containing node creation result with node info and pins
+            Dict containing:
+                - success: Boolean indicating if the node was created
+                - node_id: Unique identifier for the created node (if successful)
+                - node_type: Type of node that was created
+                - pins: List of available pins on the created node
+                - position: Position where the node was placed
+                - message: Status message or error details
 
         Examples:
-            # Create a math function node
+            # Create a working math function node (use SelectFloat, not Add_FloatFloat)
             create_node_by_action_name(
                 blueprint_name="BP_Calculator",
-                function_name="Add_FloatFloat",
+                function_name="SelectFloat",
                 class_name="KismetMathLibrary",
                 node_position=[100, 200]
+            )
+            
+            # Create a Map ForEach loop (WORKING!)
+            create_node_by_action_name(
+                blueprint_name="BP_MyActor",
+                function_name="For Each Loop (Map)",
+                node_position=[300, 400]
+            )
+            
+            # Create a Set ForEach loop (WORKING!)
+            create_node_by_action_name(
+                blueprint_name="BP_MyActor", 
+                function_name="For Each Loop (Set)",
+                node_position=[500, 400]
             )
             
             # Create a custom event with specific name
@@ -282,5 +310,9 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 blueprint_name="BP_MyActor",
                 function_name="GetActorLocation"
             )
+            
+            # Find correct function names using search first:
+            # search_blueprint_actions(search_query="float", category="Math") 
+            # Then use the discovered function names
         """
         return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, json_params) 

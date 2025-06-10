@@ -174,9 +174,25 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::CreateNodeByAc
 {
     FString BlueprintName = Params->GetStringField(TEXT("blueprint_name"));
     FString FunctionName = Params->GetStringField(TEXT("function_name"));
-    FString ClassName = Params->GetStringField(TEXT("class_name"));
-    FString NodePosition = Params->GetStringField(TEXT("node_position"));
-    FString JsonParams = Params->GetStringField(TEXT("json_params"));
+    FString ClassName;
+    FString NodePosition;
+    FString JsonParams;
+    
+    // Handle optional parameters safely
+    if (Params->HasField(TEXT("class_name")))
+    {
+        ClassName = Params->GetStringField(TEXT("class_name"));
+    }
+    
+    if (Params->HasField(TEXT("node_position")))
+    {
+        NodePosition = Params->GetStringField(TEXT("node_position"));
+    }
+    
+    if (Params->HasField(TEXT("json_params")))
+    {
+        JsonParams = Params->GetStringField(TEXT("json_params"));
+    }
     
     FString JsonResult = UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition, JsonParams);
     
