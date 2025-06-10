@@ -28,7 +28,7 @@ The Unreal MCP integration provides comprehensive tools for controlling Unreal E
 | Category | Capabilities |
 |----------|-------------|
 | **Actor Management** | • Create and delete actors (cubes, spheres, lights, cameras, etc.)<br>• Set actor transforms (position, rotation, scale)<br>• Query actor properties and find actors by name or pattern<br>• List all actors in the current level<br>• Set and query light properties (intensity, color, attenuation, shadows, source size)<br>• Spawn actors from Blueprint classes with custom transforms |
-| **Blueprint Development** | • Create new Blueprint classes with custom parent classes (Actor, Pawn, etc.)<br>• Add and configure components (StaticMesh, Camera, Light, etc.)<br>• Set component properties and static mesh assets<br>• Configure physics properties (simulation, gravity, mass, damping)<br>• Set Pawn-specific properties (auto possess, rotation control, damageability)<br>• Compile Blueprints<br>• Set Blueprint class default properties<br>• Add variables of any type (Boolean, Integer, Float, Vector, Struct, Array, Delegate, Blueprint references)<br>• Add interfaces to Blueprints<br>• Create Blueprint Interfaces<br>• Add custom event nodes to Blueprints<br>• Call BlueprintCallable functions by name<br>• **List all components (including inherited) in a Blueprint class for inspection and automation** |
+| **Blueprint Development** | • Create new Blueprint classes with custom parent classes (Actor, Pawn, etc.)<br>• Add and configure components (StaticMesh, Camera, Light, etc.)<br>• Set component properties and static mesh assets<br>• Configure physics properties (simulation, gravity, mass, damping)<br>• Set Pawn-specific properties (auto possess, rotation control, damageability)<br>• Compile Blueprints<br>• Set Blueprint class default properties<br>• Add variables of any type (Boolean, Integer, Float, Vector, Struct, Array, Delegate, Blueprint references)<br>• Add interfaces to Blueprints<br>• Create Blueprint Interfaces<br>• Add custom event nodes to Blueprints<br>• Call BlueprintCallable functions by name<br>• **List all components (including inherited) in a Blueprint class for inspection and automation**<br>• **Dynamic Blueprint Action Discovery**: Discover available actions for specific pin types, classes, and hierarchies<br>• **Intelligent Node Creation**: Create Blueprint nodes using discovered action names from Unreal's action database<br>• **Pin Requirement Analysis**: Get detailed information about node pins and their type requirements<br>• **Class Hierarchy Exploration**: Explore complete functionality across inheritance chains |
 | **Blueprint Node Graph** | • Add event nodes for standard events (BeginPlay, Tick) and input actions<br>• Add custom event nodes<br>• Create function call nodes with target components and parameters<br>• Connect nodes with proper pin linkages for execution and data flow<br>• Add variables with various types (Boolean, Integer, Float, Vector, Struct, etc.)<br>• Create component references and self references in the graph<br>• Find and identify nodes in the Blueprint graph by type/event<br>• Get variable type information for automation<br>• Build complete gameplay logic chains through the Blueprint visual scripting system |
 | **UMG/UI Development** | • Create UMG Widget Blueprints for building user interfaces<br>• Add and customize UI components (text, buttons, images, checkboxes, sliders, etc.)<br>• Add any widget component type to a widget<br>• Create complex layouts with scrollboxes, borders, containers, and nested hierarchies<br>• Set up event bindings and property bindings for dynamic UI<br>• Add widgets to the viewport with z-ordering control<br>• Set and query widget component properties (text, color, brush, etc.)<br>• Change widget placement, size, and alignment<br>• Check for component existence<br>• Get hierarchical layout information for all components in a widget<br>• Get container dimensions for layout automation |
 | **DataTable Management** | • Create new DataTables with custom row structs<br>• Add, update, and delete rows (single or multiple) in DataTables<br>• Query all rows or specific rows<br>• Get all row names and struct field names<br>• Automate row property mapping using GUID-based field names |
@@ -42,6 +42,7 @@ All these capabilities are accessible through natural language commands via AI a
 For detailed guides, examples, and best practices, see our **[Complete Documentation](Docs/README.md)** which includes:
 
 - **[Blueprint Tools](Docs/Blueprint-Tools.md)** - Creating and managing Blueprint classes, components, and variables
+- **[Blueprint Action Tools](Docs/Blueprint-Action-Tools.md)** - Discovering available Blueprint actions and creating nodes dynamically
 - **[Editor Tools](Docs/Editor-Tools.md)** - Controlling actors, transforms, and scene management  
 - **[Node Tools](Docs/Node-Tools.md)** - Building Blueprint visual scripting logic and event chains
 - **[UMG Tools](Docs/UMG-Tools.md)** - Creating user interfaces and interactive UI elements
@@ -49,8 +50,6 @@ For detailed guides, examples, and best practices, see our **[Complete Documenta
 - **[Project Tools](Docs/Project-Tools.md)** - Organizing projects, input systems, and structs
 
 Each guide includes natural language usage examples, advanced patterns, and real-world workflows.
-
-
 
 ## 🧩 Components
 
@@ -63,8 +62,8 @@ Each guide includes natural language usage examples, advanced patterns, and real
 - Implements actor manipulation tools
 - Handles command execution and response handling
 
-### Python MCP Server `Python/unreal_mcp_server.py`
-- Implemented in `unreal_mcp_server.py`
+### Python MCP Servers
+- 7 different mcp servers, stored in Python/*_tools/
 - Manages TCP socket connections to the C++ plugin (port 55557)
 - Handles command serialization and response parsing
 - Provides error handling and connection management
@@ -88,13 +87,13 @@ Each guide includes natural language usage examples, advanced patterns, and real
 ## 🚀 Quick Start Guide
 
 ### Prerequisites
-- Unreal Engine 5.5+
+- Unreal Engine 5.6
 - Python 3.12+
 - MCP Client (e.g., Claude Desktop, Cursor, Windsurf)
 
 ### Sample project
 
-For getting started quickly, feel free to use the starter project in `MCPGameProject`. This is a UE 5.5 Blank Starter Project with the `UnrealMCP.uplugin` already configured. 
+For getting started quickly, feel free to use the starter project in `MCPGameProject`. This is a UE 5.6 Blank Starter Project with the `UnrealMCP.uplugin` already configured. 
 
 1. **Prepare the project**
    - Right-click your .uproject file
@@ -221,7 +220,3 @@ Simply place the configuration in the appropriate location for your MCP client.
 
 ## License
 MIT
-
-## Questions
-
-For questions, you can reach me on X/Twitter: [@chongdashu](https://www.x.com/chongdashu)

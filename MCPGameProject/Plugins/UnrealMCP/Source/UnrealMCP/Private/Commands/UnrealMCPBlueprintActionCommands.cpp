@@ -32,6 +32,8 @@
 #include "K2Node_MakeStruct.h"
 #include "K2Node_ConstructObjectFromClass.h"
 #include "K2Node_MacroInstance.h"
+#include "K2Node_MapForEach.h"
+#include "K2Node_SetForEach.h"
 #include "K2Node_InputAction.h"
 #include "K2Node_Self.h"
 #include "Engine/UserDefinedStruct.h"
@@ -1324,6 +1326,26 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         NodeTitle = TEXT("Cast");
         NodeType = TEXT("UK2Node_DynamicCast");
     }
+    // Loop node creation (K2Node_MacroInstance types)
+    else if (FunctionName.Equals(TEXT("For Each Loop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("For Each Loop with Break"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("Reverse for Each Loop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("For Loop with Break"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase))
+    {
+        // For now, return a helpful error message explaining this is a known limitation
+        ResultObj->SetBoolField(TEXT("success"), false);
+        ResultObj->SetStringField(TEXT("message"), FString::Printf(
+            TEXT("Loop nodes like '%s' are discovered correctly via search_blueprint_actions, but creating them programmatically requires special handling of engine macro instances. This is a known limitation. The node type is 'K2Node_MacroInstance' and it exists in the action database, but the C++ implementation needs enhancement to properly instantiate engine-internal macro graphs."), 
+            *FunctionName));
+        
+        FString OutputString;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+        return OutputString;
+    }
 
     // Variable getter/setter node creation - check this FIRST before function lookup
     else if (FunctionName.StartsWith(TEXT("Get ")) || FunctionName.StartsWith(TEXT("Set ")) ||
@@ -1389,6 +1411,55 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
             return OutputString;
         }
     }
+    // Loop node creation (K2Node_MacroInstance types)
+    else if (FunctionName.Equals(TEXT("For Each Loop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("For Each Loop with Break"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("Reverse for Each Loop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("For Loop with Break"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase))
+    {
+        // For now, return a message indicating loop macro creation is not fully implemented
+        ResultObj->SetBoolField(TEXT("success"), false);
+        ResultObj->SetStringField(TEXT("message"), TEXT("Loop macro nodes require special handling that is not yet fully implemented. The macro blueprints exist but finding and instantiating them programmatically requires additional Blueprint macro instance logic."));
+        
+        FString OutputString;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+        return OutputString;
+    }
+    // Special loop node types that are not macros  
+    else if (FunctionName.Equals(TEXT("For Each Loop (Map)"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("Map ForEach"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("K2Node_MapForEach"), ESearchCase::IgnoreCase))
+    {
+        UK2Node_MapForEach* MapForEachNode = NewObject<UK2Node_MapForEach>(EventGraph);
+        MapForEachNode->NodePosX = PositionX;
+        MapForEachNode->NodePosY = PositionY;
+        MapForEachNode->CreateNewGuid();
+        EventGraph->AddNode(MapForEachNode, true, true);
+        MapForEachNode->PostPlacedNewNode();
+        MapForEachNode->AllocateDefaultPins();
+        NewNode = MapForEachNode;
+        NodeTitle = TEXT("For Each Loop (Map)");
+        NodeType = TEXT("UK2Node_MapForEach");
+    }
+    else if (FunctionName.Equals(TEXT("For Each Loop (Set)"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("Set ForEach"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("K2Node_SetForEach"), ESearchCase::IgnoreCase))
+    {
+        UK2Node_SetForEach* SetForEachNode = NewObject<UK2Node_SetForEach>(EventGraph);
+        SetForEachNode->NodePosX = PositionX;
+        SetForEachNode->NodePosY = PositionY;
+        SetForEachNode->CreateNewGuid();
+        EventGraph->AddNode(SetForEachNode, true, true);
+        SetForEachNode->PostPlacedNewNode();
+        SetForEachNode->AllocateDefaultPins();
+        NewNode = SetForEachNode;
+        NodeTitle = TEXT("For Each Loop (Set)");
+        NodeType = TEXT("UK2Node_SetForEach");
+    }
     else
     {
         // Try to find the function and create a function call node
@@ -1401,12 +1472,29 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
             TargetClass = UClass::TryFindTypeSlow<UClass>(ClassName);
             if (!TargetClass)
             {
-                // Try common prefixes
+                // Try with common prefixes
                 FString TestClassName = ClassName;
-                if (!TestClassName.StartsWith(TEXT("U")) && !TestClassName.StartsWith(TEXT("A")))
+                if (!TestClassName.StartsWith(TEXT("U")) && !TestClassName.StartsWith(TEXT("A")) && !TestClassName.StartsWith(TEXT("/Script/")))
                 {
                     TestClassName = TEXT("U") + ClassName;
                     TargetClass = UClass::TryFindTypeSlow<UClass>(TestClassName);
+                }
+                
+                // Try with full path for common Unreal classes
+                if (!TargetClass)
+                {
+                    if (ClassName.Equals(TEXT("KismetMathLibrary"), ESearchCase::IgnoreCase))
+                    {
+                        TargetClass = UKismetMathLibrary::StaticClass();
+                    }
+                    else if (ClassName.Equals(TEXT("KismetSystemLibrary"), ESearchCase::IgnoreCase))
+                    {
+                        TargetClass = UKismetSystemLibrary::StaticClass();
+                    }
+                    else if (ClassName.Equals(TEXT("GameplayStatics"), ESearchCase::IgnoreCase))
+                    {
+                        TargetClass = UGameplayStatics::StaticClass();
+                    }
                 }
             }
             
@@ -1440,11 +1528,15 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
             ResultObj->SetBoolField(TEXT("success"), false);
             ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Function '%s' not found and not a recognized control flow node"), *FunctionName));
             
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Function '%s' not found"), *FunctionName);
+            
             FString OutputString;
             TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
             FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
             return OutputString;
         }
+        
+        UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Found function '%s' in class '%s'"), *FunctionName, TargetClass ? *TargetClass->GetName() : TEXT("Unknown"));
         
         // Create the function call node
         UK2Node_CallFunction* FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
@@ -1465,11 +1557,15 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         ResultObj->SetBoolField(TEXT("success"), false);
         ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Failed to create node for '%s'"), *FunctionName));
         
+        UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to create node for '%s'"), *FunctionName);
+        
         FString OutputString;
         TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
         FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
         return OutputString;
     }
+    
+    UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
 
     
     // Mark blueprint as modified
@@ -1511,4 +1607,5 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
     
     return OutputString;
-} 
+}
+
