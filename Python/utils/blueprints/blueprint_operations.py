@@ -391,6 +391,49 @@ def create_blueprint_interface(
     return send_unreal_command("create_blueprint_interface", params)
 
 def list_blueprint_components(ctx: Context, blueprint_name: str) -> Dict[str, Any]:
-    """Implementation for listing all components in a Blueprint class."""
+    """Implementation for listing components in a blueprint."""
     params = {"blueprint_name": blueprint_name}
     return send_unreal_command("list_blueprint_components", params)
+
+def create_custom_blueprint_function(
+    ctx: Context,
+    blueprint_name: str,
+    function_name: str,
+    inputs: List[Dict[str, str]] = None,
+    outputs: List[Dict[str, str]] = None,
+    is_pure: bool = False,
+    is_const: bool = False,
+    access_specifier: str = "Public",
+    category: str = "Default"
+) -> Dict[str, Any]:
+    """Implementation for creating a custom user-defined function in a blueprint.
+    
+    Args:
+        blueprint_name: Name of the target Blueprint
+        function_name: Name of the custom function to create
+        inputs: List of input parameters, each with 'name' and 'type' keys
+        outputs: List of output parameters, each with 'name' and 'type' keys  
+        is_pure: Whether the function is pure (no execution pins)
+        is_const: Whether the function is const
+        access_specifier: Access level ("Public", "Protected", "Private")
+        category: Category for organization in the functions list
+        
+    Returns:
+        Dictionary containing success status and function information
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "function_name": function_name,
+        "is_pure": is_pure,
+        "is_const": is_const,
+        "access_specifier": access_specifier,
+        "category": category
+    }
+    
+    if inputs is not None:
+        params["inputs"] = inputs
+        
+    if outputs is not None:
+        params["outputs"] = outputs
+        
+    return send_unreal_command("create_custom_blueprint_function", params)

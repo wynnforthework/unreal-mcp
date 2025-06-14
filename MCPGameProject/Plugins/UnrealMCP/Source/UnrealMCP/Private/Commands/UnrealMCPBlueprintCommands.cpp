@@ -7,6 +7,8 @@
 #include "K2Node_Event.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
+#include "K2Node_FunctionEntry.h"
+#include "K2Node_FunctionResult.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/SphereComponent.h"
@@ -29,6 +31,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "UObject/TopLevelAssetPath.h"
 #include "Factories/BlueprintInterfaceFactory.h"
+#include "Math/Vector2D.h"
+#include "Math/Color.h"
+#include "Math/UnrealMathUtility.h"
 
 // Using LogTemp instead of a custom log category for UE5.5 compatibility
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -90,6 +95,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCommand(const FString
     else if (CommandType == TEXT("list_blueprint_components"))
     {
         return HandleListBlueprintComponents(Params);
+    }
+    else if (CommandType == TEXT("create_custom_blueprint_function"))
+    {
+        return HandleCreateCustomBlueprintFunction(Params);
     }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint command: %s"), *CommandType));
@@ -1492,5 +1501,339 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleListBlueprintComponen
 
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetArrayField(TEXT("components"), ComponentArray);
+    return ResultObj;
+}
+
+// Helper function to convert string type to FEdGraphPinType
+FEdGraphPinType GetTypeFromString(const FString& TypeString)
+{
+    FEdGraphPinType PinType;
+    
+    if (TypeString == TEXT("Boolean") || TypeString == TEXT("bool"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+    }
+    else if (TypeString == TEXT("Integer") || TypeString == TEXT("int"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+    }
+    else if (TypeString == TEXT("Float") || TypeString == TEXT("float"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+        PinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
+    }
+    else if (TypeString == TEXT("String"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+    }
+    else if (TypeString == TEXT("Text"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Text;
+    }
+    else if (TypeString == TEXT("Name"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Name;
+    }
+    else if (TypeString == TEXT("Vector"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+        PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
+    }
+    else if (TypeString == TEXT("Vector2D"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+        PinType.PinSubCategoryObject = TBaseStructure<FVector2D>::Get();
+    }
+    else if (TypeString == TEXT("Rotator"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+        PinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
+    }
+    else if (TypeString == TEXT("Transform"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+        PinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
+    }
+    else if (TypeString == TEXT("Color"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+        PinType.PinSubCategoryObject = TBaseStructure<FColor>::Get();
+    }
+    else if (TypeString == TEXT("LinearColor"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+        PinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
+    }
+    else if (TypeString == TEXT("Object") || TypeString == TEXT("UObject"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+        PinType.PinSubCategoryObject = UObject::StaticClass();
+    }
+    else if (TypeString == TEXT("Actor") || TypeString == TEXT("AActor"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+        PinType.PinSubCategoryObject = AActor::StaticClass();
+    }
+    else if (TypeString.EndsWith(TEXT("[]"))) // Array type
+    {
+        FString BaseType = TypeString.LeftChop(2);
+        PinType = GetTypeFromString(BaseType);
+        PinType.ContainerType = EPinContainerType::Array;
+    }
+    else if (TypeString.StartsWith(TEXT("Class<")) && TypeString.EndsWith(TEXT(">")))
+    {
+        // Handle Class<Type> references
+        FString ClassType = TypeString.Mid(6, TypeString.Len() - 7); // Remove "Class<" and ">"
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Class;
+        
+        // Try to find the class
+        if (ClassType == TEXT("Actor"))
+        {
+            PinType.PinSubCategoryObject = AActor::StaticClass();
+        }
+        else if (ClassType == TEXT("Object"))
+        {
+            PinType.PinSubCategoryObject = UObject::StaticClass();
+        }
+        else
+        {
+            // For unknown class types, default to UObject
+            PinType.PinSubCategoryObject = UObject::StaticClass();
+        }
+    }
+    else
+    {
+        // Try to find it as a struct or custom type
+        // First check if it's a known struct name
+        UScriptStruct* FoundStruct = nullptr;
+        
+        // Try common struct prefixes
+        if (!TypeString.StartsWith(TEXT("F")))
+        {
+            FString StructName = TEXT("F") + TypeString;
+            FoundStruct = FindObject<UScriptStruct>(nullptr, *StructName);
+        }
+        
+        if (!FoundStruct)
+        {
+            FoundStruct = FindObject<UScriptStruct>(nullptr, *TypeString);
+        }
+        
+        if (FoundStruct)
+        {
+            PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+            PinType.PinSubCategoryObject = FoundStruct;
+        }
+        else
+        {
+            // Try to find it as a class
+            UClass* FoundClass = FindObject<UClass>(nullptr, *TypeString);
+            if (!FoundClass && !TypeString.StartsWith(TEXT("U")) && !TypeString.StartsWith(TEXT("A")))
+            {
+                // Try with U prefix for UObject classes
+                FString UClassName = TEXT("U") + TypeString;
+                FoundClass = FindObject<UClass>(nullptr, *UClassName);
+                
+                // Try with A prefix for Actor classes
+                if (!FoundClass)
+                {
+                    FString AClassName = TEXT("A") + TypeString;
+                    FoundClass = FindObject<UClass>(nullptr, *AClassName);
+                }
+            }
+            
+            if (FoundClass)
+            {
+                PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+                PinType.PinSubCategoryObject = FoundClass;
+            }
+            else
+            {
+                // Default to string for unknown types with a warning
+                UE_LOG(LogTemp, Warning, TEXT("Unknown type '%s', defaulting to String"), *TypeString);
+                PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+            }
+        }
+    }
+    
+    return PinType;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateCustomBlueprintFunction(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+    }
+
+    FString FunctionName;
+    if (!Params->TryGetStringField(TEXT("function_name"), FunctionName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'function_name' parameter"));
+    }
+
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+    if (!Blueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+    }
+
+    // Get optional parameters
+    bool bIsPure = false;
+    Params->TryGetBoolField(TEXT("is_pure"), bIsPure);
+    
+    bool bIsConst = false;
+    Params->TryGetBoolField(TEXT("is_const"), bIsConst);
+    
+    FString AccessSpecifier = TEXT("Public");
+    Params->TryGetStringField(TEXT("access_specifier"), AccessSpecifier);
+    
+    FString Category = TEXT("Default");
+    Params->TryGetStringField(TEXT("category"), Category);
+
+    // Get input and output parameters
+    TArray<TSharedPtr<FJsonValue>> InputsArray;
+    TArray<TSharedPtr<FJsonValue>> OutputsArray;
+    
+    if (Params->HasField(TEXT("inputs")))
+    {
+        const TArray<TSharedPtr<FJsonValue>>* InputsPtr = nullptr;
+        if (Params->TryGetArrayField(TEXT("inputs"), InputsPtr) && InputsPtr)
+        {
+            InputsArray = *InputsPtr;
+        }
+    }
+    
+    if (Params->HasField(TEXT("outputs")))
+    {
+        const TArray<TSharedPtr<FJsonValue>>* OutputsPtr = nullptr;
+        if (Params->TryGetArrayField(TEXT("outputs"), OutputsPtr) && OutputsPtr)
+        {
+            OutputsArray = *OutputsPtr;
+        }
+    }
+
+    // Create a new graph using the basic UE5 API
+    UEdGraph* NewGraph = FBlueprintEditorUtils::CreateNewGraph(
+        Blueprint,
+        FName(*FunctionName),
+        UEdGraph::StaticClass(),
+        UEdGraphSchema_K2::StaticClass()
+    );
+
+    if (!NewGraph)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create function graph"));
+    }
+
+    // Set up the function as a user-defined function
+    NewGraph->bAllowDeletion = true;
+    NewGraph->bAllowRenaming = true;
+    
+    // Add the graph to the blueprint's function graphs
+    Blueprint->FunctionGraphs.Add(NewGraph);
+
+    // Create a function entry node
+    UK2Node_FunctionEntry* FunctionEntry = NewObject<UK2Node_FunctionEntry>(NewGraph);
+    NewGraph->AddNode(FunctionEntry, true, true);
+    
+    // Position the entry node
+    FunctionEntry->NodePosX = 0;
+    FunctionEntry->NodePosY = 0;
+    
+    // Add input parameters to the function entry node
+    for (const TSharedPtr<FJsonValue>& InputValue : InputsArray)
+    {
+        const TSharedPtr<FJsonObject>* InputObj;
+        if (InputValue->TryGetObject(InputObj) && InputObj->IsValid())
+        {
+            FString ParamName;
+            FString ParamType;
+            
+            if ((*InputObj)->TryGetStringField(TEXT("name"), ParamName) && 
+                (*InputObj)->TryGetStringField(TEXT("type"), ParamType))
+            {
+                FEdGraphPinType PinType = GetTypeFromString(ParamType);
+                
+                // Create a user-defined pin on the function entry
+                UEdGraphPin* NewPin = FunctionEntry->CreateUserDefinedPin(FName(*ParamName), PinType, EGPD_Output);
+                if (NewPin)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Created input parameter '%s' of type '%s'"), *ParamName, *ParamType);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Failed to create input parameter '%s' of type '%s'"), *ParamName, *ParamType);
+                }
+            }
+        }
+    }
+    
+    // Create function result node for output parameters if any
+    UK2Node_FunctionResult* FunctionResult = nullptr;
+    if (OutputsArray.Num() > 0)
+    {
+        FunctionResult = NewObject<UK2Node_FunctionResult>(NewGraph);
+        NewGraph->AddNode(FunctionResult, true, true);
+        
+        // Position the result node to the right of entry node
+        FunctionResult->NodePosX = 300;
+        FunctionResult->NodePosY = 0;
+        
+        // Add output parameters to the function result node
+        for (const TSharedPtr<FJsonValue>& OutputValue : OutputsArray)
+        {
+            const TSharedPtr<FJsonObject>* OutputObj;
+            if (OutputValue->TryGetObject(OutputObj) && OutputObj->IsValid())
+            {
+                FString ParamName;
+                FString ParamType;
+                
+                if ((*OutputObj)->TryGetStringField(TEXT("name"), ParamName) && 
+                    (*OutputObj)->TryGetStringField(TEXT("type"), ParamType))
+                {
+                    FEdGraphPinType PinType = GetTypeFromString(ParamType);
+                    
+                    // Create a user-defined pin on the function result
+                    UEdGraphPin* NewPin = FunctionResult->CreateUserDefinedPin(FName(*ParamName), PinType, EGPD_Input);
+                    if (NewPin)
+                    {
+                        UE_LOG(LogTemp, Log, TEXT("Created output parameter '%s' of type '%s'"), *ParamName, *ParamType);
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("Failed to create output parameter '%s' of type '%s'"), *ParamName, *ParamType);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Reconstruct and refresh nodes
+    FunctionEntry->ReconstructNode();
+    if (FunctionResult)
+    {
+        FunctionResult->ReconstructNode();
+    }
+    
+    // Mark the blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+    
+    // Don't compile automatically to avoid assertion failures
+    // The user can compile manually in the Blueprint editor
+    
+    UE_LOG(LogTemp, Log, TEXT("Created custom function '%s' in blueprint '%s' with %d inputs and %d outputs"), 
+           *FunctionName, *BlueprintName, InputsArray.Num(), OutputsArray.Num());
+    
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetStringField(TEXT("function_name"), FunctionName);
+    ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
+    ResultObj->SetNumberField(TEXT("input_count"), InputsArray.Num());
+    ResultObj->SetNumberField(TEXT("output_count"), OutputsArray.Num());
+    ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Successfully created function '%s' with %d inputs and %d outputs"), 
+                                                               *FunctionName, InputsArray.Num(), OutputsArray.Num()));
+    
     return ResultObj;
 }

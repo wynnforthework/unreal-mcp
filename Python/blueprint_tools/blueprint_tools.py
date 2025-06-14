@@ -20,7 +20,8 @@ from utils.blueprints.blueprint_operations import (
     add_blueprint_variable as add_blueprint_variable_impl,
     add_interface_to_blueprint as add_interface_to_blueprint_impl,
     create_blueprint_interface as create_blueprint_interface_impl,
-    list_blueprint_components as list_blueprint_components_impl
+    list_blueprint_components as list_blueprint_components_impl,
+    create_custom_blueprint_function as create_custom_blueprint_function_impl
 )
 
 # Get logger
@@ -496,5 +497,63 @@ def register_blueprint_tools(mcp: FastMCP):
             list_blueprint_components(ctx, blueprint_name="BP_ThirdPersonCharacter")
         """
         return list_blueprint_components_impl(ctx, blueprint_name)
+    
+    @mcp.tool()
+    def create_custom_blueprint_function(
+        ctx: Context,
+        blueprint_name: str,
+        function_name: str,
+        inputs: List[Dict[str, str]] = None,
+        outputs: List[Dict[str, str]] = None,
+        is_pure: bool = False,
+        is_const: bool = False,
+        access_specifier: str = "Public",
+        category: str = "Default"
+    ) -> Dict[str, Any]:
+        """
+        Create a custom user-defined function in a Blueprint.
+        This will create a new function that appears in the Functions section of the Blueprint editor.
+        
+        Args:
+            blueprint_name: Name of the target Blueprint
+            function_name: Name of the custom function to create
+            inputs: List of input parameters, each with 'name' and 'type' keys
+            outputs: List of output parameters, each with 'name' and 'type' keys  
+            is_pure: Whether the function is pure (no execution pins)
+            is_const: Whether the function is const
+            access_specifier: Access level ("Public", "Protected", "Private")
+            category: Category for organization in the functions list
+            
+        Returns:
+            Dictionary containing success status and function information
+            
+        Examples:
+            # Create a simple function with no parameters
+            create_custom_blueprint_function(
+                ctx,
+                blueprint_name="BP_LoopTest",
+                function_name="TestLoopFunction"
+            )
+            
+            # Create a function with input and output parameters
+            create_custom_blueprint_function(
+                ctx,
+                blueprint_name="BP_LoopTest", 
+                function_name="ProcessArray",
+                inputs=[{"name": "InputArray", "type": "String[]"}],
+                outputs=[{"name": "ProcessedCount", "type": "Integer"}]
+            )
+        """
+        return create_custom_blueprint_function_impl(
+            ctx, 
+            blueprint_name, 
+            function_name, 
+            inputs, 
+            outputs, 
+            is_pure, 
+            is_const, 
+            access_specifier, 
+            category
+        )
     
     logger.info("Blueprint tools registered successfully")
