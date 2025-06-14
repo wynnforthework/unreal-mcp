@@ -36,6 +36,8 @@
 #include "K2Node_SetForEach.h"
 #include "K2Node_InputAction.h"
 #include "K2Node_Self.h"
+#include "K2Node_FunctionEntry.h"
+#include "K2Node_FunctionResult.h"
 #include "Engine/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 #include "KismetCompiler.h"
@@ -51,6 +53,106 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
+
+// Helper: Add Blueprint-local custom function actions
+void AddBlueprintCustomFunctionActions(UBlueprint* Blueprint, const FString& SearchFilter, TArray<TSharedPtr<FJsonValue>>& OutActions)
+{
+    if (!Blueprint) 
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Blueprint is null"));
+        return;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Processing Blueprint '%s' with %d custom functions"), 
+           *Blueprint->GetName(), Blueprint->FunctionGraphs.Num());
+    
+    FString SearchLower = SearchFilter.ToLower();
+    int32 AddedActions = 0;
+    
+    for (UEdGraph* FunctionGraph : Blueprint->FunctionGraphs)
+    {
+        if (!FunctionGraph)
+        {
+            continue;
+        }
+        
+        FString FunctionName = FunctionGraph->GetName();
+        FString FunctionNameLower = FunctionName.ToLower();
+        
+        UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Checking function '%s'"), *FunctionName);
+        
+        if (!SearchFilter.IsEmpty() && !FunctionNameLower.Contains(SearchLower))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Function '%s' doesn't match search filter '%s'"), *FunctionName, *SearchFilter);
+            continue;
+        }
+        
+        // Look for function entry node to get input/output parameters
+        UK2Node_FunctionEntry* FunctionEntry = nullptr;
+        UK2Node_FunctionResult* FunctionResult = nullptr;
+        
+        for (UEdGraphNode* Node : FunctionGraph->Nodes)
+        {
+            if (UK2Node_FunctionEntry* EntryNode = Cast<UK2Node_FunctionEntry>(Node))
+            {
+                FunctionEntry = EntryNode;
+            }
+            else if (UK2Node_FunctionResult* ResultNode = Cast<UK2Node_FunctionResult>(Node))
+            {
+                FunctionResult = ResultNode;
+            }
+        }
+        
+        // Create function call action
+        TSharedPtr<FJsonObject> FunctionObj = MakeShared<FJsonObject>();
+        FunctionObj->SetStringField(TEXT("title"), FunctionName);
+        FunctionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Call custom function %s"), *FunctionName));
+        FunctionObj->SetStringField(TEXT("category"), TEXT("Custom Functions"));
+        FunctionObj->SetStringField(TEXT("keywords"), FString::Printf(TEXT("function call custom %s local blueprint"), *FunctionName));
+        FunctionObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_CallFunction"));
+        FunctionObj->SetStringField(TEXT("function_name"), FunctionName);
+        FunctionObj->SetBoolField(TEXT("is_blueprint_function"), true);
+        
+        // Add parameter information if available
+        if (FunctionEntry)
+        {
+            TArray<TSharedPtr<FJsonValue>> InputParams;
+            for (UEdGraphPin* Pin : FunctionEntry->Pins)
+            {
+                if (Pin && Pin->Direction == EGPD_Output && Pin->PinName != UEdGraphSchema_K2::PN_Then)
+                {
+                    TSharedPtr<FJsonObject> ParamObj = MakeShared<FJsonObject>();
+                    ParamObj->SetStringField(TEXT("name"), Pin->PinName.ToString());
+                    ParamObj->SetStringField(TEXT("type"), Pin->PinType.PinCategory.ToString());
+                    InputParams.Add(MakeShared<FJsonValueObject>(ParamObj));
+                }
+            }
+            FunctionObj->SetArrayField(TEXT("input_params"), InputParams);
+        }
+        
+        if (FunctionResult)
+        {
+            TArray<TSharedPtr<FJsonValue>> OutputParams;
+            for (UEdGraphPin* Pin : FunctionResult->Pins)
+            {
+                if (Pin && Pin->Direction == EGPD_Input && Pin->PinName != UEdGraphSchema_K2::PN_Execute)
+                {
+                    TSharedPtr<FJsonObject> ParamObj = MakeShared<FJsonObject>();
+                    ParamObj->SetStringField(TEXT("name"), Pin->PinName.ToString());
+                    ParamObj->SetStringField(TEXT("type"), Pin->PinType.PinCategory.ToString());
+                    OutputParams.Add(MakeShared<FJsonValueObject>(ParamObj));
+                }
+            }
+            FunctionObj->SetArrayField(TEXT("output_params"), OutputParams);
+        }
+        
+        OutActions.Add(MakeShared<FJsonValueObject>(FunctionObj));
+        AddedActions++;
+        UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Added custom function '%s'"), *FunctionName);
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Added %d custom function actions total"), AddedActions);
+}
 
 // Helper: Add Blueprint-local variable getter/setter actions
 void AddBlueprintVariableActions(UBlueprint* Blueprint, const FString& SearchFilter, TArray<TSharedPtr<FJsonValue>>& OutActions)
@@ -809,6 +911,11 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
             UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Adding variable actions for Blueprint: %s"), *Blueprint->GetName());
             AddBlueprintVariableActions(Blueprint, SearchQuery, ActionsArray);
             UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Added %d variable actions"), ActionsArray.Num());
+            
+            // Add custom function actions
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Adding custom function actions for Blueprint: %s"), *Blueprint->GetName());
+            AddBlueprintCustomFunctionActions(Blueprint, SearchQuery, ActionsArray);
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Total actions after custom functions: %d"), ActionsArray.Num());
         }
         else
         {
