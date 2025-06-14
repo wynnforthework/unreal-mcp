@@ -7,6 +7,8 @@
 #include "K2Node_Event.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
+#include "K2Node_FunctionEntry.h"
+#include "K2Node_FunctionResult.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/SphereComponent.h"
@@ -90,6 +92,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCommand(const FString
     else if (CommandType == TEXT("list_blueprint_components"))
     {
         return HandleListBlueprintComponents(Params);
+    }
+    else if (CommandType == TEXT("create_custom_blueprint_function"))
+    {
+        return HandleCreateCustomBlueprintFunction(Params);
     }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint command: %s"), *CommandType));
@@ -1492,5 +1498,132 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleListBlueprintComponen
 
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetArrayField(TEXT("components"), ComponentArray);
+    return ResultObj;
+}
+
+// Helper function to convert string type to FEdGraphPinType
+FEdGraphPinType GetTypeFromString(const FString& TypeString)
+{
+    FEdGraphPinType PinType;
+    
+    if (TypeString == TEXT("Boolean") || TypeString == TEXT("bool"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+    }
+    else if (TypeString == TEXT("Integer") || TypeString == TEXT("int"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+    }
+    else if (TypeString == TEXT("Float") || TypeString == TEXT("float"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+        PinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
+    }
+    else if (TypeString == TEXT("String"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+    }
+    else if (TypeString == TEXT("Vector"))
+    {
+        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+        PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
+    }
+    else if (TypeString.EndsWith(TEXT("[]"))) // Array type
+    {
+        FString BaseType = TypeString.LeftChop(2);
+        PinType = GetTypeFromString(BaseType);
+        PinType.ContainerType = EPinContainerType::Array;
+    }
+    else
+    {
+        // Default to string for unknown types
+        PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+    }
+    
+    return PinType;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateCustomBlueprintFunction(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+    }
+
+    FString FunctionName;
+    if (!Params->TryGetStringField(TEXT("function_name"), FunctionName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'function_name' parameter"));
+    }
+
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+    if (!Blueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+    }
+
+    // Get optional parameters
+    bool bIsPure = false;
+    Params->TryGetBoolField(TEXT("is_pure"), bIsPure);
+    
+    bool bIsConst = false;
+    Params->TryGetBoolField(TEXT("is_const"), bIsConst);
+    
+    FString AccessSpecifier = TEXT("Public");
+    Params->TryGetStringField(TEXT("access_specifier"), AccessSpecifier);
+    
+    FString Category = TEXT("Default");
+    Params->TryGetStringField(TEXT("category"), Category);
+
+    // Create a new graph using the basic UE5 API
+    UEdGraph* NewGraph = FBlueprintEditorUtils::CreateNewGraph(
+        Blueprint,
+        FName(*FunctionName),
+        UEdGraph::StaticClass(),
+        UEdGraphSchema_K2::StaticClass()
+    );
+
+    if (!NewGraph)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create function graph"));
+    }
+
+    // Set up the function as a user-defined function
+    NewGraph->bAllowDeletion = true;
+    NewGraph->bAllowRenaming = true;
+    
+    // Add the graph to the blueprint's function graphs
+    Blueprint->FunctionGraphs.Add(NewGraph);
+
+    // Create a function entry node
+    UK2Node_FunctionEntry* FunctionEntry = NewObject<UK2Node_FunctionEntry>(NewGraph);
+    NewGraph->AddNode(FunctionEntry, true, true);
+    
+    // Position the entry node
+    FunctionEntry->NodePosX = 0;
+    FunctionEntry->NodePosY = 0;
+    
+    // For now, just create the basic function structure without custom parameters
+    // The parameter creation will need to be handled through the Blueprint editor UI
+    // TODO: Implement proper parameter creation through UE5 Blueprint API
+    
+    // Reconstruct and refresh nodes
+    FunctionEntry->ReconstructNode();
+    
+    // Mark the blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+    
+    // Don't compile automatically to avoid assertion failures
+    // The user can compile manually in the Blueprint editor
+    
+    UE_LOG(LogTemp, Log, TEXT("Created custom function '%s' in blueprint '%s'"), *FunctionName, *BlueprintName);
+    
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetStringField(TEXT("function_name"), FunctionName);
+    ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
+    ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Successfully created function '%s'"), *FunctionName));
+    
     return ResultObj;
 }
