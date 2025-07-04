@@ -1548,6 +1548,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
              FunctionName.Equals(TEXT("Reverse for Each Loop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("For Loop with Break"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("While Loop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase))
     {
@@ -1577,6 +1578,10 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         else if (FunctionName.Equals(TEXT("Reverse for Each Loop"), ESearchCase::IgnoreCase))
         {
             MacroName = TEXT("ReverseForEachLoop");
+        }
+        else if (FunctionName.Equals(TEXT("While Loop"), ESearchCase::IgnoreCase))
+        {
+            MacroName = TEXT("WhileLoop");
         }
         
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Looking for macro blueprint: %s"), *MacroName);
