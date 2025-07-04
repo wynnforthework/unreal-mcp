@@ -52,263 +52,17 @@
 
 // Additional includes for node creation
 #include "Commands/UnrealMCPCommonUtils.h"
+#include "Commands/UnrealMCPNodeCreationHelpers.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 
-// ===== HELPER FUNCTIONS FOR OPTIMIZED NODE CREATION =====
+// ===== HELPER FUNCTIONS MOVED TO UnrealMCPNodeCreationHelpers.cpp =====
 
-// Helper: Parse JSON parameters with error handling
-static bool ParseJsonParameters(const FString& JsonParams, TSharedPtr<FJsonObject>& OutParamsObject, TSharedPtr<FJsonObject>& OutResultObj)
-{
-    if (!JsonParams.IsEmpty())
-    {
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonParams);
-        if (!FJsonSerializer::Deserialize(Reader, OutParamsObject) || !OutParamsObject.IsValid())
-        {
-            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to parse JSON parameters"));
-            OutResultObj->SetBoolField(TEXT("success"), false);
-            OutResultObj->SetStringField(TEXT("message"), TEXT("Invalid JSON parameters"));
-            return false;
-        }
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully parsed JSON parameters"));
-    }
-    return true;
-}
 
-// Helper: Parse node position from various formats
-static void ParseNodePosition(const FString& NodePosition, int32& OutPositionX, int32& OutPositionY)
-{
-    OutPositionX = 0;
-    OutPositionY = 0;
-    
-    if (!NodePosition.IsEmpty())
-    {
-        // Try to parse as JSON array [x, y] first (from Python)
-        TSharedPtr<FJsonValue> JsonValue;
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(NodePosition);
-        
-        if (FJsonSerializer::Deserialize(Reader, JsonValue) && JsonValue.IsValid())
-        {
-            const TArray<TSharedPtr<FJsonValue>>* JsonArray = nullptr;
-            if (JsonValue->TryGetArray(JsonArray) && JsonArray->Num() >= 2)
-            {
-                OutPositionX = FMath::RoundToInt((*JsonArray)[0]->AsNumber());
-                OutPositionY = FMath::RoundToInt((*JsonArray)[1]->AsNumber());
-                return;
-            }
-        }
-        
-        // Fallback: parse as string format "[x, y]" or "x,y"
-        FString CleanPosition = NodePosition;
-        CleanPosition = CleanPosition.Replace(TEXT("["), TEXT(""));
-        CleanPosition = CleanPosition.Replace(TEXT("]"), TEXT(""));
-        
-        TArray<FString> Coords;
-        CleanPosition.ParseIntoArray(Coords, TEXT(","));
-        
-        if (Coords.Num() == 2)
-        {
-            OutPositionX = FCString::Atoi(*Coords[0].TrimStartAndEnd());
-            OutPositionY = FCString::Atoi(*Coords[1].TrimStartAndEnd());
-        }
-    }
-}
 
-// Helper: Find target class by name with common class resolution
-static UClass* FindTargetClass(const FString& ClassName)
-{
-    if (ClassName.IsEmpty()) return nullptr;
-    
-    UClass* TargetClass = UClass::TryFindTypeSlow<UClass>(ClassName);
-    if (TargetClass) return TargetClass;
-    
-    // Try with common prefixes
-    FString TestClassName = ClassName;
-    if (!TestClassName.StartsWith(TEXT("U")) && !TestClassName.StartsWith(TEXT("A")) && !TestClassName.StartsWith(TEXT("/Script/")))
-    {
-        TestClassName = TEXT("U") + ClassName;
-        TargetClass = UClass::TryFindTypeSlow<UClass>(TestClassName);
-        if (TargetClass) return TargetClass;
-    }
-    
-    // Try with full path for common Unreal classes
-    if (ClassName.Equals(TEXT("KismetMathLibrary"), ESearchCase::IgnoreCase))
-    {
-        return UKismetMathLibrary::StaticClass();
-    }
-    else if (ClassName.Equals(TEXT("KismetSystemLibrary"), ESearchCase::IgnoreCase))
-    {
-        return UKismetSystemLibrary::StaticClass();
-    }
-    else if (ClassName.Equals(TEXT("GameplayStatics"), ESearchCase::IgnoreCase))
-    {
-        return UGameplayStatics::StaticClass();
-    }
-    
-    return nullptr;
-}
 
-// Helper: Build result JSON with node information
-static FString BuildNodeResult(bool bSuccess, const FString& Message, const FString& BlueprintName = TEXT(""), 
-                              const FString& FunctionName = TEXT(""), UEdGraphNode* NewNode = nullptr, 
-                              const FString& NodeTitle = TEXT(""), const FString& NodeType = TEXT(""), 
-                              UClass* TargetClass = nullptr, int32 PositionX = 0, int32 PositionY = 0)
-{
-    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-    ResultObj->SetBoolField(TEXT("success"), bSuccess);
-    ResultObj->SetStringField(TEXT("message"), Message);
-    
-    if (bSuccess && NewNode)
-    {
-        ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
-        ResultObj->SetStringField(TEXT("function_name"), FunctionName);
-        ResultObj->SetStringField(TEXT("node_type"), NodeType);
-        ResultObj->SetStringField(TEXT("class_name"), NodeType.Equals(TEXT("UK2Node_CallFunction")) ? (TargetClass ? TargetClass->GetName() : TEXT("")) : TEXT(""));
-        ResultObj->SetStringField(TEXT("node_id"), NewNode->NodeGuid.ToString());
-        ResultObj->SetStringField(TEXT("node_title"), NodeTitle);
-        
-        // Add position info
-        TSharedPtr<FJsonObject> PositionObj = MakeShared<FJsonObject>();
-        PositionObj->SetNumberField(TEXT("x"), PositionX);
-        PositionObj->SetNumberField(TEXT("y"), PositionY);
-        ResultObj->SetObjectField(TEXT("position"), PositionObj);
-        
-        // Add pin information
-        TArray<TSharedPtr<FJsonValue>> PinsArray;
-        for (UEdGraphPin* Pin : NewNode->Pins)
-        {
-            TSharedPtr<FJsonObject> PinObj = MakeShared<FJsonObject>();
-            PinObj->SetStringField(TEXT("name"), Pin->PinName.ToString());
-            PinObj->SetStringField(TEXT("type"), Pin->PinType.PinCategory.ToString());
-            PinObj->SetStringField(TEXT("direction"), Pin->Direction == EGPD_Input ? TEXT("input") : TEXT("output"));
-            PinObj->SetBoolField(TEXT("is_execution"), Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec);
-            PinsArray.Add(MakeShared<FJsonValueObject>(PinObj));
-        }
-        ResultObj->SetArrayField(TEXT("pins"), PinsArray);
-    }
-    
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-    return OutputString;
-}
 
-// ===== UNIVERSAL DYNAMIC NODE CREATION FUNCTION =====
-// This replaces all hardcoded node creation with Unreal's native spawner system
-static bool TryCreateNodeUsingBlueprintActionDatabase(const FString& FunctionName, UEdGraph* EventGraph, float PositionX, float PositionY, UEdGraphNode*& NewNode, FString& NodeTitle, FString& NodeType)
-{
-    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Attempting dynamic creation for '%s'"), *FunctionName);
-    
-    // Use Blueprint Action Database to find the appropriate spawner
-    FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
-    FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
-    
-    UBlueprintNodeSpawner* FoundSpawner = nullptr;
-    UEdGraphNode* TemplateNode = nullptr;
-    
-    // Search through all registered actions for a match
-    for (const auto& ActionPair : ActionRegistry)
-    {
-        for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
-        {
-            if (NodeSpawner && IsValid(NodeSpawner))
-            {
-                TemplateNode = NodeSpawner->GetTemplateNode();
-                if (!TemplateNode)
-                {
-                    continue;
-                }
-                
-                // Create a detailed node description for matching
-                FString NodeDescription = TemplateNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
-                FString NodeClassName = TemplateNode->GetClass()->GetName();
-                
-                // Multiple matching strategies for maximum compatibility
-                bool bMatches = false;
-                
-                // 1. Direct node title match (highest priority)
-                if (NodeDescription.Equals(FunctionName, ESearchCase::IgnoreCase))
-                {
-                    bMatches = true;
-                    UE_LOG(LogTemp, Warning, TEXT("Match found by node title: '%s'"), *NodeDescription);
-                }
-                
-                // 2. Class name match (e.g., "K2Node_FormatText")
-                else if (NodeClassName.Equals(FunctionName, ESearchCase::IgnoreCase))
-                {
-                    bMatches = true;
-                    UE_LOG(LogTemp, Warning, TEXT("Match found by class name: '%s'"), *NodeClassName);
-                }
-                
-                // 3. Partial class name match (e.g., "FormatText" matches "UK2Node_FormatText")
-                else if (NodeClassName.Contains(FunctionName, ESearchCase::IgnoreCase) && FunctionName.Len() > 3)
-                {
-                    // Additional validation: ensure it's a meaningful match, not just coincidental substring
-                    if (NodeClassName.EndsWith(FunctionName, ESearchCase::IgnoreCase) || 
-                        NodeClassName.Contains(FString::Printf(TEXT("_%s"), *FunctionName), ESearchCase::IgnoreCase))
-                    {
-                        bMatches = true;
-                        UE_LOG(LogTemp, Warning, TEXT("Match found by partial class name: '%s' contains '%s'"), *NodeClassName, *FunctionName);
-                    }
-                }
-                
-                // 4. Special case mappings for common node types
-                else if ((FunctionName.Equals(TEXT("Format Text"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_FormatText"))) ||
-                         (FunctionName.Equals(TEXT("Switch on String"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_SwitchString"))) ||
-                         (FunctionName.Equals(TEXT("Switch on Int"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_SwitchInteger"))) ||
-                         (FunctionName.Equals(TEXT("Switch on Enum"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_SwitchEnum"))) ||
-                         (FunctionName.Contains(TEXT("Timeline"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_Timeline"))))
-                {
-                    bMatches = true;
-                    UE_LOG(LogTemp, Warning, TEXT("Match found by special mapping: '%s' -> '%s'"), *FunctionName, *NodeClassName);
-                }
-                
-                if (bMatches)
-                {
-                    FoundSpawner = const_cast<UBlueprintNodeSpawner*>(NodeSpawner);
-                    UE_LOG(LogTemp, Warning, TEXT("Selected spawner for node type: '%s'"), *NodeClassName);
-                    break;
-                }
-            }
-        }
-        
-        if (FoundSpawner)
-        {
-            break;
-        }
-    }
-    
-    // If we found a spawner, use it to create the node
-    if (FoundSpawner && TemplateNode)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Creating node using BlueprintActionDatabase spawner"));
-        
-        // Create the node using the spawner
-        IBlueprintNodeBinder::FBindingSet Bindings;
-        UEdGraphNode* SpawnedNode = FoundSpawner->Invoke(EventGraph, Bindings, FVector2D(PositionX, PositionY));
-        
-        if (SpawnedNode)
-        {
-            NewNode = SpawnedNode;
-            NodeTitle = SpawnedNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
-            NodeType = SpawnedNode->GetClass()->GetName();
-            
-            UE_LOG(LogTemp, Warning, TEXT("Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
-            return true;
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("Spawner failed to create node"));
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("No spawner found for '%s'"), *FunctionName);
-    }
-    
-    return false;
-}
 
 // Helper: Add Blueprint-local custom function actions
 void AddBlueprintCustomFunctionActions(UBlueprint* Blueprint, const FString& SearchFilter, TArray<TSharedPtr<FJsonValue>>& OutActions)
@@ -1507,9 +1261,9 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     // Parse JSON parameters using helper
     TSharedPtr<FJsonObject> ParamsObject;
     UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: JsonParams = '%s'"), *JsonParams);
-    if (!ParseJsonParameters(JsonParams, ParamsObject, ResultObj))
+    if (!UnrealMCPNodeCreationHelpers::ParseJsonParameters(JsonParams, ParamsObject, ResultObj))
     {
-        return BuildNodeResult(false, TEXT("Invalid JSON parameters"));
+        return UnrealMCPNodeCreationHelpers::BuildNodeResult(false, TEXT("Invalid JSON parameters"));
     }
     
     // Find the blueprint
@@ -1533,7 +1287,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     
     if (!Blueprint)
     {
-        return BuildNodeResult(false, FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
+        return UnrealMCPNodeCreationHelpers::BuildNodeResult(false, FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
     }
     
     // Get the event graph
@@ -1549,12 +1303,12 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     
     if (!EventGraph)
     {
-        return BuildNodeResult(false, TEXT("Could not find EventGraph in blueprint"));
+        return UnrealMCPNodeCreationHelpers::BuildNodeResult(false, TEXT("Could not find EventGraph in blueprint"));
     }
     
     // Parse node position using helper
     int32 PositionX, PositionY;
-    ParseNodePosition(NodePosition, PositionX, PositionY);
+    UnrealMCPNodeCreationHelpers::ParseNodePosition(NodePosition, PositionX, PositionY);
     
     UEdGraphNode* NewNode = nullptr;
     FString NodeTitle = TEXT("Unknown");
@@ -1970,7 +1724,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     
     // ===== UNIVERSAL DYNAMIC NODE CREATION USING BLUEPRINT ACTION DATABASE =====
     // This replaces hardcoded node creation with Unreal's native spawner system
-    else if (TryCreateNodeUsingBlueprintActionDatabase(FunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
+    else if (UnrealMCPNodeCreationHelpers::TryCreateNodeUsingBlueprintActionDatabase(FunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
     {
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created node '%s' using Blueprint Action Database"), *NodeTitle);
     }
@@ -1981,7 +1735,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         TargetClass = nullptr;
         
         // Find target class using helper
-        TargetClass = FindTargetClass(ClassName);
+        TargetClass = UnrealMCPNodeCreationHelpers::FindTargetClass(ClassName);
         if (TargetClass)
         {
             TargetFunction = TargetClass->FindFunctionByName(*FunctionName);
@@ -2009,7 +1763,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         if (!TargetFunction)
         {
             UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Function '%s' not found"), *FunctionName);
-            return BuildNodeResult(false, FString::Printf(TEXT("Function '%s' not found and not a recognized control flow node"), *FunctionName));
+            return UnrealMCPNodeCreationHelpers::BuildNodeResult(false, FString::Printf(TEXT("Function '%s' not found and not a recognized control flow node"), *FunctionName));
         }
         
         UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Found function '%s' in class '%s'"), *FunctionName, TargetClass ? *TargetClass->GetName() : TEXT("Unknown"));
@@ -2031,7 +1785,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     if (!NewNode)
     {
         UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to create node for '%s'"), *FunctionName);
-        return BuildNodeResult(false, FString::Printf(TEXT("Failed to create node for '%s'"), *FunctionName));
+        return UnrealMCPNodeCreationHelpers::BuildNodeResult(false, FString::Printf(TEXT("Failed to create node for '%s'"), *FunctionName));
     }
     
     UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
@@ -2040,7 +1794,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     
     // Return success result using helper
-    return BuildNodeResult(true, FString::Printf(TEXT("Successfully created '%s' node (%s)"), *NodeTitle, *NodeType),
+    return UnrealMCPNodeCreationHelpers::BuildNodeResult(true, FString::Printf(TEXT("Successfully created '%s' node (%s)"), *NodeTitle, *NodeType),
                           BlueprintName, FunctionName, NewNode, NodeTitle, NodeType, TargetClass, PositionX, PositionY);
 }
 
