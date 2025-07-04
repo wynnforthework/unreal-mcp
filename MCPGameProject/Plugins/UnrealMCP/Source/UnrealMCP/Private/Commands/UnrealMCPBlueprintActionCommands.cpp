@@ -39,12 +39,7 @@
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
 
-// Phase 2: High-value node types includes
-#include "K2Node_FormatText.h"
-#include "K2Node_SwitchString.h" 
-#include "K2Node_SwitchInteger.h"
-#include "K2Node_SwitchEnum.h"
-#include "K2Node_Timeline.h"
+// Phase 2 includes removed - using universal dynamic creation via Blueprint Action Database
 #include "Engine/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 #include "KismetCompiler.h"
@@ -60,6 +55,122 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
+
+// ===== UNIVERSAL DYNAMIC NODE CREATION FUNCTION =====
+// This replaces all hardcoded node creation with Unreal's native spawner system
+static bool TryCreateNodeUsingBlueprintActionDatabase(const FString& FunctionName, UEdGraph* EventGraph, float PositionX, float PositionY, UEdGraphNode*& NewNode, FString& NodeTitle, FString& NodeType)
+{
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Attempting dynamic creation for '%s'"), *FunctionName);
+    
+    // Use Blueprint Action Database to find the appropriate spawner
+    FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+    FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
+    
+    UBlueprintNodeSpawner* FoundSpawner = nullptr;
+    UEdGraphNode* TemplateNode = nullptr;
+    
+    // Search through all registered actions for a match
+    for (const auto& ActionPair : ActionRegistry)
+    {
+        for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
+        {
+            if (NodeSpawner && IsValid(NodeSpawner))
+            {
+                TemplateNode = NodeSpawner->GetTemplateNode();
+                if (!TemplateNode)
+                {
+                    continue;
+                }
+                
+                // Create a detailed node description for matching
+                FString NodeDescription = TemplateNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+                FString NodeClassName = TemplateNode->GetClass()->GetName();
+                
+                // Multiple matching strategies for maximum compatibility
+                bool bMatches = false;
+                
+                // 1. Direct node title match (highest priority)
+                if (NodeDescription.Equals(FunctionName, ESearchCase::IgnoreCase))
+                {
+                    bMatches = true;
+                    UE_LOG(LogTemp, Warning, TEXT("Match found by node title: '%s'"), *NodeDescription);
+                }
+                
+                // 2. Class name match (e.g., "K2Node_FormatText")
+                else if (NodeClassName.Equals(FunctionName, ESearchCase::IgnoreCase))
+                {
+                    bMatches = true;
+                    UE_LOG(LogTemp, Warning, TEXT("Match found by class name: '%s'"), *NodeClassName);
+                }
+                
+                // 3. Partial class name match (e.g., "FormatText" matches "UK2Node_FormatText")
+                else if (NodeClassName.Contains(FunctionName, ESearchCase::IgnoreCase) && FunctionName.Len() > 3)
+                {
+                    // Additional validation: ensure it's a meaningful match, not just coincidental substring
+                    if (NodeClassName.EndsWith(FunctionName, ESearchCase::IgnoreCase) || 
+                        NodeClassName.Contains(FString::Printf(TEXT("_%s"), *FunctionName), ESearchCase::IgnoreCase))
+                    {
+                        bMatches = true;
+                        UE_LOG(LogTemp, Warning, TEXT("Match found by partial class name: '%s' contains '%s'"), *NodeClassName, *FunctionName);
+                    }
+                }
+                
+                // 4. Special case mappings for common node types
+                else if ((FunctionName.Equals(TEXT("Format Text"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_FormatText"))) ||
+                         (FunctionName.Equals(TEXT("Switch on String"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_SwitchString"))) ||
+                         (FunctionName.Equals(TEXT("Switch on Int"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_SwitchInteger"))) ||
+                         (FunctionName.Equals(TEXT("Switch on Enum"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_SwitchEnum"))) ||
+                         (FunctionName.Contains(TEXT("Timeline"), ESearchCase::IgnoreCase) && NodeClassName.Equals(TEXT("UK2Node_Timeline"))))
+                {
+                    bMatches = true;
+                    UE_LOG(LogTemp, Warning, TEXT("Match found by special mapping: '%s' -> '%s'"), *FunctionName, *NodeClassName);
+                }
+                
+                if (bMatches)
+                {
+                    FoundSpawner = const_cast<UBlueprintNodeSpawner*>(NodeSpawner);
+                    UE_LOG(LogTemp, Warning, TEXT("Selected spawner for node type: '%s'"), *NodeClassName);
+                    break;
+                }
+            }
+        }
+        
+        if (FoundSpawner)
+        {
+            break;
+        }
+    }
+    
+    // If we found a spawner, use it to create the node
+    if (FoundSpawner && TemplateNode)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Creating node using BlueprintActionDatabase spawner"));
+        
+        // Create the node using the spawner
+        IBlueprintNodeBinder::FBindingSet Bindings;
+        UEdGraphNode* SpawnedNode = FoundSpawner->Invoke(EventGraph, Bindings, FVector2D(PositionX, PositionY));
+        
+        if (SpawnedNode)
+        {
+            NewNode = SpawnedNode;
+            NodeTitle = SpawnedNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+            NodeType = SpawnedNode->GetClass()->GetName();
+            
+            UE_LOG(LogTemp, Warning, TEXT("Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
+            return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Spawner failed to create node"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No spawner found for '%s'"), *FunctionName);
+    }
+    
+    return false;
+}
 
 // Helper: Add Blueprint-local custom function actions
 void AddBlueprintCustomFunctionActions(UBlueprint* Blueprint, const FString& SearchFilter, TArray<TSharedPtr<FJsonValue>>& OutActions)
@@ -1778,109 +1889,12 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         NodeType = TEXT("UK2Node_SetForEach");
     }
     
-    // ===== PHASE 2: HIGH-VALUE NODE TYPES =====
     
-    // Format Text node creation (K2Node_FormatText) - TIER 1: HIGHEST PRIORITY
-    else if (FunctionName.Equals(TEXT("Format Text"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("K2Node_FormatText"), ESearchCase::IgnoreCase))
+    // ===== UNIVERSAL DYNAMIC NODE CREATION USING BLUEPRINT ACTION DATABASE =====
+    // This replaces hardcoded node creation with Unreal's native spawner system
+    else if (TryCreateNodeUsingBlueprintActionDatabase(FunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
     {
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Format Text node"));
-        
-        UK2Node_FormatText* FormatTextNode = NewObject<UK2Node_FormatText>(EventGraph);
-        FormatTextNode->NodePosX = PositionX;
-        FormatTextNode->NodePosY = PositionY;
-        FormatTextNode->CreateNewGuid();
-        EventGraph->AddNode(FormatTextNode, true, true);
-        FormatTextNode->PostPlacedNewNode();
-        FormatTextNode->AllocateDefaultPins();
-        NewNode = FormatTextNode;
-        NodeTitle = TEXT("Format Text");
-        NodeType = TEXT("UK2Node_FormatText");
-        
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Format Text node"));
-    }
-    
-    // Switch on String node creation (K2Node_SwitchString) - TIER 1: HIGH PRIORITY
-    else if (FunctionName.Equals(TEXT("Switch on String"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("K2Node_SwitchString"), ESearchCase::IgnoreCase))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Switch on String node"));
-        
-        UK2Node_SwitchString* SwitchStringNode = NewObject<UK2Node_SwitchString>(EventGraph);
-        SwitchStringNode->NodePosX = PositionX;
-        SwitchStringNode->NodePosY = PositionY;
-        SwitchStringNode->CreateNewGuid();
-        EventGraph->AddNode(SwitchStringNode, true, true);
-        SwitchStringNode->PostPlacedNewNode();
-        SwitchStringNode->AllocateDefaultPins();
-        NewNode = SwitchStringNode;
-        NodeTitle = TEXT("Switch on String");
-        NodeType = TEXT("UK2Node_SwitchString");
-        
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Switch on String node"));
-    }
-    
-    // Switch on Int node creation (K2Node_SwitchInteger) - TIER 1: HIGH PRIORITY  
-    else if (FunctionName.Equals(TEXT("Switch on Int"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Switch on Integer"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("K2Node_SwitchInteger"), ESearchCase::IgnoreCase))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Switch on Int node"));
-        
-        UK2Node_SwitchInteger* SwitchIntNode = NewObject<UK2Node_SwitchInteger>(EventGraph);
-        SwitchIntNode->NodePosX = PositionX;
-        SwitchIntNode->NodePosY = PositionY;
-        SwitchIntNode->CreateNewGuid();
-        EventGraph->AddNode(SwitchIntNode, true, true);
-        SwitchIntNode->PostPlacedNewNode();
-        SwitchIntNode->AllocateDefaultPins();
-        NewNode = SwitchIntNode;
-        NodeTitle = TEXT("Switch on Int");
-        NodeType = TEXT("UK2Node_SwitchInteger");
-        
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Switch on Int node"));
-    }
-    
-    // Switch on Enum node creation (K2Node_SwitchEnum) - TIER 1: HIGH PRIORITY
-    else if (FunctionName.Equals(TEXT("Switch on Enum"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("K2Node_SwitchEnum"), ESearchCase::IgnoreCase))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Switch on Enum node"));
-        
-        UK2Node_SwitchEnum* SwitchEnumNode = NewObject<UK2Node_SwitchEnum>(EventGraph);
-        SwitchEnumNode->NodePosX = PositionX;
-        SwitchEnumNode->NodePosY = PositionY;
-        SwitchEnumNode->CreateNewGuid();
-        EventGraph->AddNode(SwitchEnumNode, true, true);
-        SwitchEnumNode->PostPlacedNewNode();
-        SwitchEnumNode->AllocateDefaultPins();
-        NewNode = SwitchEnumNode;
-        NodeTitle = TEXT("Switch on Enum");
-        NodeType = TEXT("UK2Node_SwitchEnum");
-        
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Switch on Enum node"));
-    }
-    
-    // Add Timeline node creation (K2Node_Timeline) - TIER 2: MEDIUM-HIGH PRIORITY
-    else if (FunctionName.Equals(TEXT("Add Timeline..."), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Add Timeline"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Timeline"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("K2Node_Timeline"), ESearchCase::IgnoreCase))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Timeline node"));
-        
-        UK2Node_Timeline* TimelineNode = NewObject<UK2Node_Timeline>(EventGraph);
-        TimelineNode->NodePosX = PositionX;
-        TimelineNode->NodePosY = PositionY;
-        TimelineNode->CreateNewGuid();
-        EventGraph->AddNode(TimelineNode, true, true);
-        TimelineNode->PostPlacedNewNode();
-        TimelineNode->AllocateDefaultPins();
-        NewNode = TimelineNode;
-        NodeTitle = TEXT("Add Timeline");
-        NodeType = TEXT("UK2Node_Timeline");
-        
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Timeline node"));
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created node '%s' using Blueprint Action Database"), *NodeTitle);
     }
     else
     {
