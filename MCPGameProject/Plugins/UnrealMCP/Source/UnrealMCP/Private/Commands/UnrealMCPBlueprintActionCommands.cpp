@@ -1250,11 +1250,13 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     
     // Parse JSON parameters if provided
     TSharedPtr<FJsonObject> ParamsObject;
+    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: JsonParams = '%s'"), *JsonParams);
     if (!JsonParams.IsEmpty())
     {
         TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonParams);
         if (!FJsonSerializer::Deserialize(Reader, ParamsObject) || !ParamsObject.IsValid())
         {
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to parse JSON parameters"));
             ResultObj->SetBoolField(TEXT("success"), false);
             ResultObj->SetStringField(TEXT("message"), TEXT("Invalid JSON parameters"));
             
@@ -1263,6 +1265,11 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
             FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
             return OutputString;
         }
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully parsed JSON parameters"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: No JSON parameters provided"));
     }
     
     // Find the blueprint
@@ -1423,6 +1430,109 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
              FunctionName.Equals(TEXT("UK2Node_DynamicCast"), ESearchCase::IgnoreCase))
     {
         UK2Node_DynamicCast* CastNode = NewObject<UK2Node_DynamicCast>(EventGraph);
+        
+        // Set target type if provided in parameters
+        if (ParamsObject.IsValid())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: ParamsObject is valid for Cast node"));
+            FString TargetTypeName;
+            
+            // Check if target_type is in kwargs sub-object
+            const TSharedPtr<FJsonObject>* KwargsObject;
+            if (ParamsObject->TryGetObjectField(TEXT("kwargs"), KwargsObject) && KwargsObject->IsValid())
+            {
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found kwargs object"));
+                if ((*KwargsObject)->TryGetStringField(TEXT("target_type"), TargetTypeName) && !TargetTypeName.IsEmpty())
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found target_type in kwargs: '%s'"), *TargetTypeName);
+                }
+            }
+            // Also check at root level for backwards compatibility
+            else if (ParamsObject->TryGetStringField(TEXT("target_type"), TargetTypeName) && !TargetTypeName.IsEmpty())
+            {
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found target_type parameter: '%s'"), *TargetTypeName);
+            }
+            
+            if (!TargetTypeName.IsEmpty())
+            {
+                // Find the class to cast to
+                UClass* CastTargetClass = nullptr;
+                
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Looking for target type '%s'"), *TargetTypeName);
+                
+                // Common class mappings
+                if (TargetTypeName.Equals(TEXT("PlayerController"), ESearchCase::IgnoreCase))
+                {
+                    CastTargetClass = APlayerController::StaticClass();
+                    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found PlayerController class"));
+                }
+                else if (TargetTypeName.Equals(TEXT("Pawn"), ESearchCase::IgnoreCase))
+                {
+                    CastTargetClass = APawn::StaticClass();
+                    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found Pawn class"));
+                }
+                else if (TargetTypeName.Equals(TEXT("Actor"), ESearchCase::IgnoreCase))
+                {
+                    CastTargetClass = AActor::StaticClass();
+                    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found Actor class"));
+                }
+                else
+                {
+                    // Try to find the class by name
+                    CastTargetClass = UClass::TryFindTypeSlow<UClass>(TargetTypeName);
+                    if (!CastTargetClass)
+                    {
+                        // Try with /Script/Engine. prefix
+                        FString EnginePath = FString::Printf(TEXT("/Script/Engine.%s"), *TargetTypeName);
+                        CastTargetClass = LoadClass<UObject>(nullptr, *EnginePath);
+                    }
+                    
+                    // If still not found, try to find it as a Blueprint class
+                    if (!CastTargetClass)
+                    {
+                        // Reuse existing AssetRegistryModule and BlueprintAssets variables
+                        FAssetRegistryModule& AssetReg = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+                        TArray<FAssetData> BPAssets;
+                        AssetReg.Get().GetAssetsByClass(UBlueprint::StaticClass()->GetClassPathName(), BPAssets);
+                        
+                        for (const FAssetData& AssetData : BPAssets)
+                        {
+                            FString AssetName = AssetData.AssetName.ToString();
+                            if (AssetName.Equals(TargetTypeName, ESearchCase::IgnoreCase))
+                            {
+                                UBlueprint* TargetBlueprint = Cast<UBlueprint>(AssetData.GetAsset());
+                                if (TargetBlueprint && TargetBlueprint->GeneratedClass)
+                                {
+                                    CastTargetClass = TargetBlueprint->GeneratedClass;
+                                    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found Blueprint class %s -> %s"), *TargetTypeName, *CastTargetClass->GetName());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (CastTargetClass)
+                {
+                    CastNode->TargetType = CastTargetClass;
+                    NodeTitle = FString::Printf(TEXT("Cast to %s"), *TargetTypeName);
+                    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully set TargetType to %s"), *CastTargetClass->GetName());
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to find target class '%s'"), *TargetTypeName);
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: target_type parameter not found or empty in JSON"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: ParamsObject is not valid for Cast node"));
+        }
+        
         CastNode->NodePosX = PositionX;
         CastNode->NodePosY = PositionY;
         CastNode->CreateNewGuid();
@@ -1430,7 +1540,6 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         CastNode->PostPlacedNewNode();
         CastNode->AllocateDefaultPins();
         NewNode = CastNode;
-        NodeTitle = TEXT("Cast");
         NodeType = TEXT("UK2Node_DynamicCast");
     }
     // Loop node creation (K2Node_MacroInstance types)

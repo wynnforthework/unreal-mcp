@@ -241,7 +241,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         function_name: str,
         class_name: str = "",
         node_position: List[float] = None,
-        json_params: str = ""
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Create a blueprint node by discovered action/function name.
@@ -264,7 +264,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
             class_name: Optional class name (supports both short names like "KismetMathLibrary" 
                        and full paths like "/Script/Engine.KismetMathLibrary")
             node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
-            json_params: Optional JSON string with additional parameters for special nodes
+            **kwargs: Additional parameters for special nodes (e.g., target_type="PlayerController" for Cast nodes)
 
         Returns:
             Dict containing:
@@ -302,7 +302,14 @@ def register_blueprint_action_tools(mcp: FastMCP):
             create_node_by_action_name(
                 blueprint_name="BP_MyActor",
                 function_name="CustomEvent",
-                json_params='{"event_name": "OnPlayerDied"}'
+                event_name="OnPlayerDied"
+            )
+            
+            # Create a cast node with target type
+            create_node_by_action_name(
+                blueprint_name="BP_MyActor",
+                function_name="Cast",
+                target_type="PlayerController"
             )
             
             # Create without specifying class (will search common classes)
@@ -315,4 +322,4 @@ def register_blueprint_action_tools(mcp: FastMCP):
             # search_blueprint_actions(search_query="float", category="Math") 
             # Then use the discovered function names
         """
-        return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, json_params) 
+        return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, **kwargs) 

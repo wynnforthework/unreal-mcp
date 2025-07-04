@@ -92,7 +92,7 @@ def create_node_by_action_name(
     function_name: str,
     class_name: str = "",
     node_position: List[float] = None,
-    json_params: str = ""
+    **kwargs
 ) -> Dict[str, Any]:
     """Implementation for creating a blueprint node by discovered action/function name."""
     params = {
@@ -107,7 +107,8 @@ def create_node_by_action_name(
         # Convert List[float] to JSON string that C++ can parse
         params["node_position"] = json.dumps(node_position)
     
-    if json_params:
-        params["json_params"] = json_params
+    if kwargs:
+        # Convert kwargs to JSON string for C++ side
+        params["json_params"] = json.dumps(kwargs)
     
     return send_unreal_command("create_node_by_action_name", params) 
