@@ -1542,7 +1542,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         NewNode = CastNode;
         NodeType = TEXT("UK2Node_DynamicCast");
     }
-    // Loop node creation (K2Node_MacroInstance types)
+    // Engine Macro Instance node creation (K2Node_MacroInstance types)
     else if (FunctionName.Equals(TEXT("For Each Loop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("For Each Loop with Break"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("Reverse for Each Loop"), ESearchCase::IgnoreCase) ||
@@ -1551,16 +1551,163 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
              FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase))
     {
-        // For now, return a helpful error message explaining this is a known limitation
-        ResultObj->SetBoolField(TEXT("success"), false);
-        ResultObj->SetStringField(TEXT("message"), FString::Printf(
-            TEXT("Loop nodes like '%s' are discovered correctly via search_blueprint_actions, but creating them programmatically requires special handling of engine macro instances. This is a known limitation. The node type is 'K2Node_MacroInstance' and it exists in the action database, but the C++ implementation needs enhancement to properly instantiate engine-internal macro graphs."), 
-            *FunctionName));
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Attempting to create macro instance for '%s'"), *FunctionName);
         
-        FString OutputString;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-        return OutputString;
+        // Try to find the appropriate engine macro blueprint
+        UBlueprint* MacroBlueprint = nullptr;
+        FString MacroName;
+        
+        // Map function names to their corresponding engine macro names
+        if (FunctionName.Equals(TEXT("For Each Loop"), ESearchCase::IgnoreCase))
+        {
+            MacroName = TEXT("ForEachLoop");
+        }
+        else if (FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase))
+        {
+            MacroName = TEXT("ForLoop");
+        }
+        else if (FunctionName.Equals(TEXT("For Each Loop with Break"), ESearchCase::IgnoreCase))
+        {
+            MacroName = TEXT("ForEachLoopWithBreak");
+        }
+        else if (FunctionName.Equals(TEXT("For Loop with Break"), ESearchCase::IgnoreCase))
+        {
+            MacroName = TEXT("ForLoopWithBreak");
+        }
+        else if (FunctionName.Equals(TEXT("Reverse for Each Loop"), ESearchCase::IgnoreCase))
+        {
+            MacroName = TEXT("ReverseForEachLoop");
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Looking for macro blueprint: %s"), *MacroName);
+        
+        // Try to find engine macro blueprints in common locations
+        TArray<FString> MacroPaths = {
+            FString::Printf(TEXT("/Engine/EditorBlueprintResources/StandardMacros/%s.%s"), *MacroName, *MacroName),
+            FString::Printf(TEXT("/Engine/BlueprintResources/StandardMacros/%s.%s"), *MacroName, *MacroName),
+            FString::Printf(TEXT("/Engine/Macros/%s.%s"), *MacroName, *MacroName),
+            FString::Printf(TEXT("/Engine/EditorBlueprintResources/%s.%s"), *MacroName, *MacroName),
+            FString::Printf(TEXT("/Engine/Content/Blueprints/%s.%s"), *MacroName, *MacroName)
+        };
+        
+        for (const FString& MacroPath : MacroPaths)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Trying macro path: %s"), *MacroPath);
+            MacroBlueprint = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *MacroPath));
+            if (MacroBlueprint)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found macro blueprint at: %s"), *MacroPath);
+                break;
+            }
+        }
+        
+                 if (MacroBlueprint)
+         {
+             // Create the macro instance node
+             UK2Node_MacroInstance* MacroNode = NewObject<UK2Node_MacroInstance>(EventGraph);
+             
+             // Find the macro graph within the blueprint
+             UEdGraph* MacroGraph = nullptr;
+             for (UEdGraph* Graph : MacroBlueprint->FunctionGraphs)
+             {
+                 if (Graph && Graph->GetFName().ToString().Equals(MacroName, ESearchCase::IgnoreCase))
+                 {
+                     MacroGraph = Graph;
+                     break;
+                 }
+             }
+             
+                           if (MacroGraph)
+              {
+                  // Set the macro graph on the node
+                  MacroNode->ReconstructNode();
+              }
+              else
+              {
+                  UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Could not find macro graph '%s' in blueprint"), *MacroName);
+              }
+             
+             MacroNode->NodePosX = PositionX;
+             MacroNode->NodePosY = PositionY;
+             MacroNode->CreateNewGuid();
+             EventGraph->AddNode(MacroNode, true, true);
+             MacroNode->PostPlacedNewNode();
+             MacroNode->AllocateDefaultPins();
+             
+             NewNode = MacroNode;
+             NodeTitle = FunctionName;
+             NodeType = TEXT("UK2Node_MacroInstance");
+             
+             UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created macro instance node"));
+         }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to find macro blueprint for '%s'"), *FunctionName);
+            
+            // Try alternative approach using BlueprintActionDatabase to find the spawner
+            FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+            FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
+            
+            UBlueprintNodeSpawner* FoundSpawner = nullptr;
+            for (const auto& ActionPair : ActionRegistry)
+            {
+                for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
+                {
+                    if (NodeSpawner && IsValid(NodeSpawner))
+                    {
+                        UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode();
+                                                 if (UK2Node_MacroInstance* MacroTemplate = Cast<UK2Node_MacroInstance>(TemplateNode))
+                         {
+                                                          FString MacroNodeTitle = MacroTemplate->GetNodeTitle(ENodeTitleType::ListView).ToString();
+                             if (MacroNodeTitle.Equals(FunctionName, ESearchCase::IgnoreCase))
+                            {
+                                FoundSpawner = const_cast<UBlueprintNodeSpawner*>(NodeSpawner);
+                                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found spawner for macro: %s"), *FunctionName);
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (FoundSpawner) break;
+            }
+            
+            if (FoundSpawner)
+            {
+                // Use the spawner to create the node
+                IBlueprintNodeBinder::FBindingSet Bindings;
+                UEdGraphNode* SpawnedNode = FoundSpawner->Invoke(EventGraph, Bindings, FVector2D(PositionX, PositionY));
+                
+                if (SpawnedNode)
+                {
+                    NewNode = SpawnedNode;
+                    NodeTitle = FunctionName;
+                    NodeType = TEXT("UK2Node_MacroInstance");
+                    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully spawned macro instance using spawner"));
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Spawner failed to create node"));
+                    ResultObj->SetBoolField(TEXT("success"), false);
+                    ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Failed to spawn macro instance for '%s'"), *FunctionName));
+                    
+                    FString OutputString;
+                    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+                    FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+                    return OutputString;
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: No spawner found for macro '%s'"), *FunctionName);
+                ResultObj->SetBoolField(TEXT("success"), false);
+                ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Could not find engine macro blueprint or spawner for '%s'. This macro may not be available in the current Unreal Engine version."), *FunctionName));
+                
+                FString OutputString;
+                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+                FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+                return OutputString;
+            }
+        }
     }
 
     // Variable getter/setter node creation - check this FIRST before function lookup
@@ -1627,24 +1774,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
             return OutputString;
         }
     }
-    // Loop node creation (K2Node_MacroInstance types)
-    else if (FunctionName.Equals(TEXT("For Each Loop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("For Each Loop with Break"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Reverse for Each Loop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("For Loop with Break"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase))
-    {
-        // For now, return a message indicating loop macro creation is not fully implemented
-        ResultObj->SetBoolField(TEXT("success"), false);
-        ResultObj->SetStringField(TEXT("message"), TEXT("Loop macro nodes require special handling that is not yet fully implemented. The macro blueprints exist but finding and instantiating them programmatically requires additional Blueprint macro instance logic."));
-        
-        FString OutputString;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-        return OutputString;
-    }
+
     // Special loop node types that are not macros  
     else if (FunctionName.Equals(TEXT("For Each Loop (Map)"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("Map ForEach"), ESearchCase::IgnoreCase) ||
