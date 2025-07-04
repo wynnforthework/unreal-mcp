@@ -56,6 +56,144 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 
+// ===== HELPER FUNCTIONS FOR OPTIMIZED NODE CREATION =====
+
+// Helper: Parse JSON parameters with error handling
+static bool ParseJsonParameters(const FString& JsonParams, TSharedPtr<FJsonObject>& OutParamsObject, TSharedPtr<FJsonObject>& OutResultObj)
+{
+    if (!JsonParams.IsEmpty())
+    {
+        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonParams);
+        if (!FJsonSerializer::Deserialize(Reader, OutParamsObject) || !OutParamsObject.IsValid())
+        {
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to parse JSON parameters"));
+            OutResultObj->SetBoolField(TEXT("success"), false);
+            OutResultObj->SetStringField(TEXT("message"), TEXT("Invalid JSON parameters"));
+            return false;
+        }
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully parsed JSON parameters"));
+    }
+    return true;
+}
+
+// Helper: Parse node position from various formats
+static void ParseNodePosition(const FString& NodePosition, int32& OutPositionX, int32& OutPositionY)
+{
+    OutPositionX = 0;
+    OutPositionY = 0;
+    
+    if (!NodePosition.IsEmpty())
+    {
+        // Try to parse as JSON array [x, y] first (from Python)
+        TSharedPtr<FJsonValue> JsonValue;
+        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(NodePosition);
+        
+        if (FJsonSerializer::Deserialize(Reader, JsonValue) && JsonValue.IsValid())
+        {
+            const TArray<TSharedPtr<FJsonValue>>* JsonArray = nullptr;
+            if (JsonValue->TryGetArray(JsonArray) && JsonArray->Num() >= 2)
+            {
+                OutPositionX = FMath::RoundToInt((*JsonArray)[0]->AsNumber());
+                OutPositionY = FMath::RoundToInt((*JsonArray)[1]->AsNumber());
+                return;
+            }
+        }
+        
+        // Fallback: parse as string format "[x, y]" or "x,y"
+        FString CleanPosition = NodePosition;
+        CleanPosition = CleanPosition.Replace(TEXT("["), TEXT(""));
+        CleanPosition = CleanPosition.Replace(TEXT("]"), TEXT(""));
+        
+        TArray<FString> Coords;
+        CleanPosition.ParseIntoArray(Coords, TEXT(","));
+        
+        if (Coords.Num() == 2)
+        {
+            OutPositionX = FCString::Atoi(*Coords[0].TrimStartAndEnd());
+            OutPositionY = FCString::Atoi(*Coords[1].TrimStartAndEnd());
+        }
+    }
+}
+
+// Helper: Find target class by name with common class resolution
+static UClass* FindTargetClass(const FString& ClassName)
+{
+    if (ClassName.IsEmpty()) return nullptr;
+    
+    UClass* TargetClass = UClass::TryFindTypeSlow<UClass>(ClassName);
+    if (TargetClass) return TargetClass;
+    
+    // Try with common prefixes
+    FString TestClassName = ClassName;
+    if (!TestClassName.StartsWith(TEXT("U")) && !TestClassName.StartsWith(TEXT("A")) && !TestClassName.StartsWith(TEXT("/Script/")))
+    {
+        TestClassName = TEXT("U") + ClassName;
+        TargetClass = UClass::TryFindTypeSlow<UClass>(TestClassName);
+        if (TargetClass) return TargetClass;
+    }
+    
+    // Try with full path for common Unreal classes
+    if (ClassName.Equals(TEXT("KismetMathLibrary"), ESearchCase::IgnoreCase))
+    {
+        return UKismetMathLibrary::StaticClass();
+    }
+    else if (ClassName.Equals(TEXT("KismetSystemLibrary"), ESearchCase::IgnoreCase))
+    {
+        return UKismetSystemLibrary::StaticClass();
+    }
+    else if (ClassName.Equals(TEXT("GameplayStatics"), ESearchCase::IgnoreCase))
+    {
+        return UGameplayStatics::StaticClass();
+    }
+    
+    return nullptr;
+}
+
+// Helper: Build result JSON with node information
+static FString BuildNodeResult(bool bSuccess, const FString& Message, const FString& BlueprintName = TEXT(""), 
+                              const FString& FunctionName = TEXT(""), UEdGraphNode* NewNode = nullptr, 
+                              const FString& NodeTitle = TEXT(""), const FString& NodeType = TEXT(""), 
+                              UClass* TargetClass = nullptr, int32 PositionX = 0, int32 PositionY = 0)
+{
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetBoolField(TEXT("success"), bSuccess);
+    ResultObj->SetStringField(TEXT("message"), Message);
+    
+    if (bSuccess && NewNode)
+    {
+        ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
+        ResultObj->SetStringField(TEXT("function_name"), FunctionName);
+        ResultObj->SetStringField(TEXT("node_type"), NodeType);
+        ResultObj->SetStringField(TEXT("class_name"), NodeType.Equals(TEXT("UK2Node_CallFunction")) ? (TargetClass ? TargetClass->GetName() : TEXT("")) : TEXT(""));
+        ResultObj->SetStringField(TEXT("node_id"), NewNode->NodeGuid.ToString());
+        ResultObj->SetStringField(TEXT("node_title"), NodeTitle);
+        
+        // Add position info
+        TSharedPtr<FJsonObject> PositionObj = MakeShared<FJsonObject>();
+        PositionObj->SetNumberField(TEXT("x"), PositionX);
+        PositionObj->SetNumberField(TEXT("y"), PositionY);
+        ResultObj->SetObjectField(TEXT("position"), PositionObj);
+        
+        // Add pin information
+        TArray<TSharedPtr<FJsonValue>> PinsArray;
+        for (UEdGraphPin* Pin : NewNode->Pins)
+        {
+            TSharedPtr<FJsonObject> PinObj = MakeShared<FJsonObject>();
+            PinObj->SetStringField(TEXT("name"), Pin->PinName.ToString());
+            PinObj->SetStringField(TEXT("type"), Pin->PinType.PinCategory.ToString());
+            PinObj->SetStringField(TEXT("direction"), Pin->Direction == EGPD_Input ? TEXT("input") : TEXT("output"));
+            PinObj->SetBoolField(TEXT("is_execution"), Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec);
+            PinsArray.Add(MakeShared<FJsonValueObject>(PinObj));
+        }
+        ResultObj->SetArrayField(TEXT("pins"), PinsArray);
+    }
+    
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+    return OutputString;
+}
+
 // ===== UNIVERSAL DYNAMIC NODE CREATION FUNCTION =====
 // This replaces all hardcoded node creation with Unreal's native spawner system
 static bool TryCreateNodeUsingBlueprintActionDatabase(const FString& FunctionName, UEdGraph* EventGraph, float PositionX, float PositionY, UEdGraphNode*& NewNode, FString& NodeTitle, FString& NodeType)
@@ -1366,28 +1504,12 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
 {
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     
-    // Parse JSON parameters if provided
+    // Parse JSON parameters using helper
     TSharedPtr<FJsonObject> ParamsObject;
     UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: JsonParams = '%s'"), *JsonParams);
-    if (!JsonParams.IsEmpty())
+    if (!ParseJsonParameters(JsonParams, ParamsObject, ResultObj))
     {
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonParams);
-        if (!FJsonSerializer::Deserialize(Reader, ParamsObject) || !ParamsObject.IsValid())
-        {
-            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to parse JSON parameters"));
-            ResultObj->SetBoolField(TEXT("success"), false);
-            ResultObj->SetStringField(TEXT("message"), TEXT("Invalid JSON parameters"));
-            
-            FString OutputString;
-            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-            FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-            return OutputString;
-        }
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully parsed JSON parameters"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: No JSON parameters provided"));
+        return BuildNodeResult(false, TEXT("Invalid JSON parameters"));
     }
     
     // Find the blueprint
@@ -1411,13 +1533,7 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     
     if (!Blueprint)
     {
-        ResultObj->SetBoolField(TEXT("success"), false);
-        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
-        
-        FString OutputString;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-        return OutputString;
+        return BuildNodeResult(false, FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
     }
     
     // Get the event graph
@@ -1433,50 +1549,12 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     
     if (!EventGraph)
     {
-        ResultObj->SetBoolField(TEXT("success"), false);
-        ResultObj->SetStringField(TEXT("message"), TEXT("Could not find EventGraph in blueprint"));
-        
-        FString OutputString;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-        return OutputString;
+        return BuildNodeResult(false, TEXT("Could not find EventGraph in blueprint"));
     }
     
-    // Parse node position first
-    int32 PositionX = 0;
-    int32 PositionY = 0;
-    if (!NodePosition.IsEmpty())
-    {
-        // Try to parse as JSON array [x, y] first (from Python)
-        TSharedPtr<FJsonValue> JsonValue;
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(NodePosition);
-        
-        if (FJsonSerializer::Deserialize(Reader, JsonValue) && JsonValue.IsValid())
-        {
-            const TArray<TSharedPtr<FJsonValue>>* JsonArray = nullptr;
-            if (JsonValue->TryGetArray(JsonArray) && JsonArray->Num() >= 2)
-            {
-                PositionX = FMath::RoundToInt((*JsonArray)[0]->AsNumber());
-                PositionY = FMath::RoundToInt((*JsonArray)[1]->AsNumber());
-            }
-        }
-        else
-        {
-            // Fallback: parse as string format "[x, y]" or "x,y"
-            FString CleanPosition = NodePosition;
-            CleanPosition = CleanPosition.Replace(TEXT("["), TEXT(""));
-            CleanPosition = CleanPosition.Replace(TEXT("]"), TEXT(""));
-            
-            TArray<FString> Coords;
-            CleanPosition.ParseIntoArray(Coords, TEXT(","));
-            
-            if (Coords.Num() == 2)
-            {
-                PositionX = FCString::Atoi(*Coords[0].TrimStartAndEnd());
-                PositionY = FCString::Atoi(*Coords[1].TrimStartAndEnd());
-            }
-        }
-    }
+    // Parse node position using helper
+    int32 PositionX, PositionY;
+    ParseNodePosition(NodePosition, PositionX, PositionY);
     
     UEdGraphNode* NewNode = nullptr;
     FString NodeTitle = TEXT("Unknown");
@@ -1902,42 +1980,11 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         UFunction* TargetFunction = nullptr;
         TargetClass = nullptr;
         
-        // If a class name is provided, try to find it
-        if (!ClassName.IsEmpty())
+        // Find target class using helper
+        TargetClass = FindTargetClass(ClassName);
+        if (TargetClass)
         {
-            TargetClass = UClass::TryFindTypeSlow<UClass>(ClassName);
-            if (!TargetClass)
-            {
-                // Try with common prefixes
-                FString TestClassName = ClassName;
-                if (!TestClassName.StartsWith(TEXT("U")) && !TestClassName.StartsWith(TEXT("A")) && !TestClassName.StartsWith(TEXT("/Script/")))
-                {
-                    TestClassName = TEXT("U") + ClassName;
-                    TargetClass = UClass::TryFindTypeSlow<UClass>(TestClassName);
-                }
-                
-                // Try with full path for common Unreal classes
-                if (!TargetClass)
-                {
-                    if (ClassName.Equals(TEXT("KismetMathLibrary"), ESearchCase::IgnoreCase))
-                    {
-                        TargetClass = UKismetMathLibrary::StaticClass();
-                    }
-                    else if (ClassName.Equals(TEXT("KismetSystemLibrary"), ESearchCase::IgnoreCase))
-                    {
-                        TargetClass = UKismetSystemLibrary::StaticClass();
-                    }
-                    else if (ClassName.Equals(TEXT("GameplayStatics"), ESearchCase::IgnoreCase))
-                    {
-                        TargetClass = UGameplayStatics::StaticClass();
-                    }
-                }
-            }
-            
-            if (TargetClass)
-            {
-                TargetFunction = TargetClass->FindFunctionByName(*FunctionName);
-            }
+            TargetFunction = TargetClass->FindFunctionByName(*FunctionName);
         }
         else
         {
@@ -1961,15 +2008,8 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         
         if (!TargetFunction)
         {
-            ResultObj->SetBoolField(TEXT("success"), false);
-            ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Function '%s' not found and not a recognized control flow node"), *FunctionName));
-            
             UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Function '%s' not found"), *FunctionName);
-            
-            FString OutputString;
-            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-            FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-            return OutputString;
+            return BuildNodeResult(false, FString::Printf(TEXT("Function '%s' not found and not a recognized control flow node"), *FunctionName));
         }
         
         UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Found function '%s' in class '%s'"), *FunctionName, TargetClass ? *TargetClass->GetName() : TEXT("Unknown"));
@@ -1990,58 +2030,17 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     
     if (!NewNode)
     {
-        ResultObj->SetBoolField(TEXT("success"), false);
-        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Failed to create node for '%s'"), *FunctionName));
-        
         UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to create node for '%s'"), *FunctionName);
-        
-        FString OutputString;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-        return OutputString;
+        return BuildNodeResult(false, FString::Printf(TEXT("Failed to create node for '%s'"), *FunctionName));
     }
     
     UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
-
     
     // Mark blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     
-    // Create result with node information
-    ResultObj->SetBoolField(TEXT("success"), true);
-    ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
-    ResultObj->SetStringField(TEXT("function_name"), FunctionName);
-    ResultObj->SetStringField(TEXT("node_type"), NodeType);
-    ResultObj->SetStringField(TEXT("class_name"), NodeType.Equals(TEXT("UK2Node_CallFunction")) ? (TargetClass ? TargetClass->GetName() : TEXT("")) : TEXT(""));
-    ResultObj->SetStringField(TEXT("node_id"), NewNode->NodeGuid.ToString());
-    ResultObj->SetStringField(TEXT("node_title"), NodeTitle);
-    
-    // Add position info
-    TSharedPtr<FJsonObject> PositionObj = MakeShared<FJsonObject>();
-    PositionObj->SetNumberField(TEXT("x"), PositionX);
-    PositionObj->SetNumberField(TEXT("y"), PositionY);
-    ResultObj->SetObjectField(TEXT("position"), PositionObj);
-    
-    // Add pin information
-    TArray<TSharedPtr<FJsonValue>> PinsArray;
-    for (UEdGraphPin* Pin : NewNode->Pins)
-    {
-        TSharedPtr<FJsonObject> PinObj = MakeShared<FJsonObject>();
-        PinObj->SetStringField(TEXT("name"), Pin->PinName.ToString());
-        PinObj->SetStringField(TEXT("type"), Pin->PinType.PinCategory.ToString());
-        PinObj->SetStringField(TEXT("direction"), Pin->Direction == EGPD_Input ? TEXT("input") : TEXT("output"));
-        PinObj->SetBoolField(TEXT("is_execution"), Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec);
-        PinsArray.Add(MakeShared<FJsonValueObject>(PinObj));
-    }
-    ResultObj->SetArrayField(TEXT("pins"), PinsArray);
-    
-    ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Successfully created '%s' node (%s)"), 
-                                                               *NodeTitle, *NodeType));
-    
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-    
-    return OutputString;
+    // Return success result using helper
+    return BuildNodeResult(true, FString::Printf(TEXT("Successfully created '%s' node (%s)"), *NodeTitle, *NodeType),
+                          BlueprintName, FunctionName, NewNode, NodeTitle, NodeType, TargetClass, PositionX, PositionY);
 }
 
