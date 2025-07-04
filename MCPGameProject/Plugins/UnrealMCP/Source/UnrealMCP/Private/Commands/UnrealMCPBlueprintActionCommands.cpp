@@ -38,6 +38,13 @@
 #include "K2Node_Self.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
+
+// Phase 2: High-value node types includes
+#include "K2Node_FormatText.h"
+#include "K2Node_SwitchString.h" 
+#include "K2Node_SwitchInteger.h"
+#include "K2Node_SwitchEnum.h"
+#include "K2Node_Timeline.h"
 #include "Engine/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 #include "KismetCompiler.h"
@@ -1769,6 +1776,111 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
         NewNode = SetForEachNode;
         NodeTitle = TEXT("For Each Loop (Set)");
         NodeType = TEXT("UK2Node_SetForEach");
+    }
+    
+    // ===== PHASE 2: HIGH-VALUE NODE TYPES =====
+    
+    // Format Text node creation (K2Node_FormatText) - TIER 1: HIGHEST PRIORITY
+    else if (FunctionName.Equals(TEXT("Format Text"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("K2Node_FormatText"), ESearchCase::IgnoreCase))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Format Text node"));
+        
+        UK2Node_FormatText* FormatTextNode = NewObject<UK2Node_FormatText>(EventGraph);
+        FormatTextNode->NodePosX = PositionX;
+        FormatTextNode->NodePosY = PositionY;
+        FormatTextNode->CreateNewGuid();
+        EventGraph->AddNode(FormatTextNode, true, true);
+        FormatTextNode->PostPlacedNewNode();
+        FormatTextNode->AllocateDefaultPins();
+        NewNode = FormatTextNode;
+        NodeTitle = TEXT("Format Text");
+        NodeType = TEXT("UK2Node_FormatText");
+        
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Format Text node"));
+    }
+    
+    // Switch on String node creation (K2Node_SwitchString) - TIER 1: HIGH PRIORITY
+    else if (FunctionName.Equals(TEXT("Switch on String"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("K2Node_SwitchString"), ESearchCase::IgnoreCase))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Switch on String node"));
+        
+        UK2Node_SwitchString* SwitchStringNode = NewObject<UK2Node_SwitchString>(EventGraph);
+        SwitchStringNode->NodePosX = PositionX;
+        SwitchStringNode->NodePosY = PositionY;
+        SwitchStringNode->CreateNewGuid();
+        EventGraph->AddNode(SwitchStringNode, true, true);
+        SwitchStringNode->PostPlacedNewNode();
+        SwitchStringNode->AllocateDefaultPins();
+        NewNode = SwitchStringNode;
+        NodeTitle = TEXT("Switch on String");
+        NodeType = TEXT("UK2Node_SwitchString");
+        
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Switch on String node"));
+    }
+    
+    // Switch on Int node creation (K2Node_SwitchInteger) - TIER 1: HIGH PRIORITY  
+    else if (FunctionName.Equals(TEXT("Switch on Int"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("Switch on Integer"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("K2Node_SwitchInteger"), ESearchCase::IgnoreCase))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Switch on Int node"));
+        
+        UK2Node_SwitchInteger* SwitchIntNode = NewObject<UK2Node_SwitchInteger>(EventGraph);
+        SwitchIntNode->NodePosX = PositionX;
+        SwitchIntNode->NodePosY = PositionY;
+        SwitchIntNode->CreateNewGuid();
+        EventGraph->AddNode(SwitchIntNode, true, true);
+        SwitchIntNode->PostPlacedNewNode();
+        SwitchIntNode->AllocateDefaultPins();
+        NewNode = SwitchIntNode;
+        NodeTitle = TEXT("Switch on Int");
+        NodeType = TEXT("UK2Node_SwitchInteger");
+        
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Switch on Int node"));
+    }
+    
+    // Switch on Enum node creation (K2Node_SwitchEnum) - TIER 1: HIGH PRIORITY
+    else if (FunctionName.Equals(TEXT("Switch on Enum"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("K2Node_SwitchEnum"), ESearchCase::IgnoreCase))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Switch on Enum node"));
+        
+        UK2Node_SwitchEnum* SwitchEnumNode = NewObject<UK2Node_SwitchEnum>(EventGraph);
+        SwitchEnumNode->NodePosX = PositionX;
+        SwitchEnumNode->NodePosY = PositionY;
+        SwitchEnumNode->CreateNewGuid();
+        EventGraph->AddNode(SwitchEnumNode, true, true);
+        SwitchEnumNode->PostPlacedNewNode();
+        SwitchEnumNode->AllocateDefaultPins();
+        NewNode = SwitchEnumNode;
+        NodeTitle = TEXT("Switch on Enum");
+        NodeType = TEXT("UK2Node_SwitchEnum");
+        
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Switch on Enum node"));
+    }
+    
+    // Add Timeline node creation (K2Node_Timeline) - TIER 2: MEDIUM-HIGH PRIORITY
+    else if (FunctionName.Equals(TEXT("Add Timeline..."), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("Add Timeline"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("Timeline"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("K2Node_Timeline"), ESearchCase::IgnoreCase))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating Timeline node"));
+        
+        UK2Node_Timeline* TimelineNode = NewObject<UK2Node_Timeline>(EventGraph);
+        TimelineNode->NodePosX = PositionX;
+        TimelineNode->NodePosY = PositionY;
+        TimelineNode->CreateNewGuid();
+        EventGraph->AddNode(TimelineNode, true, true);
+        TimelineNode->PostPlacedNewNode();
+        TimelineNode->AllocateDefaultPins();
+        NewNode = TimelineNode;
+        NodeTitle = TEXT("Add Timeline");
+        NodeType = TEXT("UK2Node_Timeline");
+        
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created Timeline node"));
     }
     else
     {
