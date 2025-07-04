@@ -1606,50 +1606,10 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
             }
         }
         
-                 if (MacroBlueprint)
-         {
-             // Create the macro instance node
-             UK2Node_MacroInstance* MacroNode = NewObject<UK2Node_MacroInstance>(EventGraph);
-             
-             // Find the macro graph within the blueprint
-             UEdGraph* MacroGraph = nullptr;
-             for (UEdGraph* Graph : MacroBlueprint->FunctionGraphs)
-             {
-                 if (Graph && Graph->GetFName().ToString().Equals(MacroName, ESearchCase::IgnoreCase))
-                 {
-                     MacroGraph = Graph;
-                     break;
-                 }
-             }
-             
-                           if (MacroGraph)
-              {
-                  // Set the macro graph on the node
-                  MacroNode->ReconstructNode();
-              }
-              else
-              {
-                  UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Could not find macro graph '%s' in blueprint"), *MacroName);
-              }
-             
-             MacroNode->NodePosX = PositionX;
-             MacroNode->NodePosY = PositionY;
-             MacroNode->CreateNewGuid();
-             EventGraph->AddNode(MacroNode, true, true);
-             MacroNode->PostPlacedNewNode();
-             MacroNode->AllocateDefaultPins();
-             
-             NewNode = MacroNode;
-             NodeTitle = FunctionName;
-             NodeType = TEXT("UK2Node_MacroInstance");
-             
-             UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created macro instance node"));
-         }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to find macro blueprint for '%s'"), *FunctionName);
-            
-            // Try alternative approach using BlueprintActionDatabase to find the spawner
+        // Use BlueprintActionDatabase spawner approach for engine macro instances
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Using BlueprintActionDatabase spawner for macro '%s'"), *FunctionName);
+        
+        // Find the spawner using BlueprintActionDatabase
             FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
             FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
             
@@ -1712,7 +1672,6 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
                 FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
                 return OutputString;
             }
-        }
     }
 
     // Variable getter/setter node creation - check this FIRST before function lookup
