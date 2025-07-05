@@ -215,8 +215,15 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
                                 if (UBlueprint* TargetBP = Cast<UBlueprint>(AssetData.GetAsset()))
                                 {
                                     CastTargetClass = TargetBP->GeneratedClass;
-                                    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found Blueprint class '%s'"), *CastTargetClass->GetName());
-                                    break;
+                                    if (CastTargetClass)
+                                    {
+                                        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found Blueprint class '%s'"), *CastTargetClass->GetName());
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Blueprint '%s' has null GeneratedClass"), *AssetName);
+                                    }
                                 }
                             }
                         }
