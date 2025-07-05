@@ -52,13 +52,10 @@
 
 // Additional includes for node creation
 #include "Commands/UnrealMCPCommonUtils.h"
-#include "Commands/UnrealMCPNodeCreationHelpers.h"
 #include "Commands/UnrealMCPNodeCreators.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
-
-// ===== HELPER FUNCTIONS MOVED TO UnrealMCPNodeCreationHelpers.cpp =====
 
 
 
