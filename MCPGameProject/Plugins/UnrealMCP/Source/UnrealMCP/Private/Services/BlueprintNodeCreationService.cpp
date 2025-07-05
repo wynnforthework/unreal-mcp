@@ -328,7 +328,7 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created event node '%s'"), *EventName);
     }
-    // Handle loop macros
+    // Handle loop macros - all engine macro loop types
     else if (FunctionName.Equals(TEXT("Loop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase) ||
@@ -338,6 +338,10 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
              FunctionName.Equals(TEXT("ForLoopWithBreak"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("For Each Loop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("For Each Loop with Break"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("ForEachLoopWithBreak"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("Reverse for Each Loop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("ReverseForEachLoop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("While Loop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("WhileLoop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("Do Once"), ESearchCase::IgnoreCase) ||
@@ -349,42 +353,121 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
              FunctionName.Equals(TEXT("Flip Flop"), ESearchCase::IgnoreCase) ||
              FunctionName.Equals(TEXT("FlipFlop"), ESearchCase::IgnoreCase))
     {
-        // Try to find the ForLoop macro blueprint
-        if (FunctionName.Equals(TEXT("Loop"), ESearchCase::IgnoreCase) ||
-            FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase) ||
-            FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase))
-        {
-            UBlueprint* ForLoopMacro = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros/ForLoop.ForLoop"));
-            if (ForLoopMacro)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found ForLoop macro blueprint"));
-                
-                // Create macro instance
-                UK2Node_MacroInstance* MacroInstance = NewObject<UK2Node_MacroInstance>(EventGraph);
-                MacroInstance->SetMacroGraph(ForLoopMacro->MacroGraphs[0]);
-                MacroInstance->NodePosX = PositionX;
-                MacroInstance->NodePosY = PositionY;
-                MacroInstance->CreateNewGuid();
-                EventGraph->AddNode(MacroInstance, true, true);
-                MacroInstance->PostPlacedNewNode();
-                MacroInstance->AllocateDefaultPins();
-                NewNode = MacroInstance;
-                NodeTitle = TEXT("For Loop");
-                NodeType = TEXT("UK2Node_MacroInstance");
-            }
-        }
+        // Manual macro loading for Engine macros (macros aren't in Blueprint Action Database)
+        UBlueprint* MacroBlueprint = nullptr;
+        FString MacroGraphName = TEXT("");
         
-        if (!NewNode)
+                 // Map function names to their macro blueprint paths (using the correct StandardMacros path)
+         if (FunctionName.Equals(TEXT("For Each Loop"), ESearchCase::IgnoreCase) ||
+             FunctionName.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase))
+         {
+             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+             MacroGraphName = TEXT("ForEachLoop");
+         }
+         else if (FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("Loop"), ESearchCase::IgnoreCase))
+         {
+             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+             MacroGraphName = TEXT("ForLoop");
+         }
+         else if (FunctionName.Equals(TEXT("For Each Loop with Break"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("ForEachLoopWithBreak"), ESearchCase::IgnoreCase))
+         {
+             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+             MacroGraphName = TEXT("ForEachLoopWithBreak");
+         }
+         else if (FunctionName.Equals(TEXT("For Loop with Break"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("ForLoopWithBreak"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("Loop with Break"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("LoopWithBreak"), ESearchCase::IgnoreCase))
+         {
+             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+             MacroGraphName = TEXT("ForLoopWithBreak");
+         }
+         else if (FunctionName.Equals(TEXT("While Loop"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("WhileLoop"), ESearchCase::IgnoreCase))
+         {
+             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+             MacroGraphName = TEXT("WhileLoop");
+         }
+         else if (FunctionName.Equals(TEXT("Do Once"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("DoOnce"), ESearchCase::IgnoreCase))
+         {
+             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+             MacroGraphName = TEXT("DoOnce");
+         }
+         else if (FunctionName.Equals(TEXT("Do N"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("DoN"), ESearchCase::IgnoreCase))
+         {
+             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+             MacroGraphName = TEXT("DoN");
+         }
+         else if (FunctionName.Equals(TEXT("MultiGate"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("Multi Gate"), ESearchCase::IgnoreCase))
+         {
+             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+             MacroGraphName = TEXT("MultiGate");
+         }
+         else if (FunctionName.Equals(TEXT("Flip Flop"), ESearchCase::IgnoreCase) ||
+                  FunctionName.Equals(TEXT("FlipFlop"), ESearchCase::IgnoreCase))
+         {
+             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+             MacroGraphName = TEXT("FlipFlop");
+         }
+        
+                 if (MacroBlueprint && MacroBlueprint->MacroGraphs.Num() > 0)
+         {
+             UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found macro blueprint for '%s' with %d macro graphs"), *FunctionName, MacroBlueprint->MacroGraphs.Num());
+             
+             // Find the specific macro graph by name
+             UEdGraph* TargetMacroGraph = nullptr;
+             for (UEdGraph* MacroGraph : MacroBlueprint->MacroGraphs)
+             {
+                 if (MacroGraph && MacroGraph->GetFName().ToString().Equals(MacroGraphName, ESearchCase::IgnoreCase))
+                 {
+                     TargetMacroGraph = MacroGraph;
+                     UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found specific macro graph '%s'"), *MacroGraphName);
+                     break;
+                 }
+                 UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Available macro graph: '%s'"), MacroGraph ? *MacroGraph->GetFName().ToString() : TEXT("NULL"));
+             }
+             
+             // If specific graph not found, try first graph as fallback
+             if (!TargetMacroGraph && MacroBlueprint->MacroGraphs.Num() > 0)
+             {
+                 TargetMacroGraph = MacroBlueprint->MacroGraphs[0];
+                 UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Using first available macro graph as fallback"));
+             }
+             
+             if (TargetMacroGraph)
+             {
+                 // Create macro instance
+                 UK2Node_MacroInstance* MacroInstance = NewObject<UK2Node_MacroInstance>(EventGraph);
+                 MacroInstance->SetMacroGraph(TargetMacroGraph);
+                 MacroInstance->NodePosX = PositionX;
+                 MacroInstance->NodePosY = PositionY;
+                 MacroInstance->CreateNewGuid();
+                 EventGraph->AddNode(MacroInstance, true, true);
+                 MacroInstance->PostPlacedNewNode();
+                 MacroInstance->AllocateDefaultPins();
+                 
+                 NewNode = MacroInstance;
+                 NodeTitle = FunctionName;
+                 NodeType = TEXT("UK2Node_MacroInstance");
+                 
+                 UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created macro instance for '%s'"), *FunctionName);
+             }
+             else
+             {
+                 UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Could not find target macro graph '%s'"), *MacroGraphName);
+                 return BuildNodeResult(false, FString::Printf(TEXT("Could not find macro graph '%s' in StandardMacros"), *MacroGraphName));
+             }
+         }
+        else
         {
-            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: No macro found, skipping advanced action database lookup"));
-            
-            ResultObj->SetBoolField(TEXT("success"), false);
-            ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Could not find engine macro blueprint for '%s'. This macro may not be available in the current Unreal Engine version."), *FunctionName));
-            
-            FString OutputString;
-            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-            FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-            return OutputString;
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Failed to load macro blueprint for '%s'"), *FunctionName);
+            return BuildNodeResult(false, FString::Printf(TEXT("Could not load engine macro '%s'. The macro blueprint may not exist at the expected path."), *FunctionName));
         }
     }
     // Variable getter/setter node creation
