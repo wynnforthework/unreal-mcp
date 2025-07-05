@@ -201,11 +201,21 @@ bool UnrealMCPNodeCreationHelpers::TryCreateNodeUsingBlueprintActionDatabase(con
                 
                 // Multiple matching strategies
                 bool bMatches = false;
+                
                 if (NodeName.Equals(FunctionName, ESearchCase::IgnoreCase) ||
                     NodeClass.Equals(FunctionName, ESearchCase::IgnoreCase) ||
                     NodeName.Contains(FunctionName, ESearchCase::IgnoreCase))
                 {
                     bMatches = true;
+                }
+                
+                // Special case: Handle common display name vs function name mismatches
+                if (!bMatches && FunctionName.Equals(TEXT("Print String"), ESearchCase::IgnoreCase))
+                {
+                    if (NodeName.Equals(TEXT("PrintString"), ESearchCase::IgnoreCase))
+                    {
+                        bMatches = true;
+                    }
                 }
                 
                 if (bMatches)
