@@ -42,7 +42,11 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: JsonParams = '%s'"), *JsonParams);
     if (!ParseJsonParameters(JsonParams, ParamsObject, ResultObj))
     {
-        return BuildNodeResult(false, TEXT("Invalid JSON parameters"));
+        // Return the specific error details that were already set by ParseJsonParameters
+        FString OutputString;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+        FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+        return OutputString;
     }
     
     // Find the blueprint
@@ -784,7 +788,16 @@ FString FBlueprintNodeCreationService::BuildNodeResult(bool bSuccess, const FStr
 {
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetBoolField(TEXT("success"), bSuccess);
-    ResultObj->SetStringField(TEXT("message"), Message);
+    
+    // Use the correct field name based on success/failure
+    if (bSuccess)
+    {
+        ResultObj->SetStringField(TEXT("message"), Message);
+    }
+    else
+    {
+        ResultObj->SetStringField(TEXT("error"), Message);
+    }
     
     if (bSuccess && NewNode)
     {
