@@ -1,4 +1,5 @@
 #include "Services/BlueprintNodeCreationService.h"
+#include "Services/MacroDiscoveryService.h"
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -210,14 +211,36 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
                         for (const FAssetData& AssetData : BPAssets)
                         {
                             FString AssetName = AssetData.AssetName.ToString();
-                            if (AssetName.Contains(TargetTypeName) || TargetTypeName.Contains(AssetName))
+                            
+                            // Try exact match first (most reliable)
+                            bool bIsMatch = AssetName.Equals(TargetTypeName, ESearchCase::IgnoreCase);
+                            
+                            // If no exact match, try matching against the generated class name
+                            if (!bIsMatch)
+                            {
+                                if (UBlueprint* TestBP = Cast<UBlueprint>(AssetData.GetAsset()))
+                                {
+                                    if (TestBP->GeneratedClass)
+                                    {
+                                        FString ClassName = TestBP->GeneratedClass->GetName();
+                                        // Remove common Blueprint prefixes for comparison
+                                        if (ClassName.StartsWith(TEXT("BP_")))
+                                        {
+                                            ClassName = ClassName.Mid(3);
+                                        }
+                                        bIsMatch = ClassName.Equals(TargetTypeName, ESearchCase::IgnoreCase);
+                                    }
+                                }
+                            }
+                            
+                            if (bIsMatch)
                             {
                                 if (UBlueprint* TargetBP = Cast<UBlueprint>(AssetData.GetAsset()))
                                 {
                                     CastTargetClass = TargetBP->GeneratedClass;
                                     if (CastTargetClass)
                                     {
-                                        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found Blueprint class '%s'"), *CastTargetClass->GetName());
+                                        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found Blueprint class '%s' (matched asset '%s')"), *CastTargetClass->GetName(), *AssetName);
                                         break;
                                     }
                                     else
@@ -328,146 +351,50 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created event node '%s'"), *EventName);
     }
-    // Handle loop macros - all engine macro loop types
-    else if (FunctionName.Equals(TEXT("Loop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Loop with Break"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("LoopWithBreak"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("For Loop with Break"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ForLoopWithBreak"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("For Each Loop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("For Each Loop with Break"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ForEachLoopWithBreak"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Reverse for Each Loop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ReverseForEachLoop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("While Loop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("WhileLoop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Do Once"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("DoOnce"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Do N"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("DoN"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("MultiGate"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Multi Gate"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Flip Flop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("FlipFlop"), ESearchCase::IgnoreCase))
+    // Handle macro functions using the Macro Discovery Service
+    else if (FMacroDiscoveryService::IsMacroFunction(FunctionName))
     {
-        // Manual macro loading for Engine macros (macros aren't in Blueprint Action Database)
-        UBlueprint* MacroBlueprint = nullptr;
-        FString MacroGraphName = TEXT("");
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Processing macro function '%s' using MacroDiscoveryService"), *FunctionName);
         
-                 // Map function names to their macro blueprint paths (using the correct StandardMacros path)
-         if (FunctionName.Equals(TEXT("For Each Loop"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ForEachLoop"), ESearchCase::IgnoreCase))
-         {
-             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
-             MacroGraphName = TEXT("ForEachLoop");
-         }
-         else if (FunctionName.Equals(TEXT("For Loop"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("ForLoop"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("Loop"), ESearchCase::IgnoreCase))
-         {
-             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
-             MacroGraphName = TEXT("ForLoop");
-         }
-         else if (FunctionName.Equals(TEXT("For Each Loop with Break"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("ForEachLoopWithBreak"), ESearchCase::IgnoreCase))
-         {
-             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
-             MacroGraphName = TEXT("ForEachLoopWithBreak");
-         }
-         else if (FunctionName.Equals(TEXT("For Loop with Break"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("ForLoopWithBreak"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("Loop with Break"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("LoopWithBreak"), ESearchCase::IgnoreCase))
-         {
-             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
-             MacroGraphName = TEXT("ForLoopWithBreak");
-         }
-         else if (FunctionName.Equals(TEXT("While Loop"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("WhileLoop"), ESearchCase::IgnoreCase))
-         {
-             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
-             MacroGraphName = TEXT("WhileLoop");
-         }
-         else if (FunctionName.Equals(TEXT("Do Once"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("DoOnce"), ESearchCase::IgnoreCase))
-         {
-             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
-             MacroGraphName = TEXT("DoOnce");
-         }
-         else if (FunctionName.Equals(TEXT("Do N"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("DoN"), ESearchCase::IgnoreCase))
-         {
-             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
-             MacroGraphName = TEXT("DoN");
-         }
-         else if (FunctionName.Equals(TEXT("MultiGate"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("Multi Gate"), ESearchCase::IgnoreCase))
-         {
-             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
-             MacroGraphName = TEXT("MultiGate");
-         }
-         else if (FunctionName.Equals(TEXT("Flip Flop"), ESearchCase::IgnoreCase) ||
-                  FunctionName.Equals(TEXT("FlipFlop"), ESearchCase::IgnoreCase))
-         {
-             MacroBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
-             MacroGraphName = TEXT("FlipFlop");
-         }
+        // Use the macro discovery service to find the macro blueprint dynamically
+        FString MacroGraphName = FMacroDiscoveryService::MapFunctionNameToMacroGraphName(FunctionName);
+        UBlueprint* MacroBlueprint = FMacroDiscoveryService::FindMacroBlueprint(FunctionName);
         
-                 if (MacroBlueprint && MacroBlueprint->MacroGraphs.Num() > 0)
-         {
-             UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found macro blueprint for '%s' with %d macro graphs"), *FunctionName, MacroBlueprint->MacroGraphs.Num());
-             
-             // Find the specific macro graph by name
-             UEdGraph* TargetMacroGraph = nullptr;
-             for (UEdGraph* MacroGraph : MacroBlueprint->MacroGraphs)
-             {
-                 if (MacroGraph && MacroGraph->GetFName().ToString().Equals(MacroGraphName, ESearchCase::IgnoreCase))
-                 {
-                     TargetMacroGraph = MacroGraph;
-                     UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found specific macro graph '%s'"), *MacroGraphName);
-                     break;
-                 }
-                 UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Available macro graph: '%s'"), MacroGraph ? *MacroGraph->GetFName().ToString() : TEXT("NULL"));
-             }
-             
-             // If specific graph not found, try first graph as fallback
-             if (!TargetMacroGraph && MacroBlueprint->MacroGraphs.Num() > 0)
-             {
-                 TargetMacroGraph = MacroBlueprint->MacroGraphs[0];
-                 UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Using first available macro graph as fallback"));
-             }
-             
-             if (TargetMacroGraph)
-             {
-                 // Create macro instance
-                 UK2Node_MacroInstance* MacroInstance = NewObject<UK2Node_MacroInstance>(EventGraph);
-                 MacroInstance->SetMacroGraph(TargetMacroGraph);
-                 MacroInstance->NodePosX = PositionX;
-                 MacroInstance->NodePosY = PositionY;
-                 MacroInstance->CreateNewGuid();
-                 EventGraph->AddNode(MacroInstance, true, true);
-                 MacroInstance->PostPlacedNewNode();
-                 MacroInstance->AllocateDefaultPins();
-                 
-                 NewNode = MacroInstance;
-                 NodeTitle = FunctionName;
-                 NodeType = TEXT("UK2Node_MacroInstance");
-                 
-                 UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created macro instance for '%s'"), *FunctionName);
-             }
-             else
-             {
-                 UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Could not find target macro graph '%s'"), *MacroGraphName);
-                 return BuildNodeResult(false, FString::Printf(TEXT("Could not find macro graph '%s' in StandardMacros"), *MacroGraphName));
-             }
-         }
+        if (MacroBlueprint)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found macro blueprint for '%s' via discovery service"), *FunctionName);
+            
+            // Find the specific macro graph
+            UEdGraph* TargetMacroGraph = FMacroDiscoveryService::FindMacroGraph(MacroBlueprint, MacroGraphName);
+            
+            if (TargetMacroGraph)
+            {
+                // Create macro instance
+                UK2Node_MacroInstance* MacroInstance = NewObject<UK2Node_MacroInstance>(EventGraph);
+                MacroInstance->SetMacroGraph(TargetMacroGraph);
+                MacroInstance->NodePosX = PositionX;
+                MacroInstance->NodePosY = PositionY;
+                MacroInstance->CreateNewGuid();
+                EventGraph->AddNode(MacroInstance, true, true);
+                MacroInstance->PostPlacedNewNode();
+                MacroInstance->AllocateDefaultPins();
+                
+                NewNode = MacroInstance;
+                NodeTitle = FunctionName;
+                NodeType = TEXT("UK2Node_MacroInstance");
+                
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created macro instance for '%s' using discovery service"), *FunctionName);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Could not find macro graph '%s' in discovered macro blueprint"), *MacroGraphName);
+                return BuildNodeResult(false, FString::Printf(TEXT("Could not find macro graph '%s' in discovered macro blueprint"), *MacroGraphName));
+            }
+        }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Failed to load macro blueprint for '%s'"), *FunctionName);
-            return BuildNodeResult(false, FString::Printf(TEXT("Could not load engine macro '%s'. The macro blueprint may not exist at the expected path."), *FunctionName));
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Could not discover macro blueprint for '%s'"), *FunctionName);
+            return BuildNodeResult(false, FString::Printf(TEXT("Could not discover macro blueprint for '%s'. Macro may not be available."), *FunctionName));
         }
     }
     // Variable getter/setter node creation
