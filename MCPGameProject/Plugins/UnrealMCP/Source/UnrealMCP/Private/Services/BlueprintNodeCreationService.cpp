@@ -463,27 +463,22 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
             {
                 if (Node && Node->GetVariableName().ToString().Equals(VarName, ESearchCase::IgnoreCase))
                 {
-                    // Create component reference node
-                    UK2Node_ComponentBoundEvent* ComponentRefNode = NewObject<UK2Node_ComponentBoundEvent>(EventGraph);
-                    if (ComponentRefNode)
-                    {
-                        // For component references, we need a simpler approach
-                        UK2Node_VariableGet* ComponentGetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
-                        ComponentGetterNode->VariableReference.SetSelfMember(Node->GetVariableName());
-                        ComponentGetterNode->NodePosX = PositionX;
-                        ComponentGetterNode->NodePosY = PositionY;
-                        ComponentGetterNode->CreateNewGuid();
-                        EventGraph->AddNode(ComponentGetterNode, true, true);
-                        ComponentGetterNode->PostPlacedNewNode();
-                        ComponentGetterNode->AllocateDefaultPins();
-                        NewNode = ComponentGetterNode;
-                        NodeTitle = FString::Printf(TEXT("Get %s"), *VarName);
-                        NodeType = TEXT("UK2Node_VariableGet");
-                        bFound = true;
-                        
-                        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created component reference for '%s'"), *VarName);
-                        break;
-                    }
+                    // Create component reference node using variable get approach
+                    UK2Node_VariableGet* ComponentGetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
+                    ComponentGetterNode->VariableReference.SetSelfMember(Node->GetVariableName());
+                    ComponentGetterNode->NodePosX = PositionX;
+                    ComponentGetterNode->NodePosY = PositionY;
+                    ComponentGetterNode->CreateNewGuid();
+                    EventGraph->AddNode(ComponentGetterNode, true, true);
+                    ComponentGetterNode->PostPlacedNewNode();
+                    ComponentGetterNode->AllocateDefaultPins();
+                    NewNode = ComponentGetterNode;
+                    NodeTitle = FString::Printf(TEXT("Get %s"), *VarName);
+                    NodeType = TEXT("UK2Node_VariableGet");
+                    bFound = true;
+                    
+                    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created component reference for '%s'"), *VarName);
+                    break;
                 }
             }
         }

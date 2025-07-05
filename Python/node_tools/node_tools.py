@@ -12,7 +12,6 @@ from utils.nodes.node_operations import (
     add_input_action_node as add_input_action_node_impl,
     # add_function_node as add_function_node_impl,  # REMOVED: Use create_node_by_action_name instead
     connect_nodes_impl,
-    add_self_component_reference as add_self_component_reference_impl,
     add_self_reference as add_self_reference_impl,
     find_nodes as find_nodes_impl,
     get_variable_info_impl
@@ -107,36 +106,6 @@ def register_blueprint_node_tools(mcp: FastMCP):
             return {
                 "success": False,
                 "message": f"Failed to connect nodes: {str(e)}"
-            }
-
-    @mcp.tool()
-    def add_blueprint_get_self_component_reference(
-        ctx: Context,
-        blueprint_name: str,
-        component_name: str,
-        node_position: List[float] = None
-    ) -> Dict[str, Any]:
-        """
-        Add a node that gets a reference to a component owned by the current Blueprint.
-        This creates a node similar to what you get when dragging a component from the Components panel.
-
-        Args:
-            blueprint_name: Name of the target Blueprint
-            component_name: Name of the component to get a reference to
-            node_position: Optional [X, Y] position in the graph
-            
-        Returns:
-            Response containing the node ID and success status
-        """
-        try:
-            return add_self_component_reference_impl(
-                ctx, blueprint_name, component_name, node_position
-            )
-        except Exception as e:
-            logger.error(f"Error adding component reference: {e}")
-            return {
-                "success": False,
-                "message": f"Failed to add component reference: {str(e)}"
             }
 
     @mcp.tool()
