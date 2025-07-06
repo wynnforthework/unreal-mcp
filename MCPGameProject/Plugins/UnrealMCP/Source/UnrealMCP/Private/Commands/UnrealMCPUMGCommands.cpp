@@ -662,8 +662,28 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 		return Response;
 	}
 
-	// Create binding function
+	// Declare FunctionName before existence check
 	const FString FunctionName = FString::Printf(TEXT("Get%s"), *BindingName);
+
+	// Check if a function graph with this name already exists
+	UEdGraph* ExistingGraph = nullptr;
+	for (UEdGraph* Graph : WidgetBlueprint->FunctionGraphs)
+	{
+		if (Graph && Graph->GetName() == FunctionName)
+		{
+			ExistingGraph = Graph;
+			break;
+		}
+	}
+	if (ExistingGraph)
+	{
+		// Optionally, you could update the function or just return success
+		Response->SetBoolField(TEXT("success"), true);
+		Response->SetStringField(TEXT("binding_name"), BindingName);
+		return Response;
+	}
+
+	// Create binding function
 	UEdGraph* FuncGraph = FBlueprintEditorUtils::CreateNewGraph(
 		WidgetBlueprint,
 		FName(*FunctionName),
@@ -679,7 +699,6 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 
 		// Create entry node
 		UK2Node_FunctionEntry* EntryNode = nullptr;
-		
 		// Create entry node - use the API that exists in UE 5.5
 		EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
 		FuncGraph->AddNode(EntryNode, false, false);
@@ -703,24 +722,6 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 		{
 			EntryThenPin->MakeLinkTo(GetVarOutPin);
 		}
-	}
-
-	// Check if a function graph with this name already exists
-	UEdGraph* ExistingGraph = nullptr;
-	for (UEdGraph* Graph : WidgetBlueprint->FunctionGraphs)
-	{
-		if (Graph && Graph->GetName() == FunctionName)
-		{
-			ExistingGraph = Graph;
-			break;
-		}
-	}
-	if (ExistingGraph)
-	{
-		// Optionally, you could update the function or just return success
-		Response->SetBoolField(TEXT("success"), true);
-		Response->SetStringField(TEXT("binding_name"), BindingName);
-		return Response;
 	}
 
 	// Save the Widget Blueprint
