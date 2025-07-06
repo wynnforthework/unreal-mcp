@@ -453,15 +453,16 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                     bool bPassesFilter = true;
                     if (!SearchFilter.IsEmpty())
                     {
+                        FString SearchLower = SearchFilter.ToLower();
                         FString ActionNameLower = ActionName.ToLower();
                         FString CategoryLower = Category.ToLower();
                         FString TooltipLower = Tooltip.ToLower();
                         FString KeywordsLower = Keywords.ToLower();
                         
-                        bPassesFilter = ActionNameLower.Contains(SearchFilter) ||
-                                       CategoryLower.Contains(SearchFilter) ||
-                                       TooltipLower.Contains(SearchFilter) ||
-                                       KeywordsLower.Contains(SearchFilter);
+                        bPassesFilter = ActionNameLower.Contains(SearchLower) ||
+                                       CategoryLower.Contains(SearchLower) ||
+                                       TooltipLower.Contains(SearchLower) ||
+                                       KeywordsLower.Contains(SearchLower);
                     }
                     
                     if (bPassesFilter)
@@ -720,7 +721,7 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
                         bool bPassesFilter = true;
                         if (!SearchFilter.IsEmpty())
                         {
-                            FString SearchLower = SearchFilter;
+                            FString SearchLower = SearchFilter.ToLower();
                             FString ActionNameLower = ActionName.ToLower();
                             FString CategoryLower = Category.ToLower();
                             FString TooltipLower = Tooltip.ToLower();
@@ -983,7 +984,7 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                         bool bPassesFilter = true;
                         if (!SearchFilter.IsEmpty())
                         {
-                            FString SearchLower = SearchFilter;
+                            FString SearchLower = SearchFilter.ToLower();
                             FString ActionNameLower = ActionName.ToLower();
                             FString CategoryLower = CategoryName.ToLower();
                             
@@ -1224,15 +1225,16 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                 }
                 
                 // Apply search and category filters
+                FString SearchLower = SearchQuery.ToLower();
                 FString ActionNameLower = ActionName.ToLower();
                 FString ActionCategoryLower = ActionCategory.ToLower();
                 FString TooltipLower = Tooltip.ToLower();
                 FString KeywordsLower = Keywords.ToLower();
                 
-                bool bMatchesSearch = ActionNameLower.Contains(SearchQuery.ToLower()) ||
-                                     ActionCategoryLower.Contains(Category.ToLower()) ||
-                                     TooltipLower.Contains(SearchQuery.ToLower()) ||
-                                     KeywordsLower.Contains(SearchQuery.ToLower());
+                bool bMatchesSearch = ActionNameLower.Contains(SearchLower) ||
+                                     ActionCategoryLower.Contains(SearchLower) ||
+                                     TooltipLower.Contains(SearchLower) ||
+                                     KeywordsLower.Contains(SearchLower);
                 
                 bool bMatchesCategory = Category.IsEmpty() || ActionCategoryLower.Contains(Category.ToLower());
                 
