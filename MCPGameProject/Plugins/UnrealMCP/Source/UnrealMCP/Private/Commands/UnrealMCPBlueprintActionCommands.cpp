@@ -74,7 +74,6 @@ void AddBlueprintCustomFunctionActions(UBlueprint* Blueprint, const FString& Sea
     UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Processing Blueprint '%s' with %d custom functions"), 
            *Blueprint->GetName(), Blueprint->FunctionGraphs.Num());
     
-    FString SearchLower = SearchFilter.ToLower();
     int32 AddedActions = 0;
     
     for (UEdGraph* FunctionGraph : Blueprint->FunctionGraphs)
@@ -85,11 +84,10 @@ void AddBlueprintCustomFunctionActions(UBlueprint* Blueprint, const FString& Sea
         }
         
         FString FunctionName = FunctionGraph->GetName();
-        FString FunctionNameLower = FunctionName.ToLower();
         
         UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Checking function '%s'"), *FunctionName);
         
-        if (!SearchFilter.IsEmpty() && !FunctionNameLower.Contains(SearchLower))
+        if (!SearchFilter.IsEmpty() && !FunctionName.Contains(SearchFilter))
         {
             UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Function '%s' doesn't match search filter '%s'"), *FunctionName, *SearchFilter);
             continue;
@@ -174,17 +172,15 @@ void AddBlueprintVariableActions(UBlueprint* Blueprint, const FString& SearchFil
     UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Processing Blueprint '%s' with %d variables"), 
            *Blueprint->GetName(), Blueprint->NewVariables.Num());
     
-    FString SearchLower = SearchFilter.ToLower();
     int32 AddedActions = 0;
     
     for (const FBPVariableDescription& VarDesc : Blueprint->NewVariables)
     {
         FString VarName = VarDesc.VarName.ToString();
-        FString VarNameLower = VarName.ToLower();
         
         UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Checking variable '%s'"), *VarName);
         
-        if (!SearchFilter.IsEmpty() && !VarNameLower.Contains(SearchLower))
+        if (!SearchFilter.IsEmpty() && !VarName.Contains(SearchFilter))
         {
             UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Variable '%s' doesn't match search filter '%s'"), *VarName, *SearchFilter);
             continue;
@@ -457,16 +453,15 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                     bool bPassesFilter = true;
                     if (!SearchFilter.IsEmpty())
                     {
-                        FString SearchLower = SearchFilter.ToLower();
                         FString ActionNameLower = ActionName.ToLower();
                         FString CategoryLower = Category.ToLower();
                         FString TooltipLower = Tooltip.ToLower();
                         FString KeywordsLower = Keywords.ToLower();
                         
-                        bPassesFilter = ActionNameLower.Contains(SearchLower) ||
-                                       CategoryLower.Contains(SearchLower) ||
-                                       TooltipLower.Contains(SearchLower) ||
-                                       KeywordsLower.Contains(SearchLower);
+                        bPassesFilter = ActionNameLower.Contains(SearchFilter) ||
+                                       CategoryLower.Contains(SearchFilter) ||
+                                       TooltipLower.Contains(SearchFilter) ||
+                                       KeywordsLower.Contains(SearchFilter);
                     }
                     
                     if (bPassesFilter)
@@ -507,15 +502,10 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
             FString Keywords = FString::Printf(TEXT("property variable %s %s native"), *PropName, *PinType);
             FString Tooltip = FString::Printf(TEXT("Access the %s property on %s"), *PropName, *TargetClass->GetName());
             // Apply search filter
-            bool bPassesFilter = true;
-            if (!SearchFilter.IsEmpty())
+            if (!SearchFilter.IsEmpty() && !(PropName.Contains(SearchFilter) || Keywords.Contains(SearchFilter)))
             {
-                FString SearchLower = SearchFilter.ToLower();
-                bPassesFilter = PropName.ToLower().Contains(SearchLower) ||
-                                Keywords.ToLower().Contains(SearchLower) ||
-                                Tooltip.ToLower().Contains(SearchLower);
+                continue;
             }
-            if (!bPassesFilter) continue;
             // Getter node
             {
                 TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
@@ -598,6 +588,7 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
         FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
         
         // --- BEGIN: Add native property getter/setter nodes ---
+        int32 PropertyActionsAdded = 0;
         for (TFieldIterator<FProperty> PropIt(TargetClass, EFieldIteratorFlags::IncludeSuper); PropIt; ++PropIt)
         {
             FProperty* Property = *PropIt;
@@ -610,6 +601,13 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
             FString Category = TEXT("Native Property");
             FString Keywords = FString::Printf(TEXT("property variable %s %s native"), *PropName, *PinType);
             FString Tooltip = FString::Printf(TEXT("Access the %s property on %s"), *PropName, *TargetClass->GetName());
+            FString PropNameLower = PropName.ToLower();
+            FString PinTypeLower = PinType.ToLower();
+            // Apply search filter
+            if (!SearchFilter.IsEmpty() && !(PropNameLower.Contains(SearchFilter) || PinTypeLower.Contains(SearchFilter) || Keywords.Contains(SearchFilter)))
+            {
+                continue;
+            }
             // Getter node
             {
                 TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
@@ -623,6 +621,8 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
                 GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *PropName));
                 GetterObj->SetBoolField(TEXT("is_native_property"), true);
                 ActionsArray.Add(MakeShared<FJsonValueObject>(GetterObj));
+                PropertyActionsAdded++;
+                if (ActionsArray.Num() >= MaxResults) { break; }
             }
             // Setter node (if BlueprintReadWrite and not const)
             if (Property->HasMetaData(TEXT("BlueprintReadWrite")) && !Property->HasMetaData(TEXT("BlueprintReadOnly")) && !Property->HasAnyPropertyFlags(CPF_ConstParm))
@@ -638,7 +638,10 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
                 SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *PropName));
                 SetterObj->SetBoolField(TEXT("is_native_property"), true);
                 ActionsArray.Add(MakeShared<FJsonValueObject>(SetterObj));
+                PropertyActionsAdded++;
+                if (ActionsArray.Num() >= MaxResults) { break; }
             }
+            if (ActionsArray.Num() >= MaxResults) { break; }
         }
         // --- END: Add native property getter/setter nodes ---
         
@@ -717,7 +720,7 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
                         bool bPassesFilter = true;
                         if (!SearchFilter.IsEmpty())
                         {
-                            FString SearchLower = SearchFilter.ToLower();
+                            FString SearchLower = SearchFilter;
                             FString ActionNameLower = ActionName.ToLower();
                             FString CategoryLower = Category.ToLower();
                             FString TooltipLower = Tooltip.ToLower();
@@ -817,6 +820,8 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
         FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
         
         // --- BEGIN: Add native property getter/setter nodes for all classes in hierarchy ---
+        TSet<FString> SeenPropertyNames;
+        int32 PropertyActionsAdded = 0;
         for (UClass* HierarchyClass : ClassHierarchy)
         {
             for (TFieldIterator<FProperty> PropIt(HierarchyClass, EFieldIteratorFlags::IncludeSuper); PropIt; ++PropIt)
@@ -827,10 +832,22 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                     continue;
                 }
                 FString PropName = Property->GetName();
+                if (SeenPropertyNames.Contains(PropName))
+                {
+                    continue; // Avoid duplicates
+                }
+                SeenPropertyNames.Add(PropName);
                 FString PinType = Property->GetCPPType();
                 FString Category = FString::Printf(TEXT("Native Property (%s)"), *HierarchyClass->GetName());
                 FString Keywords = FString::Printf(TEXT("property variable %s %s native %s"), *PropName, *PinType, *HierarchyClass->GetName());
                 FString Tooltip = FString::Printf(TEXT("Access the %s property on %s"), *PropName, *HierarchyClass->GetName());
+                FString PropNameLower = PropName.ToLower();
+                FString PinTypeLower = PinType.ToLower();
+                // Apply search filter
+                if (!SearchFilter.IsEmpty() && !(PropNameLower.Contains(SearchFilter) || PinTypeLower.Contains(SearchFilter) || Keywords.Contains(SearchFilter)))
+                {
+                    continue;
+                }
                 // Getter node
                 {
                     TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
@@ -844,6 +861,8 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                     GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *PropName));
                     GetterObj->SetBoolField(TEXT("is_native_property"), true);
                     ActionsArray.Add(MakeShared<FJsonValueObject>(GetterObj));
+                    PropertyActionsAdded++;
+                    if (ActionsArray.Num() >= MaxResults) { break; }
                 }
                 // Setter node (if BlueprintReadWrite and not const)
                 if (Property->HasMetaData(TEXT("BlueprintReadWrite")) && !Property->HasMetaData(TEXT("BlueprintReadOnly")) && !Property->HasAnyPropertyFlags(CPF_ConstParm))
@@ -859,8 +878,12 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                     SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *PropName));
                     SetterObj->SetBoolField(TEXT("is_native_property"), true);
                     ActionsArray.Add(MakeShared<FJsonValueObject>(SetterObj));
+                    PropertyActionsAdded++;
+                    if (ActionsArray.Num() >= MaxResults) { break; }
                 }
+                if (ActionsArray.Num() >= MaxResults) { break; }
             }
+            if (ActionsArray.Num() >= MaxResults) { break; }
         }
         // --- END: Add native property getter/setter nodes for all classes in hierarchy ---
         
@@ -960,7 +983,7 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                         bool bPassesFilter = true;
                         if (!SearchFilter.IsEmpty())
                         {
-                            FString SearchLower = SearchFilter.ToLower();
+                            FString SearchLower = SearchFilter;
                             FString ActionNameLower = ActionName.ToLower();
                             FString CategoryLower = CategoryName.ToLower();
                             
@@ -1106,9 +1129,6 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
     FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
     FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
     
-    FString SearchLower = SearchQuery.ToLower();
-    FString CategoryLower = Category.ToLower();
-    
     UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Searching for '%s' in category '%s'"), *SearchQuery, *Category);
     UE_LOG(LogTemp, Warning, TEXT("Total actions in database: %d"), ActionRegistry.Num());
     
@@ -1209,12 +1229,12 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                 FString TooltipLower = Tooltip.ToLower();
                 FString KeywordsLower = Keywords.ToLower();
                 
-                bool bMatchesSearch = ActionNameLower.Contains(SearchLower) ||
-                                     ActionCategoryLower.Contains(SearchLower) ||
-                                     TooltipLower.Contains(SearchLower) ||
-                                     KeywordsLower.Contains(SearchLower);
+                bool bMatchesSearch = ActionNameLower.Contains(SearchQuery.ToLower()) ||
+                                     ActionCategoryLower.Contains(Category.ToLower()) ||
+                                     TooltipLower.Contains(SearchQuery.ToLower()) ||
+                                     KeywordsLower.Contains(SearchQuery.ToLower());
                 
-                bool bMatchesCategory = Category.IsEmpty() || ActionCategoryLower.Contains(CategoryLower);
+                bool bMatchesCategory = Category.IsEmpty() || ActionCategoryLower.Contains(Category.ToLower());
                 
                 if (bMatchesSearch && bMatchesCategory)
                 {
