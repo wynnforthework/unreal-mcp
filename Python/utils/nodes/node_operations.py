@@ -82,7 +82,7 @@ def add_input_action_node(
     # If action_name doesn't start with /Game/, assume it's just the name and construct the path
     if not action_name.startswith("/Game/"):
         # Try common Enhanced Input Action paths
-        action_path = f"/Game/Input/Actions/{action_name}"
+        action_path = f"/Game/ThirdPerson/Input/Actions/{action_name}"
     else:
         action_path = action_name
     

@@ -249,8 +249,12 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCreateStruct(const TSha
     }
 
     // Get optional parameters
-    FString Path = TEXT("/Game/Blueprints");
-    Params->TryGetStringField(TEXT("path"), Path);
+    FString Path;
+    if (!Params->TryGetStringField(TEXT("path"), Path))
+    {
+        // If no path is provided, use /Game and perform recursive search for asset creation/discovery
+        Path = TEXT("/Game");
+    }
 
     FString Description = TEXT("");
     Params->TryGetStringField(TEXT("description"), Description);
@@ -590,8 +594,12 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleUpdateStruct(const TSha
     }
 
     // Get optional parameters
-    FString Path = TEXT("/Game/Blueprints");
-    Params->TryGetStringField(TEXT("path"), Path);
+    FString Path;
+    if (!Params->TryGetStringField(TEXT("path"), Path))
+    {
+        // If no path is provided, use /Game and perform recursive search for asset creation/discovery
+        Path = TEXT("/Game");
+    }
 
     FString Description = TEXT("");
     Params->TryGetStringField(TEXT("description"), Description);
@@ -1095,8 +1103,12 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCreateEnhancedInputActi
     }
 
     // Get optional parameters
-    FString Path = TEXT("/Game/Input/Actions");
-    Params->TryGetStringField(TEXT("path"), Path);
+    FString Path;
+    if (!Params->TryGetStringField(TEXT("path"), Path))
+    {
+        // If no path is provided, use /Game and perform recursive search for asset creation/discovery
+        Path = TEXT("/Game");
+    }
 
     FString Description = TEXT("");
     Params->TryGetStringField(TEXT("description"), Description);
@@ -1208,8 +1220,12 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCreateInputMappingConte
     }
 
     // Get optional parameters
-    FString Path = TEXT("/Game/Input");
-    Params->TryGetStringField(TEXT("path"), Path);
+    FString Path;
+    if (!Params->TryGetStringField(TEXT("path"), Path))
+    {
+        // If no path is provided, use /Game and perform recursive search for asset creation/discovery
+        Path = TEXT("/Game");
+    }
 
     FString Description = TEXT("");
     Params->TryGetStringField(TEXT("description"), Description);
@@ -1350,8 +1366,12 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleAddMappingToContext(con
 TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleListInputActions(const TSharedPtr<FJsonObject>& Params)
 {
     // Get optional path parameter
-    FString Path = TEXT("/Game");
-    Params->TryGetStringField(TEXT("path"), Path);
+    FString Path;
+    if (!Params->TryGetStringField(TEXT("path"), Path))
+    {
+        // If no path is provided, use /Game and perform recursive search for asset creation/discovery
+        Path = TEXT("/Game");
+    }
 
     // Get all Input Action assets using ListAssets instead of FindAssetData for UE 5.5
     TArray<FString> AllAssets = UEditorAssetLibrary::ListAssets(Path, true, false);
@@ -1417,8 +1437,12 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleListInputActions(const 
 TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleListInputMappingContexts(const TSharedPtr<FJsonObject>& Params)
 {
     // Get optional path parameter
-    FString Path = TEXT("/Game");
-    Params->TryGetStringField(TEXT("path"), Path);
+    FString Path;
+    if (!Params->TryGetStringField(TEXT("path"), Path))
+    {
+        // If no path is provided, use /Game and perform recursive search for asset creation/discovery
+        Path = TEXT("/Game");
+    }
 
     // Get all Input Mapping Context assets using ListAssets instead of FindAssetData for UE 5.5
     TArray<FString> AllAssets = UEditorAssetLibrary::ListAssets(Path, true, false);
