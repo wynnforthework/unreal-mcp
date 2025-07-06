@@ -1745,6 +1745,21 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateCustomBlueprint
     FString Category = TEXT("Default");
     Params->TryGetStringField(TEXT("category"), Category);
 
+    // Check if a function graph with this name already exists
+    UEdGraph* ExistingGraph = nullptr;
+    for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+    {
+        if (Graph && Graph->GetName() == FunctionName)
+        {
+            ExistingGraph = Graph;
+            break;
+        }
+    }
+    if (ExistingGraph)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Function '%s' already exists in Blueprint '%s'"), *FunctionName, *BlueprintName));
+    }
+
     // Create the function graph using the working UMG pattern
     UEdGraph* FuncGraph = FBlueprintEditorUtils::CreateNewGraph(
         Blueprint,

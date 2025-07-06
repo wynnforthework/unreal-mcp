@@ -705,6 +705,24 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 		}
 	}
 
+	// Check if a function graph with this name already exists
+	UEdGraph* ExistingGraph = nullptr;
+	for (UEdGraph* Graph : WidgetBlueprint->FunctionGraphs)
+	{
+		if (Graph && Graph->GetName() == FunctionName)
+		{
+			ExistingGraph = Graph;
+			break;
+		}
+	}
+	if (ExistingGraph)
+	{
+		// Optionally, you could update the function or just return success
+		Response->SetBoolField(TEXT("success"), true);
+		Response->SetStringField(TEXT("binding_name"), BindingName);
+		return Response;
+	}
+
 	// Save the Widget Blueprint
 	WidgetBlueprint->MarkPackageDirty();
 	FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
