@@ -10,9 +10,19 @@ bool UnrealMCPNodeCreationHelpers::ParseJsonParameters(const FString& JsonParams
         TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonParams);
         if (!FJsonSerializer::Deserialize(Reader, OutParamsObject) || !OutParamsObject.IsValid())
         {
-            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to parse JSON parameters"));
+            // Get detailed error information from the reader
+            FString ErrorMessage = Reader->GetErrorMessage();
+            int32 LineNumber = Reader->GetLineNumber();
+            int32 CharacterNumber = Reader->GetCharacterNumber();
+            
+            FString DetailedError = FString::Printf(TEXT("JSON parsing failed at line %d, character %d: %s"), 
+                                                  LineNumber, CharacterNumber, *ErrorMessage);
+            
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: %s"), *DetailedError);
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Input JSON was: %s"), *JsonParams);
+            
             OutResultObj->SetBoolField(TEXT("success"), false);
-            OutResultObj->SetStringField(TEXT("message"), TEXT("Invalid JSON parameters"));
+            OutResultObj->SetStringField(TEXT("message"), DetailedError);
             return false;
         }
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully parsed JSON parameters"));
