@@ -19,7 +19,6 @@ bool UnrealMCPNodeCreationHelpers::ParseJsonParameters(const FString& JsonParams
                                                   LineNumber, CharacterNumber, *ErrorMessage);
             
             UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: %s"), *DetailedError);
-            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Input JSON was: %s"), *JsonParams);
             
             OutResultObj->SetBoolField(TEXT("success"), false);
             OutResultObj->SetStringField(TEXT("message"), DetailedError);
