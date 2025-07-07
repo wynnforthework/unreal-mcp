@@ -34,6 +34,7 @@
 #include "Math/Vector2D.h"
 #include "Math/Color.h"
 #include "Math/UnrealMathUtility.h"
+#include "KismetCompiler.h"
 
 // Using LogTemp instead of a custom log category for UE5.5 compatibility
 // DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -833,12 +834,49 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCompileBlueprint(cons
         return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
     }
 
-    // Compile the blueprint
-    FKismetEditorUtilities::CompileBlueprint(Blueprint);
+    // Compile the blueprint and capture results
+    FCompilerResultsLog Results;
+    FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::None, &Results);
 
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetStringField(TEXT("name"), BlueprintName);
     ResultObj->SetBoolField(TEXT("compiled"), true);
+
+    // Add compilation messages to the response
+    TArray<TSharedPtr<FJsonValue>> MessagesArray;
+    for (const auto& Message : Results.Messages)
+    {
+        TSharedPtr<FJsonObject> MessageObj = MakeShared<FJsonObject>();
+        
+        // Use GetSeverity() method to access severity
+        EMessageSeverity::Type MessageSeverity = Message->GetSeverity();
+        FString SeverityString;
+        switch (MessageSeverity)
+        {
+            case EMessageSeverity::Error:
+                SeverityString = TEXT("Error");
+                break;
+            case EMessageSeverity::Warning:
+                SeverityString = TEXT("Warning");
+                break;
+            case EMessageSeverity::Info:
+                SeverityString = TEXT("Info");
+                break;
+            default:
+                SeverityString = TEXT("Unknown");
+                break;
+        }
+        MessageObj->SetStringField(TEXT("severity"), SeverityString);
+        
+        // Use ToText() method to get the message text
+        MessageObj->SetStringField(TEXT("message"), Message->ToText().ToString());
+        
+        MessagesArray.Add(MakeShared<FJsonValueObject>(MessageObj));
+    }
+    ResultObj->SetArrayField(TEXT("messages"), MessagesArray);
+    ResultObj->SetNumberField(TEXT("num_errors"), Results.NumErrors);
+    ResultObj->SetNumberField(TEXT("num_warnings"), Results.NumWarnings);
+
     return ResultObj;
 }
 

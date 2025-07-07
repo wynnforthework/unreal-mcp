@@ -87,7 +87,7 @@ void AddBlueprintCustomFunctionActions(UBlueprint* Blueprint, const FString& Sea
         
         UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Checking function '%s'"), *FunctionName);
         
-        if (!SearchFilter.IsEmpty() && !FunctionName.Contains(SearchFilter))
+        if (!SearchFilter.IsEmpty() && !FunctionName.ToLower().Contains(SearchFilter.ToLower()))
         {
             UE_LOG(LogTemp, Warning, TEXT("AddBlueprintCustomFunctionActions: Function '%s' doesn't match search filter '%s'"), *FunctionName, *SearchFilter);
             continue;
@@ -180,7 +180,7 @@ void AddBlueprintVariableActions(UBlueprint* Blueprint, const FString& SearchFil
         
         UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Checking variable '%s'"), *VarName);
         
-        if (!SearchFilter.IsEmpty() && !VarName.Contains(SearchFilter))
+        if (!SearchFilter.IsEmpty() && !VarName.ToLower().Contains(SearchFilter.ToLower()))
         {
             UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Variable '%s' doesn't match search filter '%s'"), *VarName, *SearchFilter);
             continue;
@@ -503,7 +503,7 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
             FString Keywords = FString::Printf(TEXT("property variable %s %s native"), *PropName, *PinType);
             FString Tooltip = FString::Printf(TEXT("Access the %s property on %s"), *PropName, *TargetClass->GetName());
             // Apply search filter
-            if (!SearchFilter.IsEmpty() && !(PropName.Contains(SearchFilter) || Keywords.Contains(SearchFilter)))
+            if (!SearchFilter.IsEmpty() && !(PropName.ToLower().Contains(SearchFilter.ToLower()) || PinType.ToLower().Contains(SearchFilter.ToLower()) || Keywords.ToLower().Contains(SearchFilter.ToLower())))
             {
                 continue;
             }
@@ -604,8 +604,10 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
             FString Tooltip = FString::Printf(TEXT("Access the %s property on %s"), *PropName, *TargetClass->GetName());
             FString PropNameLower = PropName.ToLower();
             FString PinTypeLower = PinType.ToLower();
+            FString KeywordsLower = Keywords.ToLower();
+            FString SearchFilterLower = SearchFilter.ToLower();
             // Apply search filter
-            if (!SearchFilter.IsEmpty() && !(PropNameLower.Contains(SearchFilter) || PinTypeLower.Contains(SearchFilter) || Keywords.Contains(SearchFilter)))
+            if (!SearchFilter.IsEmpty() && !(PropNameLower.Contains(SearchFilterLower) || PinTypeLower.Contains(SearchFilterLower) || KeywordsLower.Contains(SearchFilterLower)))
             {
                 continue;
             }
@@ -844,8 +846,10 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                 FString Tooltip = FString::Printf(TEXT("Access the %s property on %s"), *PropName, *HierarchyClass->GetName());
                 FString PropNameLower = PropName.ToLower();
                 FString PinTypeLower = PinType.ToLower();
+                FString KeywordsLower = Keywords.ToLower();
+                FString SearchFilterLower = SearchFilter.ToLower();
                 // Apply search filter
-                if (!SearchFilter.IsEmpty() && !(PropNameLower.Contains(SearchFilter) || PinTypeLower.Contains(SearchFilter) || Keywords.Contains(SearchFilter)))
+                if (!SearchFilter.IsEmpty() && !(PropNameLower.Contains(SearchFilterLower) || PinTypeLower.Contains(SearchFilterLower) || KeywordsLower.Contains(SearchFilterLower)))
                 {
                     continue;
                 }

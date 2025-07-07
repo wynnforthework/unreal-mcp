@@ -356,9 +356,10 @@ def register_blueprint_tools(mcp: FastMCP):
             blueprint_name: Name of the target Blueprint
             
         Returns:
-            Response indicating success or failure
+            Response indicating success or failure with detailed compilation messages
         """
-        return compile_blueprint_impl(ctx, blueprint_name)
+        result = compile_blueprint_impl(ctx, blueprint_name)
+        return result
 
     @mcp.tool()
     def set_blueprint_property(
