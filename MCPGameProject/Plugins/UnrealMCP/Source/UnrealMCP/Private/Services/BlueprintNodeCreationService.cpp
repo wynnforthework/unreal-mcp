@@ -7,6 +7,7 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
+#include "UObject/UObjectIterator.h"
 #include "BlueprintActionDatabase.h"
 #include "BlueprintActionFilter.h"
 #include "BlueprintNodeSpawner.h"
@@ -28,6 +29,32 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
 #include "K2Node_ComponentBoundEvent.h"
+
+// Forward declaration of native property helper
+static bool TryCreateNativePropertyNode(const FString& VarName, bool bIsGetter, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType);
+// Utility to convert property names into friendly display strings
+static FString ConvertPropertyNameToDisplay(const FString& InPropName)
+{
+    FString Name = InPropName;
+    // Strip leading 'b' for bool properties
+    if (Name.StartsWith(TEXT("b")) && Name.Len() > 1 && FChar::IsUpper(Name[1]))
+    {
+        Name = Name.RightChop(1);
+    }
+
+    FString Out;
+    Out.Reserve(Name.Len()*2);
+    for (int32 Index = 0; Index < Name.Len(); ++Index)
+    {
+        const TCHAR Ch = Name[Index];
+        if (Index > 0 && FChar::IsUpper(Ch) && !FChar::IsUpper(Name[Index-1]))
+        {
+            Out += TEXT(" ");
+        }
+        Out.AppendChar(Ch);
+    }
+    return Out;
+}
 
 FBlueprintNodeCreationService::FBlueprintNodeCreationService()
 {
@@ -502,7 +529,41 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         
         if (!bFound)
         {
-            return BuildNodeResult(false, FString::Printf(TEXT("Variable or component '%s' not found in Blueprint '%s'"), *VarName, *BlueprintName));
+            // Variable not found directly in the Blueprint – it might be a native property on another class.
+            // Attempt to spawn it via the Blueprint Action Database using multiple name variants so users can still
+            // create property nodes like "Get Show Mouse Cursor" on a PlayerController reference.
+
+            bool bSpawned = false;
+            bSpawned = TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
+
+            if (!bSpawned)
+            {
+                // Try trimmed variable name (without Get/Set prefix)
+                bSpawned = TryCreateNodeUsingBlueprintActionDatabase(VarName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
+            }
+
+            if (!bSpawned && bIsGetter)
+            {
+                // Prepend "Get " to the node name in case the BAD entry includes it
+                FString GetterName = FString::Printf(TEXT("Get %s"), *VarName);
+                bSpawned = TryCreateNodeUsingBlueprintActionDatabase(GetterName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
+            }
+            else if (!bSpawned && !bIsGetter)
+            {
+                FString SetterName = FString::Printf(TEXT("Set %s"), *VarName);
+                bSpawned = TryCreateNodeUsingBlueprintActionDatabase(SetterName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
+            }
+
+            if (!bSpawned)
+            {
+                // Final attempt: directly construct native property node by class search
+                bSpawned = TryCreateNativePropertyNode(VarName, bIsGetter, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
+            }
+
+            if (!bSpawned)
+            {
+                return BuildNodeResult(false, FString::Printf(TEXT("Variable or component '%s' not found in Blueprint '%s' and no matching Blueprint Action Database entry"), *VarName, *BlueprintName));
+            }
         }
     }
     // Special loop node types - these classes may not exist in all UE versions
@@ -851,4 +912,96 @@ void FBlueprintNodeCreationService::LogNodeCreationAttempt(const FString& Functi
 {
     UE_LOG(LogTemp, Warning, TEXT("FBlueprintNodeCreationService: Creating node '%s' in blueprint '%s' with class '%s' at position [%d, %d]"), 
            *FunctionName, *BlueprintName, *ClassName, PositionX, PositionY);
+} 
+
+static bool TryCreateNativePropertyNode(const FString& VarName, bool bIsGetter, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType)
+{
+    // Generate generic candidate strings to match against property names.
+    TArray<FString> Candidates;
+    const FString NoSpace = VarName.Replace(TEXT(" "), TEXT(""));
+    Candidates.Add(NoSpace);
+    Candidates.Add(FString(TEXT("b")) + NoSpace); // bool prefix
+
+    // Iterate over all loaded classes in memory.
+    for (TObjectIterator<UClass> ClassIt; ClassIt; ++ClassIt)
+    {
+        UClass* TargetClass = *ClassIt;
+        if (!TargetClass || TargetClass->HasAnyClassFlags(CLASS_Deprecated | CLASS_NewerVersionExists))
+        {
+            continue;
+        }
+
+        for (TFieldIterator<FProperty> PropIt(TargetClass, EFieldIteratorFlags::IncludeSuper); PropIt; ++PropIt)
+        {
+            FProperty* Property = *PropIt;
+            if (!Property->HasAnyPropertyFlags(CPF_BlueprintVisible))
+            {
+                continue;
+            }
+
+            FString PropName = Property->GetName();
+
+            // Build list of possible property display names to match.
+            TArray<FString> NameOptions;
+            NameOptions.Add(PropName);
+            NameOptions.Add(PropName.StartsWith(TEXT("b")) ? PropName.Mid(1) : PropName); // trim leading b
+
+            FString DisplayNameMeta = Property->GetMetaData(TEXT("DisplayName"));
+            if (DisplayNameMeta.IsEmpty())
+            {
+                DisplayNameMeta = ConvertPropertyNameToDisplay(PropName);
+            }
+            NameOptions.Add(DisplayNameMeta.Replace(TEXT(" "), TEXT("")));
+
+            // Compare against candidates (case-insensitive)
+            bool bMatch = false;
+            for (const FString& Cand : Candidates)
+            {
+                for (const FString& Option : NameOptions)
+                {
+                    if (Option.Equals(Cand, ESearchCase::IgnoreCase))
+                    {
+                        bMatch = true;
+                        break;
+                    }
+                }
+                if (bMatch) break;
+            }
+
+            if (!bMatch) continue;
+
+            // Create external variable node referencing this property.
+            if (bIsGetter)
+            {
+                UK2Node_VariableGet* GetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
+                GetterNode->VariableReference.SetExternalMember(*PropName, TargetClass);
+                GetterNode->NodePosX = PositionX;
+                GetterNode->NodePosY = PositionY;
+                GetterNode->CreateNewGuid();
+                EventGraph->AddNode(GetterNode, true, true);
+                GetterNode->PostPlacedNewNode();
+                GetterNode->AllocateDefaultPins();
+                OutNode = GetterNode;
+                OutTitle = FString::Printf(TEXT("Get %s"), *VarName);
+                OutNodeType = TEXT("UK2Node_VariableGet");
+            }
+            else
+            {
+                UK2Node_VariableSet* SetterNode = NewObject<UK2Node_VariableSet>(EventGraph);
+                SetterNode->VariableReference.SetExternalMember(*PropName, TargetClass);
+                SetterNode->NodePosX = PositionX;
+                SetterNode->NodePosY = PositionY;
+                SetterNode->CreateNewGuid();
+                EventGraph->AddNode(SetterNode, true, true);
+                SetterNode->PostPlacedNewNode();
+                SetterNode->AllocateDefaultPins();
+                OutNode = SetterNode;
+                OutTitle = FString::Printf(TEXT("Set %s"), *VarName);
+                OutNodeType = TEXT("UK2Node_VariableSet");
+            }
+            return true;
+        }
+    }
+
+    return false;
 } 

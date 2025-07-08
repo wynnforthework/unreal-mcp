@@ -57,10 +57,32 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 
+static FString ConvertPropertyNameToDisplay(const FString& InPropName)
+{
+    FString Name = InPropName;
 
+    // Strip common bool prefix 'b' when followed by an uppercase letter (e.g., bShowMouseCursor -> ShowMouseCursor)
+    if (Name.StartsWith(TEXT("b")) && Name.Len() > 1 && FChar::IsUpper(Name[1]))
+    {
+        Name = Name.RightChop(1);
+    }
 
+    FString Out;
+    Out.Reserve(Name.Len() * 2);
 
+    for (int32 Index = 0; Index < Name.Len(); ++Index)
+    {
+        const TCHAR Char = Name[Index];
+        // Insert a space before an uppercase letter that follows a lowercase letter to break CamelCase words
+        if (Index > 0 && FChar::IsUpper(Char) && !FChar::IsUpper(Name[Index - 1]))
+        {
+            Out += TEXT(" ");
+        }
+        Out.AppendChar(Char);
+    }
 
+    return Out;
+}
 
 // Helper: Add Blueprint-local custom function actions
 void AddBlueprintCustomFunctionActions(UBlueprint* Blueprint, const FString& SearchFilter, TArray<TSharedPtr<FJsonValue>>& OutActions)
@@ -510,14 +532,15 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
             // Getter node
             {
                 TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
-                GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *PropName));
+                FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *DisplayName));
                 GetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 GetterObj->SetStringField(TEXT("category"), Category);
                 GetterObj->SetStringField(TEXT("keywords"), Keywords);
                 GetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableGet"));
                 GetterObj->SetStringField(TEXT("variable_name"), PropName);
                 GetterObj->SetStringField(TEXT("pin_type"), PinType);
-                GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *PropName));
+                GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *DisplayName));
                 GetterObj->SetBoolField(TEXT("is_native_property"), true);
                 ActionsArray.Add(MakeShared<FJsonValueObject>(GetterObj));
                 if (ActionsArray.Num() >= MaxResults) break;
@@ -526,14 +549,15 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
             if (Property->HasMetaData(TEXT("BlueprintReadWrite")) && !Property->HasMetaData(TEXT("BlueprintReadOnly")) && !Property->HasAnyPropertyFlags(CPF_ConstParm))
             {
                 TSharedPtr<FJsonObject> SetterObj = MakeShared<FJsonObject>();
-                SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *PropName));
+                FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *DisplayName));
                 SetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 SetterObj->SetStringField(TEXT("category"), Category);
                 SetterObj->SetStringField(TEXT("keywords"), Keywords);
                 SetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableSet"));
                 SetterObj->SetStringField(TEXT("variable_name"), PropName);
                 SetterObj->SetStringField(TEXT("pin_type"), PinType);
-                SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *PropName));
+                SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *DisplayName));
                 SetterObj->SetBoolField(TEXT("is_native_property"), true);
                 ActionsArray.Add(MakeShared<FJsonValueObject>(SetterObj));
                 if (ActionsArray.Num() >= MaxResults) break;
@@ -614,14 +638,15 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
             // Getter node
             {
                 TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
-                GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *PropName));
+                FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *DisplayName));
                 GetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 GetterObj->SetStringField(TEXT("category"), Category);
                 GetterObj->SetStringField(TEXT("keywords"), Keywords);
                 GetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableGet"));
                 GetterObj->SetStringField(TEXT("variable_name"), PropName);
                 GetterObj->SetStringField(TEXT("pin_type"), PinType);
-                GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *PropName));
+                GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *DisplayName));
                 GetterObj->SetBoolField(TEXT("is_native_property"), true);
                 ActionsArray.Add(MakeShared<FJsonValueObject>(GetterObj));
                 PropertyActionsAdded++;
@@ -631,14 +656,15 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
             if (Property->HasMetaData(TEXT("BlueprintReadWrite")) && !Property->HasMetaData(TEXT("BlueprintReadOnly")) && !Property->HasAnyPropertyFlags(CPF_ConstParm))
             {
                 TSharedPtr<FJsonObject> SetterObj = MakeShared<FJsonObject>();
-                SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *PropName));
+                FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *DisplayName));
                 SetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 SetterObj->SetStringField(TEXT("category"), Category);
                 SetterObj->SetStringField(TEXT("keywords"), Keywords);
                 SetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableSet"));
                 SetterObj->SetStringField(TEXT("variable_name"), PropName);
                 SetterObj->SetStringField(TEXT("pin_type"), PinType);
-                SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *PropName));
+                SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *DisplayName));
                 SetterObj->SetBoolField(TEXT("is_native_property"), true);
                 ActionsArray.Add(MakeShared<FJsonValueObject>(SetterObj));
                 PropertyActionsAdded++;
@@ -856,14 +882,15 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                 // Getter node
                 {
                     TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
-                    GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *PropName));
+                    FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                    GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *DisplayName));
                     GetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                     GetterObj->SetStringField(TEXT("category"), Category);
                     GetterObj->SetStringField(TEXT("keywords"), Keywords);
                     GetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableGet"));
                     GetterObj->SetStringField(TEXT("variable_name"), PropName);
                     GetterObj->SetStringField(TEXT("pin_type"), PinType);
-                    GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *PropName));
+                    GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *DisplayName));
                     GetterObj->SetBoolField(TEXT("is_native_property"), true);
                     ActionsArray.Add(MakeShared<FJsonValueObject>(GetterObj));
                     PropertyActionsAdded++;
@@ -873,14 +900,15 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                 if (Property->HasMetaData(TEXT("BlueprintReadWrite")) && !Property->HasMetaData(TEXT("BlueprintReadOnly")) && !Property->HasAnyPropertyFlags(CPF_ConstParm))
                 {
                     TSharedPtr<FJsonObject> SetterObj = MakeShared<FJsonObject>();
-                    SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *PropName));
+                    FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                    SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *DisplayName));
                     SetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                     SetterObj->SetStringField(TEXT("category"), Category);
                     SetterObj->SetStringField(TEXT("keywords"), Keywords);
                     SetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableSet"));
                     SetterObj->SetStringField(TEXT("variable_name"), PropName);
                     SetterObj->SetStringField(TEXT("pin_type"), PinType);
-                    SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *PropName));
+                    SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *DisplayName));
                     SetterObj->SetBoolField(TEXT("is_native_property"), true);
                     ActionsArray.Add(MakeShared<FJsonValueObject>(SetterObj));
                     PropertyActionsAdded++;
