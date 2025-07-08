@@ -457,6 +457,36 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         {
             VarName = VarName.RightChop(4);
         }
+        // Handle explicit node class names without "Get " or "Set " prefix
+        else if (EffectiveFunctionName.Equals(TEXT("UK2Node_VariableGet"), ESearchCase::IgnoreCase) ||
+                 EffectiveFunctionName.Equals(TEXT("UK2Node_VariableSet"), ESearchCase::IgnoreCase))
+        {
+            // Determine getter vs setter based on node class requested
+            bIsGetter = EffectiveFunctionName.Equals(TEXT("UK2Node_VariableGet"), ESearchCase::IgnoreCase);
+
+            // Attempt to pull the actual variable name from JSON parameters ("variable_name") if provided
+            if (ParamsObject.IsValid())
+            {
+                FString ParamVarName;
+                // First check at root level
+                if (ParamsObject->TryGetStringField(TEXT("variable_name"), ParamVarName) && !ParamVarName.IsEmpty())
+                {
+                    VarName = ParamVarName;
+                }
+                else
+                {
+                    // Then check nested under a "kwargs" object (for backward compatibility with Python tool)
+                    const TSharedPtr<FJsonObject>* KwargsObject;
+                    if (ParamsObject->TryGetObjectField(TEXT("kwargs"), KwargsObject) && KwargsObject->IsValid())
+                    {
+                        if ((*KwargsObject)->TryGetStringField(TEXT("variable_name"), ParamVarName) && !ParamVarName.IsEmpty())
+                        {
+                            VarName = ParamVarName;
+                        }
+                    }
+                }
+            }
+        }
         
         // Try to find the variable or component in the Blueprint
         bool bFound = false;
