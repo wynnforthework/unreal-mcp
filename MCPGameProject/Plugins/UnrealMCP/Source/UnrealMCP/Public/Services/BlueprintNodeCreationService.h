@@ -51,5 +51,5 @@ private:
     
     // Helper for logging and debugging
     void LogNodeCreationAttempt(const FString& FunctionName, const FString& BlueprintName, 
-                               const FString& ClassName, int32 PositionX, int32 PositionY);
+                               const FString& ClassName, int32 PositionX, int32 PositionY) const;
 }; 

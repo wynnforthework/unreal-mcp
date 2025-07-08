@@ -37,6 +37,19 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
 {
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     
+    // Create a map for function name aliases
+    TMap<FString, FString> FunctionNameAliases;
+    FunctionNameAliases.Add(TEXT("ForEachLoop"), TEXT("For Each Loop"));
+    FunctionNameAliases.Add(TEXT("ForEachLoopWithBreak"), TEXT("For Each Loop With Break"));
+    FunctionNameAliases.Add(TEXT("ForEachLoopMap"), TEXT("For Each Loop (Map)"));
+    FunctionNameAliases.Add(TEXT("ForEachLoopSet"), TEXT("For Each Loop (Set)"));
+
+    FString EffectiveFunctionName = FunctionName;
+    if (FunctionNameAliases.Contains(FunctionName))
+    {
+        EffectiveFunctionName = FunctionNameAliases[FunctionName];
+    }
+    
     // Parse JSON parameters
     TSharedPtr<FJsonObject> ParamsObject;
     UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: JsonParams = '%s'"), *JsonParams);
@@ -77,7 +90,7 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     ParseNodePosition(NodePosition, PositionX, PositionY);
     
     // Log the creation attempt
-    LogNodeCreationAttempt(FunctionName, BlueprintName, ClassName, PositionX, PositionY);
+    LogNodeCreationAttempt(EffectiveFunctionName, BlueprintName, ClassName, PositionX, PositionY);
     
     UEdGraphNode* NewNode = nullptr;
     FString NodeTitle = TEXT("Unknown");
@@ -85,9 +98,9 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     UClass* TargetClass = nullptr;
     
     // Check if this is a control flow node request
-    if (FunctionName.Equals(TEXT("Branch"), ESearchCase::IgnoreCase) || 
-        FunctionName.Equals(TEXT("IfThenElse"), ESearchCase::IgnoreCase) ||
-        FunctionName.Equals(TEXT("UK2Node_IfThenElse"), ESearchCase::IgnoreCase))
+    if (EffectiveFunctionName.Equals(TEXT("Branch"), ESearchCase::IgnoreCase) || 
+        EffectiveFunctionName.Equals(TEXT("IfThenElse"), ESearchCase::IgnoreCase) ||
+        EffectiveFunctionName.Equals(TEXT("UK2Node_IfThenElse"), ESearchCase::IgnoreCase))
     {
         UK2Node_IfThenElse* BranchNode = NewObject<UK2Node_IfThenElse>(EventGraph);
         BranchNode->NodePosX = PositionX;
@@ -100,9 +113,9 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         NodeTitle = TEXT("Branch");
         NodeType = TEXT("UK2Node_IfThenElse");
     }
-    else if (FunctionName.Equals(TEXT("Sequence"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ExecutionSequence"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("UK2Node_ExecutionSequence"), ESearchCase::IgnoreCase))
+    else if (EffectiveFunctionName.Equals(TEXT("Sequence"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("ExecutionSequence"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("UK2Node_ExecutionSequence"), ESearchCase::IgnoreCase))
     {
         UK2Node_ExecutionSequence* SequenceNode = NewObject<UK2Node_ExecutionSequence>(EventGraph);
         SequenceNode->NodePosX = PositionX;
@@ -115,9 +128,9 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         NodeTitle = TEXT("Sequence");
         NodeType = TEXT("UK2Node_ExecutionSequence");
     }
-    else if (FunctionName.Equals(TEXT("CustomEvent"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Custom Event"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("UK2Node_CustomEvent"), ESearchCase::IgnoreCase))
+    else if (EffectiveFunctionName.Equals(TEXT("CustomEvent"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("Custom Event"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("UK2Node_CustomEvent"), ESearchCase::IgnoreCase))
     {
         UK2Node_CustomEvent* CustomEventNode = NewObject<UK2Node_CustomEvent>(EventGraph);
         
@@ -143,9 +156,9 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         NodeTitle = EventName;
         NodeType = TEXT("UK2Node_CustomEvent");
     }
-    else if (FunctionName.Equals(TEXT("Cast"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("DynamicCast"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("UK2Node_DynamicCast"), ESearchCase::IgnoreCase))
+    else if (EffectiveFunctionName.Equals(TEXT("Cast"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("DynamicCast"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("UK2Node_DynamicCast"), ESearchCase::IgnoreCase))
     {
         UK2Node_DynamicCast* CastNode = NewObject<UK2Node_DynamicCast>(EventGraph);
         
@@ -280,53 +293,53 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         NodeType = TEXT("UK2Node_DynamicCast");
     }
     // Handle standard event nodes (BeginPlay, Tick, etc.)
-    else if (FunctionName.StartsWith(TEXT("Receive")) || 
-             FunctionName.Equals(TEXT("BeginPlay"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Tick"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("EndPlay"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ActorBeginOverlap"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("ActorEndOverlap"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Hit"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Destroyed"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("BeginDestroy"), ESearchCase::IgnoreCase))
+    else if (EffectiveFunctionName.StartsWith(TEXT("Receive")) || 
+             EffectiveFunctionName.Equals(TEXT("BeginPlay"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("Tick"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("EndPlay"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("ActorBeginOverlap"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("ActorEndOverlap"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("Hit"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("Destroyed"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("BeginDestroy"), ESearchCase::IgnoreCase))
     {
         // Create standard event node
         UK2Node_Event* EventNode = NewObject<UK2Node_Event>(EventGraph);
         
         // Determine the correct event name and parent class
-        FString EventName = FunctionName;
+        FString EventName = EffectiveFunctionName;
         FString ParentClassName = TEXT("/Script/Engine.Actor");
         
         // Map common event names to their proper "Receive" format
-        if (FunctionName.Equals(TEXT("BeginPlay"), ESearchCase::IgnoreCase))
+        if (EffectiveFunctionName.Equals(TEXT("BeginPlay"), ESearchCase::IgnoreCase))
         {
             EventName = TEXT("ReceiveBeginPlay");
         }
-        else if (FunctionName.Equals(TEXT("Tick"), ESearchCase::IgnoreCase))
+        else if (EffectiveFunctionName.Equals(TEXT("Tick"), ESearchCase::IgnoreCase))
         {
             EventName = TEXT("ReceiveTick");
         }
-        else if (FunctionName.Equals(TEXT("EndPlay"), ESearchCase::IgnoreCase))
+        else if (EffectiveFunctionName.Equals(TEXT("EndPlay"), ESearchCase::IgnoreCase))
         {
             EventName = TEXT("ReceiveEndPlay");
         }
-        else if (FunctionName.Equals(TEXT("ActorBeginOverlap"), ESearchCase::IgnoreCase))
+        else if (EffectiveFunctionName.Equals(TEXT("ActorBeginOverlap"), ESearchCase::IgnoreCase))
         {
             EventName = TEXT("ReceiveActorBeginOverlap");
         }
-        else if (FunctionName.Equals(TEXT("ActorEndOverlap"), ESearchCase::IgnoreCase))
+        else if (EffectiveFunctionName.Equals(TEXT("ActorEndOverlap"), ESearchCase::IgnoreCase))
         {
             EventName = TEXT("ReceiveActorEndOverlap");
         }
-        else if (FunctionName.Equals(TEXT("Hit"), ESearchCase::IgnoreCase))
+        else if (EffectiveFunctionName.Equals(TEXT("Hit"), ESearchCase::IgnoreCase))
         {
             EventName = TEXT("ReceiveHit");
         }
-        else if (FunctionName.Equals(TEXT("Destroyed"), ESearchCase::IgnoreCase))
+        else if (EffectiveFunctionName.Equals(TEXT("Destroyed"), ESearchCase::IgnoreCase))
         {
             EventName = TEXT("ReceiveDestroyed");
         }
-        else if (FunctionName.Equals(TEXT("BeginDestroy"), ESearchCase::IgnoreCase))
+        else if (EffectiveFunctionName.Equals(TEXT("BeginDestroy"), ESearchCase::IgnoreCase))
         {
             EventName = TEXT("ReceiveBeginDestroy");
         }
@@ -356,17 +369,17 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created event node '%s'"), *EventName);
     }
     // Handle macro functions using the Macro Discovery Service
-    else if (FMacroDiscoveryService::IsMacroFunction(FunctionName))
+    else if (FMacroDiscoveryService::IsMacroFunction(EffectiveFunctionName))
     {
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Processing macro function '%s' using MacroDiscoveryService"), *FunctionName);
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Processing macro function '%s' using MacroDiscoveryService"), *EffectiveFunctionName);
         
         // Use the macro discovery service to find the macro blueprint dynamically
-        FString MacroGraphName = FMacroDiscoveryService::MapFunctionNameToMacroGraphName(FunctionName);
-        UBlueprint* MacroBlueprint = FMacroDiscoveryService::FindMacroBlueprint(FunctionName);
+        FString MacroGraphName = FMacroDiscoveryService::MapFunctionNameToMacroGraphName(EffectiveFunctionName);
+        UBlueprint* MacroBlueprint = FMacroDiscoveryService::FindMacroBlueprint(EffectiveFunctionName);
         
         if (MacroBlueprint)
         {
-            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found macro blueprint for '%s' via discovery service"), *FunctionName);
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found macro blueprint for '%s' via discovery service"), *EffectiveFunctionName);
             
             // Find the specific macro graph
             UEdGraph* TargetMacroGraph = FMacroDiscoveryService::FindMacroGraph(MacroBlueprint, MacroGraphName);
@@ -384,10 +397,10 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
                 MacroInstance->AllocateDefaultPins();
                 
                 NewNode = MacroInstance;
-                NodeTitle = FunctionName;
+                NodeTitle = EffectiveFunctionName;
                 NodeType = TEXT("UK2Node_MacroInstance");
                 
-                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created macro instance for '%s' using discovery service"), *FunctionName);
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created macro instance for '%s' using discovery service"), *EffectiveFunctionName);
             }
             else
             {
@@ -397,16 +410,16 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Could not discover macro blueprint for '%s'"), *FunctionName);
-            return BuildNodeResult(false, FString::Printf(TEXT("Could not discover macro blueprint for '%s'. Macro may not be available."), *FunctionName));
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Could not discover macro blueprint for '%s'"), *EffectiveFunctionName);
+            return BuildNodeResult(false, FString::Printf(TEXT("Could not discover macro blueprint for '%s'. Macro may not be available."), *EffectiveFunctionName));
         }
     }
     // Variable getter/setter node creation
-    else if (FunctionName.StartsWith(TEXT("Get ")) || FunctionName.StartsWith(TEXT("Set ")) ||
-        FunctionName.Equals(TEXT("UK2Node_VariableGet"), ESearchCase::IgnoreCase) ||
-        FunctionName.Equals(TEXT("UK2Node_VariableSet"), ESearchCase::IgnoreCase))
+    else if (EffectiveFunctionName.StartsWith(TEXT("Get ")) || EffectiveFunctionName.StartsWith(TEXT("Set ")) ||
+        EffectiveFunctionName.Equals(TEXT("UK2Node_VariableGet"), ESearchCase::IgnoreCase) ||
+        EffectiveFunctionName.Equals(TEXT("UK2Node_VariableSet"), ESearchCase::IgnoreCase))
     {
-        FString VarName = FunctionName;
+        FString VarName = EffectiveFunctionName;
         bool bIsGetter = false;
         if (VarName.StartsWith(TEXT("Get ")))
         {
@@ -495,9 +508,9 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     // Special loop node types - these classes may not exist in all UE versions
     // Commented out for UE 5.6 compatibility - the Blueprint Action Database will handle these
     /*
-    else if (FunctionName.Equals(TEXT("For Each Loop (Map)"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Map ForEach"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("K2Node_MapForEach"), ESearchCase::IgnoreCase))
+    else if (EffectiveFunctionName.Equals(TEXT("For Each Loop (Map)"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("Map ForEach"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("K2Node_MapForEach"), ESearchCase::IgnoreCase))
     {
         UK2Node_MapForEach* MapForEachNode = NewObject<UK2Node_MapForEach>(EventGraph);
         MapForEachNode->NodePosX = PositionX;
@@ -510,9 +523,9 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         NodeTitle = TEXT("For Each Loop (Map)");
         NodeType = TEXT("UK2Node_MapForEach");
     }
-    else if (FunctionName.Equals(TEXT("For Each Loop (Set)"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("Set ForEach"), ESearchCase::IgnoreCase) ||
-             FunctionName.Equals(TEXT("K2Node_SetForEach"), ESearchCase::IgnoreCase))
+    else if (EffectiveFunctionName.Equals(TEXT("For Each Loop (Set)"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("Set ForEach"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("K2Node_SetForEach"), ESearchCase::IgnoreCase))
     {
         UK2Node_SetForEach* SetForEachNode = NewObject<UK2Node_SetForEach>(EventGraph);
         SetForEachNode->NodePosX = PositionX;
@@ -527,7 +540,7 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     }
     */
     // Universal dynamic node creation using Blueprint Action Database
-    else if (TryCreateNodeUsingBlueprintActionDatabase(FunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
+    else if (TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
     {
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created node '%s' using Blueprint Action Database"), *NodeTitle);
     }
@@ -541,7 +554,7 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         TargetClass = FindTargetClass(ClassName);
         if (TargetClass)
         {
-            TargetFunction = TargetClass->FindFunctionByName(*FunctionName);
+            TargetFunction = TargetClass->FindFunctionByName(*EffectiveFunctionName);
         }
         else
         {
@@ -554,7 +567,7 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
             
             for (UClass* TestClass : CommonClasses)
             {
-                TargetFunction = TestClass->FindFunctionByName(*FunctionName);
+                TargetFunction = TestClass->FindFunctionByName(*EffectiveFunctionName);
                 if (TargetFunction)
                 {
                     TargetClass = TestClass;
@@ -565,11 +578,11 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         
         if (!TargetFunction)
         {
-            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Function '%s' not found"), *FunctionName);
-            return BuildNodeResult(false, FString::Printf(TEXT("Function '%s' not found and not a recognized control flow node"), *FunctionName));
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Function '%s' not found"), *EffectiveFunctionName);
+            return BuildNodeResult(false, FString::Printf(TEXT("Function '%s' not found and not a recognized control flow node"), *EffectiveFunctionName));
         }
         
-        UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Found function '%s' in class '%s'"), *FunctionName, TargetClass ? *TargetClass->GetName() : TEXT("Unknown"));
+        UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Found function '%s' in class '%s'"), *EffectiveFunctionName, TargetClass ? *TargetClass->GetName() : TEXT("Unknown"));
         
         // Create the function call node
         UK2Node_CallFunction* FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
@@ -581,14 +594,14 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         FunctionNode->PostPlacedNewNode();
         FunctionNode->AllocateDefaultPins();
         NewNode = FunctionNode;
-        NodeTitle = FunctionName;
+        NodeTitle = EffectiveFunctionName;
         NodeType = TEXT("UK2Node_CallFunction");
     }
     
     if (!NewNode)
     {
-        UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to create node for '%s'"), *FunctionName);
-        return BuildNodeResult(false, FString::Printf(TEXT("Failed to create node for '%s'"), *FunctionName));
+        UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to create node for '%s'"), *EffectiveFunctionName);
+        return BuildNodeResult(false, FString::Printf(TEXT("Failed to create node for '%s'"), *EffectiveFunctionName));
     }
     
     UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
@@ -598,7 +611,7 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     
     // Return success result
     return BuildNodeResult(true, FString::Printf(TEXT("Successfully created '%s' node (%s)"), *NodeTitle, *NodeType),
-                          BlueprintName, FunctionName, NewNode, NodeTitle, NodeType, TargetClass, PositionX, PositionY);
+                          BlueprintName, EffectiveFunctionName, NewNode, NodeTitle, NodeType, TargetClass, PositionX, PositionY);
 }
 
 bool FBlueprintNodeCreationService::ParseJsonParameters(const FString& JsonParams, TSharedPtr<FJsonObject>& OutParamsObject, TSharedPtr<FJsonObject>& OutResultObj)
@@ -834,7 +847,7 @@ FString FBlueprintNodeCreationService::BuildNodeResult(bool bSuccess, const FStr
     return OutputString;
 }
 
-void FBlueprintNodeCreationService::LogNodeCreationAttempt(const FString& FunctionName, const FString& BlueprintName, const FString& ClassName, int32 PositionX, int32 PositionY)
+void FBlueprintNodeCreationService::LogNodeCreationAttempt(const FString& FunctionName, const FString& BlueprintName, const FString& ClassName, int32 PositionX, int32 PositionY) const
 {
     UE_LOG(LogTemp, Warning, TEXT("FBlueprintNodeCreationService: Creating node '%s' in blueprint '%s' with class '%s' at position [%d, %d]"), 
            *FunctionName, *BlueprintName, *ClassName, PositionX, PositionY);
