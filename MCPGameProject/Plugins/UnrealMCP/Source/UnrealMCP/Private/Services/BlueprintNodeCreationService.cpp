@@ -21,6 +21,8 @@
 #include "K2Node_MacroInstance.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
+#include "K2Node_BreakStruct.h"
+#include "K2Node_MakeStruct.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Framework/Commands/UIAction.h"
 #include "Engine/Engine.h"
@@ -630,6 +632,124 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         NodeType = TEXT("UK2Node_SetForEach");
     }
     */
+    // Handle struct break and make operations
+    else if (EffectiveFunctionName.Equals(TEXT("BreakStruct"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("Break Struct"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("MakeStruct"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("Make Struct"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("UK2Node_BreakStruct"), ESearchCase::IgnoreCase) ||
+             EffectiveFunctionName.Equals(TEXT("UK2Node_MakeStruct"), ESearchCase::IgnoreCase))
+    {
+        bool bIsBreakStruct = EffectiveFunctionName.Contains(TEXT("Break"), ESearchCase::IgnoreCase);
+        
+        // Extract struct type from parameters
+        FString StructTypeName;
+        bool bFoundStructType = false;
+        
+        if (ParamsObject.IsValid())
+        {
+            // First check at root level
+            if (ParamsObject->TryGetStringField(TEXT("struct_type"), StructTypeName) && !StructTypeName.IsEmpty())
+            {
+                bFoundStructType = true;
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found struct_type '%s' at root level"), *StructTypeName);
+            }
+            else
+            {
+                // Then check nested under kwargs object
+                const TSharedPtr<FJsonObject>* KwargsObject;
+                if (ParamsObject->TryGetObjectField(TEXT("kwargs"), KwargsObject) && KwargsObject->IsValid())
+                {
+                    if ((*KwargsObject)->TryGetStringField(TEXT("struct_type"), StructTypeName) && !StructTypeName.IsEmpty())
+                    {
+                        bFoundStructType = true;
+                        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found struct_type '%s' in kwargs"), *StructTypeName);
+                    }
+                }
+            }
+        }
+        
+        if (!bFoundStructType)
+        {
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: struct_type parameter is required for %s operations"), bIsBreakStruct ? TEXT("BreakStruct") : TEXT("MakeStruct"));
+            return BuildNodeResult(false, FString::Printf(TEXT("struct_type parameter is required for %s operations"), bIsBreakStruct ? TEXT("BreakStruct") : TEXT("MakeStruct")));
+        }
+        
+        // Find the struct type
+        UScriptStruct* StructType = nullptr;
+        
+        // Try multiple variations of struct name resolution
+        TArray<FString> StructNameVariations = {
+            StructTypeName,
+            FString::Printf(TEXT("F%s"), *StructTypeName),
+            FString::Printf(TEXT("/Script/Engine.%s"), *StructTypeName),
+            FString::Printf(TEXT("/Script/Engine.F%s"), *StructTypeName),
+            FString::Printf(TEXT("/Script/CoreUObject.%s"), *StructTypeName),
+            FString::Printf(TEXT("/Script/CoreUObject.F%s"), *StructTypeName)
+        };
+        
+        for (const FString& StructName : StructNameVariations)
+        {
+            StructType = FindObject<UScriptStruct>(nullptr, *StructName);
+            if (StructType)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found struct type '%s' using name '%s'"), *StructType->GetName(), *StructName);
+                break;
+            }
+        }
+        
+        // If not found by FindObject, try using LoadObject for asset paths
+        if (!StructType && StructTypeName.StartsWith(TEXT("/Game/")))
+        {
+            StructType = LoadObject<UScriptStruct>(nullptr, *StructTypeName);
+            if (StructType)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Loaded struct type '%s' using LoadObject"), *StructType->GetName());
+            }
+        }
+        
+        if (!StructType)
+        {
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Could not find struct type '%s'"), *StructTypeName);
+            return BuildNodeResult(false, FString::Printf(TEXT("Struct type not found: %s"), *StructTypeName));
+        }
+        
+        // Create the appropriate struct node
+        if (bIsBreakStruct)
+        {
+            UK2Node_BreakStruct* BreakNode = NewObject<UK2Node_BreakStruct>(EventGraph);
+            BreakNode->StructType = StructType;
+            BreakNode->NodePosX = PositionX;
+            BreakNode->NodePosY = PositionY;
+            BreakNode->CreateNewGuid();
+            EventGraph->AddNode(BreakNode, true, true);
+            BreakNode->PostPlacedNewNode();
+            BreakNode->AllocateDefaultPins();
+            
+            NewNode = BreakNode;
+            NodeTitle = FString::Printf(TEXT("Break %s"), *StructType->GetDisplayNameText().ToString());
+            NodeType = TEXT("UK2Node_BreakStruct");
+            
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created BreakStruct node for '%s'"), *StructType->GetName());
+        }
+        else
+        {
+            UK2Node_MakeStruct* MakeNode = NewObject<UK2Node_MakeStruct>(EventGraph);
+            MakeNode->StructType = StructType;
+            MakeNode->NodePosX = PositionX;
+            MakeNode->NodePosY = PositionY;
+            MakeNode->CreateNewGuid();
+            EventGraph->AddNode(MakeNode, true, true);
+            MakeNode->PostPlacedNewNode();
+            MakeNode->AllocateDefaultPins();
+            
+            NewNode = MakeNode;
+            NodeTitle = FString::Printf(TEXT("Make %s"), *StructType->GetDisplayNameText().ToString());
+            NodeType = TEXT("UK2Node_MakeStruct");
+            
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created MakeStruct node for '%s'"), *StructType->GetName());
+        }
+    }
     // Universal dynamic node creation using Blueprint Action Database
     else if (TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
     {
