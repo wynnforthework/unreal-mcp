@@ -24,6 +24,7 @@
 #include "K2Node_CallFunction.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
+#include "K2Node_FunctionResult.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "K2Node_Event.h"
@@ -199,10 +200,6 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCommand(const FString& Comm
 	if (CommandName == TEXT("create_umg_widget_blueprint"))
 	{
 		return HandleCreateUMGWidgetBlueprint(Params);
-	}
-	else if (CommandName == TEXT("add_widget_to_viewport"))
-	{
-		return HandleAddWidgetToViewport(Params);
 	}
 	else if (CommandName == TEXT("bind_widget_component_event"))
 	{
@@ -416,46 +413,6 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateUMGWidgetBlueprint(co
 	ResultObj->SetBoolField(TEXT("success"), true);
 	ResultObj->SetStringField(TEXT("name"), BlueprintName);
 	ResultObj->SetStringField(TEXT("path"), FullPath);
-	return ResultObj;
-}
-
-TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetToViewport(const TSharedPtr<FJsonObject>& Params)
-{
-	// Get required parameters
-	FString BlueprintName;
-	if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
-	{
-		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
-	}
-
-	// Find the Widget Blueprint using our helper function
-	UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
-	if (!WidgetBlueprint)
-	{
-		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Widget Blueprint '%s' not found"), *BlueprintName));
-	}
-
-	// Get optional Z-order parameter
-	int32 ZOrder = 0;
-	Params->TryGetNumberField(TEXT("z_order"), ZOrder);
-
-	// Create widget instance
-	UClass* WidgetClass = WidgetBlueprint->GeneratedClass;
-	if (!WidgetClass)
-	{
-		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get widget class"));
-	}
-
-	// Note: This creates the widget but doesn't add it to viewport
-	// The actual addition to viewport should be done through Blueprint nodes
-	// as it requires a game context
-
-	// Create success response with instructions
-	TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-	ResultObj->SetStringField(TEXT("blueprint_name"), BlueprintName);
-	ResultObj->SetStringField(TEXT("class_path"), WidgetClass->GetPathName());
-	ResultObj->SetNumberField(TEXT("z_order"), ZOrder);
-	ResultObj->SetStringField(TEXT("note"), TEXT("Widget class ready. Use CreateWidget and AddToViewport nodes in Blueprint to display in game."));
 	return ResultObj;
 }
 
@@ -699,15 +656,30 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 
 		// Create entry node
 		UK2Node_FunctionEntry* EntryNode = nullptr;
-		// Create entry node - use the API that exists in UE 5.5
-		EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
-		FuncGraph->AddNode(EntryNode, false, false);
-		EntryNode->NodePosX = 0;
-		EntryNode->NodePosY = 0;
-		EntryNode->FunctionReference.SetExternalMember(FName(*FunctionName), WidgetBlueprint->GeneratedClass);
-		EntryNode->AllocateDefaultPins();
+		// When a new function graph is added via AddFunctionGraph, Unreal automatically creates
+		// a UK2Node_FunctionEntry for us. Creating another one leads to duplicate entry nodes
+		// and compile errors ("Expected only one function entry node in graph").  We therefore
+		// locate the auto-generated entry node and reuse it instead of adding a second one.
+		for (UEdGraphNode* Node : FuncGraph->Nodes)
+		{
+		    EntryNode = Cast<UK2Node_FunctionEntry>(Node);
+		    if (EntryNode)
+		    {
+		        break;
+		    }
+		}
+		if (!EntryNode)
+		{
+		    // Fallback: create only if somehow missing (should not normally happen)
+		    EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
+		    FuncGraph->AddNode(EntryNode, false, false);
+		    EntryNode->NodePosX = 0;
+		    EntryNode->NodePosY = 0;
+		    EntryNode->FunctionReference.SetExternalMember(FName(*FunctionName), WidgetBlueprint->GeneratedClass);
+		    EntryNode->AllocateDefaultPins();
+		}
 
-		// Create get variable node
+		// Create get variable node that fetches the bound property
 		UK2Node_VariableGet* GetVarNode = NewObject<UK2Node_VariableGet>(FuncGraph);
 		GetVarNode->VariableReference.SetSelfMember(FName(*BindingName));
 		FuncGraph->AddNode(GetVarNode, false, false);
@@ -715,12 +687,20 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 		GetVarNode->NodePosY = 0;
 		GetVarNode->AllocateDefaultPins();
 
-		// Connect nodes
-		UEdGraphPin* EntryThenPin = EntryNode->FindPin(UEdGraphSchema_K2::PN_Then);
+		// Create function result node which will output the text value
+		UK2Node_FunctionResult* ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
+		FuncGraph->AddNode(ResultNode, false, false);
+		ResultNode->NodePosX = 400;
+		ResultNode->NodePosY = 0;
+		// Allocate pins; this will create a ReturnValue pin we can wire
+		ResultNode->AllocateDefaultPins();
+
+		// Link variable output to function return pin
 		UEdGraphPin* GetVarOutPin = GetVarNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue);
-		if (EntryThenPin && GetVarOutPin)
+		UEdGraphPin* ResultReturnPin = ResultNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue);
+		if (GetVarOutPin && ResultReturnPin)
 		{
-			EntryThenPin->MakeLinkTo(GetVarOutPin);
+			GetVarOutPin->MakeLinkTo(ResultReturnPin);
 		}
 	}
 

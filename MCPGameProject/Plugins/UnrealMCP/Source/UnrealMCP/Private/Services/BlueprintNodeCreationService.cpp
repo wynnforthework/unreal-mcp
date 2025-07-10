@@ -35,7 +35,7 @@
 // Forward declaration of native property helper
 static bool TryCreateNativePropertyNode(const FString& VarName, bool bIsGetter, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType);
 // Utility to convert property names into friendly display strings
-static FString ConvertPropertyNameToDisplay(const FString& InPropName)
+static FString ConvertPropertyNameToDisplayLocal(const FString& InPropName)
 {
     FString Name = InPropName;
     // Strip leading 'b' for bool properties
@@ -1142,7 +1142,7 @@ static bool TryCreateNativePropertyNode(const FString& VarName, bool bIsGetter, 
             FString DisplayNameMeta = Property->GetMetaData(TEXT("DisplayName"));
             if (DisplayNameMeta.IsEmpty())
             {
-                DisplayNameMeta = ConvertPropertyNameToDisplay(PropName);
+                DisplayNameMeta = ConvertPropertyNameToDisplayLocal(PropName);
             }
             NameOptions.Add(DisplayNameMeta.Replace(TEXT(" "), TEXT("")));
 

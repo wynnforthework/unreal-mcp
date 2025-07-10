@@ -108,32 +108,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
                 "message": f"Failed to connect nodes: {str(e)}"
             }
 
-    @mcp.tool()
-    def add_blueprint_self_reference(
-        ctx: Context,
-        blueprint_name: str,
-        node_position: List[float] = None
-    ) -> Dict[str, Any]:
-        """
-        Add a 'Get Self' node to a Blueprint's event graph that returns a reference to this actor.
-
-        Args:
-            blueprint_name: Name of the target Blueprint
-            node_position: Optional [X, Y] position in the graph
-            
-        Returns:
-            Response containing the node ID and success status
-        """
-        try:
-            return add_self_reference_impl(
-                ctx, blueprint_name, node_position
-            )
-        except Exception as e:
-            logger.error(f"Error adding self reference: {e}")
-            return {
-                "success": False,
-                "message": f"Failed to add self reference: {str(e)}"
-            }
+    # add_blueprint_self_reference removed – use create_node_by_action_name("Get Self") instead.
 
     @mcp.tool()
     def find_blueprint_nodes(

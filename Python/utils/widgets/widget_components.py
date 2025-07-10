@@ -52,19 +52,10 @@ def bind_widget_component_event(
     logger.info(f"Binding event '{event_name}' on component '{widget_component_name}' in widget '{widget_name}' to function '{func_name}'")
     return send_unreal_command("bind_widget_component_event", params)
 
-def add_widget_to_viewport(
-    ctx: Context,
-    widget_name: str,
-    z_order: int = 0
-) -> Dict[str, Any]:
-    """Implementation for adding a Widget Blueprint instance to the viewport."""
-    params = {
-        "blueprint_name": widget_name,  # Name of the Widget Blueprint asset
-        "z_order": z_order
-    }
-    
-    logger.info(f"Adding widget '{widget_name}' to viewport (Z-Order: {z_order})")
-    return send_unreal_command("add_widget_to_viewport", params)
+# NOTE: add_widget_to_viewport removed – functionality superseded by regular Blueprint usage.
+def add_widget_to_viewport(*args, **kwargs):
+    """Deprecated – command removed."""
+    raise RuntimeError("add_widget_to_viewport MCP command has been removed.")
 
 def set_text_block_widget_component_binding(
     ctx: Context,
