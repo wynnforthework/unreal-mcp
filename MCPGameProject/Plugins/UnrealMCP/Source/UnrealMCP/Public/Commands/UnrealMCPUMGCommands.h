@@ -33,15 +33,6 @@ private:
     TSharedPtr<FJsonObject> HandleCreateUMGWidgetBlueprint(const TSharedPtr<FJsonObject>& Params);
 
     /**
-     * Add a widget instance to the game viewport
-     * @param Params - Must include:
-     *                "blueprint_name" - Name of the Widget Blueprint to instantiate
-     *                "z_order" - Z-order for widget display (optional)
-     * @return JSON response with the widget instance details
-     */
-    TSharedPtr<FJsonObject> HandleAddWidgetToViewport(const TSharedPtr<FJsonObject>& Params);
-
-    /**
      * Bind an event to a widget (e.g. button click)
      * @param Params - Must include:
      *                "blueprint_name" - Name of the target Widget Blueprint

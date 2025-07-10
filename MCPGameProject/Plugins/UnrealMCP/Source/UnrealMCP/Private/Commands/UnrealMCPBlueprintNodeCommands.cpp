@@ -70,7 +70,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleCommand(const FSt
     }
     else if (CommandType == TEXT("add_blueprint_self_reference"))
     {
-        return HandleAddBlueprintSelfReference(Params);
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("add_blueprint_self_reference command removed. Use create_node_by_action_name with 'Get Self'."));
     }
     else if (CommandType == TEXT("find_blueprint_nodes"))
     {
@@ -1410,51 +1410,6 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintInput
 
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetStringField(TEXT("node_id"), InputActionNode->NodeGuid.ToString());
-    return ResultObj;
-}
-
-TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintSelfReference(const TSharedPtr<FJsonObject>& Params)
-{
-    // Get required parameters
-    FString BlueprintName;
-    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
-    }
-
-    // Get position parameters (optional)
-    FVector2D NodePosition(0.0f, 0.0f);
-    if (Params->HasField(TEXT("node_position")))
-    {
-        NodePosition = FUnrealMCPCommonUtils::GetVector2DFromJson(Params, TEXT("node_position"));
-    }
-
-    // Find the blueprint
-    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
-    if (!Blueprint)
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
-    }
-
-    // Get the event graph
-    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
-    if (!EventGraph)
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
-    }
-
-    // Create the self node
-    UK2Node_Self* SelfNode = FUnrealMCPCommonUtils::CreateSelfReferenceNode(EventGraph, NodePosition);
-    if (!SelfNode)
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create self node"));
-    }
-
-    // Mark the blueprint as modified
-    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-
-    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-    ResultObj->SetStringField(TEXT("node_id"), SelfNode->NodeGuid.ToString());
     return ResultObj;
 }
 

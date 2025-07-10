@@ -132,7 +132,7 @@ def add_self_reference(
     if node_position is not None:
         params["node_position"] = node_position
         
-    return send_unreal_command("add_blueprint_self_reference", params)
+    raise RuntimeError("add_blueprint_self_reference MCP command has been removed.")
 
 def find_nodes(
     ctx: Context,

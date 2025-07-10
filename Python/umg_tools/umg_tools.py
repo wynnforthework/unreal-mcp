@@ -11,8 +11,6 @@ from mcp.server.fastmcp import FastMCP, Context
 from utils.widgets.widget_components import (
     create_widget_blueprint as create_widget_blueprint_impl,
     bind_widget_component_event as bind_widget_component_event_impl,
-    add_widget_to_viewport as add_widget_to_viewport_impl,
-    set_text_block_widget_component_binding as set_text_block_widget_component_binding_impl,
     add_child_widget_component_to_parent as add_child_widget_component_to_parent_impl,
     create_parent_and_child_widget_components as create_parent_and_child_widget_components_impl,
     check_widget_component_exists as check_widget_component_exists_impl,
@@ -98,32 +96,6 @@ def register_umg_tools(mcp: FastMCP):
         """
         # Call aliased implementation
         return bind_widget_component_event_impl(ctx, widget_name, widget_component_name, event_name, function_name)
-
-    @mcp.tool()
-    def add_widget_to_viewport(
-        ctx: Context,
-        widget_name: str,
-        z_order: int = 0
-    ) -> Dict[str, object]:
-        """
-        Add a Widget Blueprint instance to the viewport.
-        
-        Args:
-            widget_name: Name of the Widget Blueprint to add
-            z_order: Z-order for the widget (higher numbers appear on top)
-            
-        Returns:
-            Dict containing success status and widget instance information
-            
-        Examples:
-            # Add widget to viewport with default z-order
-            add_widget_to_viewport(widget_name="MainMenu")
-            
-            # Add widget with specific z-order (higher number appears on top)
-            add_widget_to_viewport(widget_name="NotificationWidget", z_order=10)
-        """
-        # Call aliased implementation
-        return add_widget_to_viewport_impl(ctx, widget_name, z_order)
 
     @mcp.tool()
     def set_text_block_widget_component_binding(
