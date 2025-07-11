@@ -241,6 +241,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         function_name: str,
         class_name: str = "",
         node_position: List[float] = None,
+        target_graph: str = None,
         **kwargs
     ) -> Dict[str, Any]:
         """
@@ -322,4 +323,4 @@ def register_blueprint_action_tools(mcp: FastMCP):
             # search_blueprint_actions(search_query="float", category="Math") 
             # Then use the discovered function names
         """
-        return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, **kwargs) 
+        return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, target_graph=target_graph, **kwargs) 

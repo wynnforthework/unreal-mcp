@@ -177,6 +177,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::CreateNodeByAc
     FString ClassName;
     FString NodePosition;
     FString JsonParams;
+    FString TargetGraph;
     
     // Handle optional parameters safely
     if (Params->HasField(TEXT("class_name")))
@@ -192,6 +193,27 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::CreateNodeByAc
     if (Params->HasField(TEXT("json_params")))
     {
         JsonParams = Params->GetStringField(TEXT("json_params"));
+    }
+
+    // New: handle target_graph as a top-level field for readability but still pass it via json_params to the service layer
+    if (Params->HasField(TEXT("target_graph")))
+    {
+        TargetGraph = Params->GetStringField(TEXT("target_graph"));
+
+        // Merge into JsonParams object so deeper layers can read it
+        TSharedPtr<FJsonObject> Existing;
+        if (!JsonParams.IsEmpty())
+        {
+            TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonParams);
+            FJsonSerializer::Deserialize(Reader, Existing);
+        }
+        if (!Existing.IsValid())
+        {
+            Existing = MakeShared<FJsonObject>();
+        }
+        Existing->SetStringField(TEXT("target_graph"), TargetGraph);
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonParams);
+        FJsonSerializer::Serialize(Existing.ToSharedRef(), Writer);
     }
     
     FString JsonResult = UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition, JsonParams);

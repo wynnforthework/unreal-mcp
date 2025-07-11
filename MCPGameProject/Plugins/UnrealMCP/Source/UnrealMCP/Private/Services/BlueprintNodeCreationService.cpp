@@ -31,6 +31,7 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
 #include "K2Node_ComponentBoundEvent.h"
+#include "Commands/UnrealMCPCommonUtils.h" // For utility blueprint finder
 
 // Forward declaration of native property helper
 static bool TryCreateNativePropertyNode(const FString& VarName, bool bIsGetter, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType);
@@ -92,27 +93,84 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     }
     
     // Find the blueprint
-    UBlueprint* Blueprint = FindBlueprintByName(BlueprintName);
+    // Use the common utility that searches both UBlueprint and UWidgetBlueprint assets
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
     if (!Blueprint)
     {
         return BuildNodeResult(false, FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
     }
     
     // Get the event graph
-    UEdGraph* EventGraph = nullptr;
-    for (UEdGraph* Graph : Blueprint->UbergraphPages)
+    // Determine which graph we should place the node in. By default we still use the main
+    // EventGraph, but callers can specify a custom graph name (e.g., a function graph)
+    // through the optional "target_graph" field either in the top-level parameters or
+    // inside the JsonParams object.  This lets external tools create nodes inside
+    // Blueprint functions like "GetLine" / "GetSpeaker" rather than being limited to
+    // the EventGraph.
+
+    FString TargetGraphName = TEXT("EventGraph");
+
+    // Check if the parameter was provided at the top level (maintaining backward compat)
+    if (ParamsObject.IsValid())
     {
-        if (Graph && Graph->GetFName() == "EventGraph")
+        FString TempGraphName;
+        if (ParamsObject->TryGetStringField(TEXT("target_graph"), TempGraphName) && !TempGraphName.IsEmpty())
+        {
+            TargetGraphName = TempGraphName;
+        }
+    }
+
+    UEdGraph* EventGraph = nullptr;
+
+    // First search function graphs (these hold user-defined functions)
+    for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+    {
+        if (Graph && Graph->GetName().Equals(TargetGraphName, ESearchCase::IgnoreCase))
         {
             EventGraph = Graph;
             break;
         }
     }
-    
+
+    // Fallback: search across *all* graphs that belong to this blueprint (includes Macros, AnimGraph, etc.)
     if (!EventGraph)
     {
-        return BuildNodeResult(false, TEXT("Could not find EventGraph in blueprint"));
+        TArray<UEdGraph*> AllGraphs;
+        Blueprint->GetAllGraphs(AllGraphs);
+        for (UEdGraph* Graph : AllGraphs)
+        {
+            if (Graph && Graph->GetName().Equals(TargetGraphName, ESearchCase::IgnoreCase))
+            {
+                EventGraph = Graph;
+                break;
+            }
+        }
     }
+
+    // If still not found, create a new graph with that name (function graph by default)
+    if (!EventGraph)
+    {
+        UE_LOG(LogTemp, Display, TEXT("Target graph '%s' not found – creating new graph"), *TargetGraphName);
+
+        // Create function graph when target is not EventGraph; otherwise create EventGraph
+        if (TargetGraphName.Equals(TEXT("EventGraph"), ESearchCase::IgnoreCase))
+        {
+            EventGraph = FBlueprintEditorUtils::CreateNewGraph(Blueprint, FName(*TargetGraphName), UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
+            FBlueprintEditorUtils::AddUbergraphPage(Blueprint, EventGraph);
+        }
+        else
+        {
+            EventGraph = FBlueprintEditorUtils::CreateNewGraph(Blueprint, FName(*TargetGraphName), UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
+            FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, EventGraph, /*bIsUserCreated=*/true, nullptr);
+        }
+    }
+
+    if (!EventGraph)
+    {
+        return BuildNodeResult(false, FString::Printf(TEXT("Could not find or create target graph '%s'"), *TargetGraphName));
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Using graph '%s' for node placement"), *EventGraph->GetName());
     
     // Parse node position
     int32 PositionX, PositionY;

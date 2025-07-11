@@ -92,6 +92,7 @@ def create_node_by_action_name(
     function_name: str,
     class_name: str = "",
     node_position: List[float] = None,
+    target_graph: str = None,
     **kwargs
 ) -> Dict[str, Any]:
     """Implementation for creating a blueprint node by discovered action/function name."""
@@ -107,8 +108,24 @@ def create_node_by_action_name(
         # Convert List[float] to JSON string that C++ can parse
         params["node_position"] = json.dumps(node_position)
     
+    # Build json_params payload that will be passed through to the C++ side.  It carries
+    # any extra keyword arguments **and** the optional target_graph so the service layer
+    # can pick it up in one place.
+
+    extra_params: Dict[str, Any] = {}
+
+    # Promote target_graph into the top-level params (still needed by the handler)
+    # **and** put it inside the json_params object so deeper layers can read it.
+    if target_graph is not None:
+        params["target_graph"] = target_graph
+        extra_params["target_graph"] = target_graph
+
+    # Merge any additional kwargs supplied by the caller
     if kwargs:
-        # Convert kwargs to JSON string for C++ side
-        params["json_params"] = json.dumps(kwargs)
+        extra_params.update(kwargs)
+
+    # Always provide json_params (even if empty) so the handler code doesn’t hit a
+    # missing-field branch and the tool signature stays consistent.
+    params["json_params"] = json.dumps(extra_params)
     
     return send_unreal_command("create_node_by_action_name", params) 
