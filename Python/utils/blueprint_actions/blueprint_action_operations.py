@@ -96,6 +96,11 @@ def create_node_by_action_name(
     **kwargs
 ) -> Dict[str, Any]:
     """Implementation for creating a blueprint node by discovered action/function name."""
+    # --- PATCH START ---
+    if function_name in ("Get", "Set") and "variable_name" in kwargs:
+        function_name = f"{function_name} {kwargs['variable_name']}"
+        kwargs.pop("variable_name")
+    # --- PATCH END ---
     params = {
         "blueprint_name": blueprint_name,
         "function_name": function_name

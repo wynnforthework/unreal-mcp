@@ -92,6 +92,15 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         return OutputString;
     }
     
+    // --- DIAGNOSTIC LOGGING: Function entry ---
+    FString ParamsJsonStr = TEXT("<null>");
+    if (ParamsObject.IsValid())
+    {
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ParamsJsonStr);
+        FJsonSerializer::Serialize(ParamsObject.ToSharedRef(), Writer);
+    }
+    UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName ENTRY: FunctionName='%s', Blueprint='%s', Params=%s"), *EffectiveFunctionName, *BlueprintName, *ParamsJsonStr);
+    
     // Find the blueprint
     // Use the common utility that searches both UBlueprint and UWidgetBlueprint assets
     UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
@@ -184,6 +193,30 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     FString NodeType = TEXT("Unknown");
     UClass* TargetClass = nullptr;
     
+    // After parameter parsing and before any node type handling
+    // --- PATCH: Rewrite 'Get'/'Set' with variable_name before any node type handling ---
+    if ((EffectiveFunctionName.Equals(TEXT("Get"), ESearchCase::IgnoreCase) ||
+         EffectiveFunctionName.Equals(TEXT("Set"), ESearchCase::IgnoreCase)) &&
+        ParamsObject.IsValid())
+    {
+        FString ParamVarName;
+        // Check at root level
+        if (ParamsObject->TryGetStringField(TEXT("variable_name"), ParamVarName) && !ParamVarName.IsEmpty())
+        {
+            EffectiveFunctionName = FString::Printf(TEXT("%s %s"), *EffectiveFunctionName, *ParamVarName);
+            UE_LOG(LogTemp, Warning, TEXT("[PATCH] Rewrote function name to '%s' using variable_name payload"), *EffectiveFunctionName);
+        }
+        // Optionally: check inside 'kwargs' if not found at root
+        else if (ParamsObject->HasField(TEXT("kwargs")))
+        {
+            TSharedPtr<FJsonObject> KwargsObj = ParamsObject->GetObjectField(TEXT("kwargs"));
+            if (KwargsObj.IsValid() && KwargsObj->TryGetStringField(TEXT("variable_name"), ParamVarName) && !ParamVarName.IsEmpty())
+            {
+                EffectiveFunctionName = FString::Printf(TEXT("%s %s"), *EffectiveFunctionName, *ParamVarName);
+                UE_LOG(LogTemp, Warning, TEXT("[PATCH] Rewrote function name to '%s' using variable_name in kwargs"), *EffectiveFunctionName);
+            }
+        }
+    }
     // Check if this is a control flow node request
     if (EffectiveFunctionName.Equals(TEXT("Branch"), ESearchCase::IgnoreCase) || 
         EffectiveFunctionName.Equals(TEXT("IfThenElse"), ESearchCase::IgnoreCase) ||
@@ -548,12 +581,17 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
             }
         }
         
+        // Log getter/setter detection and variable name
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: EffectiveFunctionName='%s', bIsGetter=%d, bIsSetter=%d, VarName='%s'"), *EffectiveFunctionName, (int)bIsGetter, (int)bIsGetter, *VarName);
+
         // Try to find the variable or component in the Blueprint
         bool bFound = false;
         
-        // First check user-defined variables
+        // Diagnostic logging: List all user variables and what we're searching for
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Blueprint '%s' has %d user variables. Looking for '%s'."), *Blueprint->GetName(), Blueprint->NewVariables.Num(), *VarName);
         for (const FBPVariableDescription& VarDesc : Blueprint->NewVariables)
         {
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found variable '%s' (type: %s)"), *VarDesc.VarName.ToString(), *VarDesc.VarType.PinCategory.ToString());
             if (VarDesc.VarName.ToString().Equals(VarName, ESearchCase::IgnoreCase))
             {
                 if (bIsGetter)

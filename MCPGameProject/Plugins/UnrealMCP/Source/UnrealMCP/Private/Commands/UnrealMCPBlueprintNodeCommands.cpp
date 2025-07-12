@@ -1665,6 +1665,19 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
             }
         }
     }
+    else if (NodeType.Equals(TEXT("BreakStruct"), ESearchCase::IgnoreCase) || NodeType.Equals(TEXT("UK2Node_BreakStruct"), ESearchCase::IgnoreCase))
+    {
+        // Explicitly find all Break Struct nodes
+        for (UEdGraphNode* Node : EventGraph->Nodes)
+        {
+            UK2Node_BreakStruct* BreakStructNode = Cast<UK2Node_BreakStruct>(Node);
+            if (BreakStructNode)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Found BreakStruct node: %s"), *BreakStructNode->NodeGuid.ToString());
+                NodesArray.Add(MakeShared<FJsonValueObject>(CreateNodeInfo(BreakStructNode)));
+            }
+        }
+    }
     else
     {
         UE_LOG(LogTemp, Warning, TEXT("Unsupported node type: %s"), *NodeType);
