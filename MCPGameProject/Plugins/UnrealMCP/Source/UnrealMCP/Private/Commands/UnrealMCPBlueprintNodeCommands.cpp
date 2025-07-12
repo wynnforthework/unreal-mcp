@@ -94,7 +94,101 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleCommand(const FSt
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleConnectBlueprintNodes(const TSharedPtr<FJsonObject>& Params)
 {
-    // Get required parameters
+    // Check for batch mode: 'connections' array
+    if (Params->HasField(TEXT("connections")))
+    {
+        TArray<TSharedPtr<FJsonValue>> ConnectionsArray = Params->GetArrayField(TEXT("connections"));
+        TArray<TSharedPtr<FJsonValue>> ResultsArray;
+        FString BlueprintName;
+        if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+        }
+
+        // Find the blueprint and event graph once
+        UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+        if (!Blueprint)
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+        }
+        UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
+        if (!EventGraph)
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
+        }
+
+        for (const TSharedPtr<FJsonValue>& ConnVal : ConnectionsArray)
+        {
+            TSharedPtr<FJsonObject> ConnObj = ConnVal->AsObject();
+            if (!ConnObj.IsValid())
+            {
+                TSharedPtr<FJsonObject> Err = MakeShared<FJsonObject>();
+                Err->SetBoolField(TEXT("success"), false);
+                Err->SetStringField(TEXT("message"), TEXT("Invalid connection object"));
+                ResultsArray.Add(MakeShared<FJsonValueObject>(Err));
+                continue;
+            }
+            FString SourceNodeId, TargetNodeId, SourcePinName, TargetPinName;
+            bool ok = ConnObj->TryGetStringField(TEXT("source_node_id"), SourceNodeId)
+                && ConnObj->TryGetStringField(TEXT("target_node_id"), TargetNodeId)
+                && ConnObj->TryGetStringField(TEXT("source_pin"), SourcePinName)
+                && ConnObj->TryGetStringField(TEXT("target_pin"), TargetPinName);
+            if (!ok)
+            {
+                TSharedPtr<FJsonObject> Err = MakeShared<FJsonObject>();
+                Err->SetBoolField(TEXT("success"), false);
+                Err->SetStringField(TEXT("message"), TEXT("Missing required fields in connection object"));
+                ResultsArray.Add(MakeShared<FJsonValueObject>(Err));
+                continue;
+            }
+            // Find nodes
+            UEdGraphNode* SourceNode = nullptr;
+            UEdGraphNode* TargetNode = nullptr;
+            for (UEdGraphNode* Node : EventGraph->Nodes)
+            {
+                if (Node->NodeGuid.ToString() == SourceNodeId)
+                {
+                    SourceNode = Node;
+                }
+                else if (Node->NodeGuid.ToString() == TargetNodeId)
+                {
+                    TargetNode = Node;
+                }
+            }
+            if (!SourceNode || !TargetNode)
+            {
+                TSharedPtr<FJsonObject> Err = MakeShared<FJsonObject>();
+                Err->SetBoolField(TEXT("success"), false);
+                Err->SetStringField(TEXT("message"), TEXT("Source or target node not found"));
+                ResultsArray.Add(MakeShared<FJsonValueObject>(Err));
+                continue;
+            }
+            // Connect
+            if (FUnrealMCPCommonUtils::ConnectGraphNodes(EventGraph, SourceNode, SourcePinName, TargetNode, TargetPinName))
+            {
+                FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+                TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+                ResultObj->SetBoolField(TEXT("success"), true);
+                ResultObj->SetStringField(TEXT("source_node_id"), SourceNodeId);
+                ResultObj->SetStringField(TEXT("target_node_id"), TargetNodeId);
+                ResultsArray.Add(MakeShared<FJsonValueObject>(ResultObj));
+            }
+            else
+            {
+                TSharedPtr<FJsonObject> Err = MakeShared<FJsonObject>();
+                Err->SetBoolField(TEXT("success"), false);
+                Err->SetStringField(TEXT("message"), TEXT("Failed to connect nodes"));
+                ResultsArray.Add(MakeShared<FJsonValueObject>(Err));
+            }
+        }
+        // Return all results
+        TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
+        Out->SetArrayField(TEXT("results"), ResultsArray);
+        Out->SetBoolField(TEXT("batch"), true);
+        return Out;
+    }
+
+    // Single connection fallback (existing logic)
     FString BlueprintName;
     if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
     {

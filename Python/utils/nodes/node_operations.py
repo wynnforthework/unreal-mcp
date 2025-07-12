@@ -154,20 +154,29 @@ def find_nodes(
 def connect_nodes_impl(
     ctx: Context,
     blueprint_name: str,
-    source_node_id: str,
-    source_pin: str,
-    target_node_id: str,
-    target_pin: str
+    source_node_id: str = None,
+    source_pin: str = None,
+    target_node_id: str = None,
+    target_pin: str = None,
+    connections: list = None
 ) -> Dict[str, Any]:
-    """Implementation for connecting two nodes in a Blueprint's event graph."""
-    params = {
-        "blueprint_name": blueprint_name,
+    """
+    Implementation for connecting nodes in a Blueprint's event graph.
+    Supports both single connection (legacy) and batch connections (recommended).
+    If 'connections' is provided (a list of dicts), batch mode is used.
+    Each connection dict must have: source_node_id, source_pin, target_node_id, target_pin.
+    """
+    if connections is not None:
+        params = {"blueprint_name": blueprint_name, "connections": connections}
+        return send_unreal_command("connect_blueprint_nodes", params)
+    # Single connection fallback
+    params = {"blueprint_name": blueprint_name}
+    params.update({
         "source_node_id": source_node_id,
         "source_pin": source_pin,
         "target_node_id": target_node_id,
         "target_pin": target_pin
-    }
-    
+    })
     return send_unreal_command("connect_blueprint_nodes", params)
 
 def get_variable_info_impl(

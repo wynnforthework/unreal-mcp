@@ -204,6 +204,91 @@ Create a blueprint node by discovered action/function name.
 }
 ```
 
+### connect_blueprint_nodes
+
+Connect nodes in a Blueprint's event graph. Supports both single connection (legacy) and batch connections (recommended).
+
+**Parameters:**
+- `blueprint_name` (string) - Name of the target Blueprint
+- `source_node_id` (string, optional) - ID of the source node (legacy, single connection)
+- `source_pin` (string, optional) - Name of the output pin on the source node (legacy, single connection)
+- `target_node_id` (string, optional) - ID of the target node (legacy, single connection)
+- `target_pin` (string, optional) - Name of the input pin on the target node (legacy, single connection)
+- `connections` (array, optional) - List of connection objects for batch mode. Each object must have:
+    - `source_node_id` (string)
+    - `source_pin` (string)
+    - `target_node_id` (string)
+    - `target_pin` (string)
+
+**Returns:**
+- In single mode: Dict indicating success or failure for the connection.
+- In batch mode: Dict with a `results` array, each entry indicating success or failure for each connection.
+
+**Examples:**
+
+_Single connection (legacy):_
+```json
+{
+  "command": "connect_blueprint_nodes",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "source_node_id": "GUID1",
+    "source_pin": "Exec",
+    "target_node_id": "GUID2",
+    "target_pin": "Then"
+  }
+}
+```
+
+_Batch connection:_
+```json
+{
+  "command": "connect_blueprint_nodes",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "connections": [
+      {"source_node_id": "GUID1", "source_pin": "Exec", "target_node_id": "GUID2", "target_pin": "Then"},
+      {"source_node_id": "GUID3", "source_pin": "Out", "target_node_id": "GUID4", "target_pin": "In"}
+    ]
+  }
+}
+```
+
+## Creating Getter and Setter Nodes for Blueprint Variables
+
+You can programmatically create getter and setter nodes for any Blueprint variable using the `create_node_by_action_name` tool. The function name must follow these patterns:
+
+- **Getter node:** `get <VariableName>`
+- **Setter node:** `set <VariableName>`
+
+This will create the corresponding variable get/set node in the Blueprint graph, just as if you dragged the variable into the graph in the Unreal Editor.
+
+**Example: Create a getter node for a variable named `Health`**
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_PlayerCharacter",
+    "function_name": "get Health"
+  }
+}
+```
+
+**Example: Create a setter node for a variable named `Health`**
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_PlayerCharacter",
+    "function_name": "set Health"
+  }
+}
+```
+
+> **Note:** The variable name is case-sensitive and must match exactly as defined in the Blueprint. This pattern works for all variable types (Boolean, Integer, Float, Struct, Object Reference, etc.).
+
+You can use this approach for any variable in any Blueprint, including UMG Widget Blueprints and Actor Blueprints.
+
 ## Common Usage Patterns
 
 ### Discovery Workflow
