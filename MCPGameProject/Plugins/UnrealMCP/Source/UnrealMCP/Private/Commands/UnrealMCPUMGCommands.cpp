@@ -596,6 +596,13 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 		return Response;
 	}
 
+	// Get optional variable type parameter (default to Text)
+	FString VariableType;
+	if (!Params->TryGetStringField(TEXT("variable_type"), VariableType))
+	{
+		VariableType = TEXT("Text");
+	}
+
 	// Load the Widget Blueprint using our helper function
 	UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
 	if (!WidgetBlueprint)
@@ -605,11 +612,54 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 	}
 
 	// Create a variable for binding if it doesn't exist
-	FBlueprintEditorUtils::AddMemberVariable(
-		WidgetBlueprint,
-		FName(*BindingName),
-		FEdGraphPinType(UEdGraphSchema_K2::PC_Text, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType())
-	);
+	// Check if the variable already exists
+	bool bVariableExists = false;
+	for (FBPVariableDescription& Variable : WidgetBlueprint->NewVariables)
+	{
+		if (Variable.VarName == FName(*BindingName))
+		{
+			bVariableExists = true;
+			break;
+		}
+	}
+	
+	// Only create the variable if it doesn't exist
+	if (!bVariableExists)
+	{
+		// Determine the pin type based on the variable type parameter
+		FEdGraphPinType PinType;
+		if (VariableType == TEXT("Text"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Text, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else if (VariableType == TEXT("String"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_String, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else if (VariableType == TEXT("Int") || VariableType == TEXT("Integer"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Int, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else if (VariableType == TEXT("Float"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Real, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else if (VariableType == TEXT("Boolean") || VariableType == TEXT("Bool"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Boolean, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else
+		{
+			// Default to Text if type is not recognized
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Text, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+
+		FBlueprintEditorUtils::AddMemberVariable(
+			WidgetBlueprint,
+			FName(*BindingName),
+			PinType
+		);
+	}
 
 	// Find the TextBlock widget
 	UTextBlock* TextBlock = Cast<UTextBlock>(WidgetBlueprint->WidgetTree->FindWidget(FName(*WidgetName)));
@@ -695,7 +745,24 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 		// Allocate pins; this will create a ReturnValue pin we can wire
 		ResultNode->AllocateDefaultPins();
 
-		// Link variable output to function return pin
+		// Connect all execution pins properly
+		// 1. Connect Entry node execution output to Variable Get execution input (if exists)
+		UEdGraphPin* EntryExecPin = EntryNode->FindPin(UEdGraphSchema_K2::PN_Then);
+		UEdGraphPin* GetVarExecPin = GetVarNode->FindPin(UEdGraphSchema_K2::PN_Execute);
+		if (EntryExecPin && GetVarExecPin)
+		{
+			EntryExecPin->MakeLinkTo(GetVarExecPin);
+		}
+		
+		// 2. Connect Variable Get execution output to Function Result execution input (if exists)
+		UEdGraphPin* GetVarThenPin = GetVarNode->FindPin(UEdGraphSchema_K2::PN_Then);
+		UEdGraphPin* ResultExecPin = ResultNode->FindPin(UEdGraphSchema_K2::PN_Execute);
+		if (GetVarThenPin && ResultExecPin)
+		{
+			GetVarThenPin->MakeLinkTo(ResultExecPin);
+		}
+
+		// 3. Connect variable output to function return pin (data flow)
 		UEdGraphPin* GetVarOutPin = GetVarNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue);
 		UEdGraphPin* ResultReturnPin = ResultNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue);
 		if (GetVarOutPin && ResultReturnPin)
@@ -711,6 +778,11 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 
 	Response->SetBoolField(TEXT("success"), true);
 	Response->SetStringField(TEXT("binding_name"), BindingName);
+	Response->SetStringField(TEXT("variable_type"), VariableType);
+	Response->SetStringField(TEXT("function_name"), FunctionName);
+	Response->SetStringField(TEXT("widget_name"), WidgetName);
+	Response->SetBoolField(TEXT("variable_created"), !bVariableExists);
+	Response->SetStringField(TEXT("message"), TEXT("Text block binding created successfully with proper pin connections"));
 	return Response;
 }
 

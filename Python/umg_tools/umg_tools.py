@@ -18,7 +18,8 @@ from utils.widgets.widget_components import (
     get_widget_container_component_dimensions as get_widget_container_component_dimensions_impl,
     add_widget_component_to_widget as add_widget_component_to_widget_impl,
     set_widget_component_property as set_widget_component_property_impl,
-    get_widget_component_layout_impl  # Import the new _impl function
+    get_widget_component_layout_impl,  # Import the new _impl function
+    set_text_block_widget_component_binding as set_text_block_widget_component_binding_impl
 )
 
 # Get logger
@@ -103,7 +104,8 @@ def register_umg_tools(mcp: FastMCP):
         widget_name: str,
         text_block_name: str,
         binding_property: str,
-        binding_type: str = "Text"
+        binding_type: str = "Text",
+        variable_type: str = "Text"
     ) -> Dict[str, object]:
         """
         Set up a property binding for a Text Block widget.
@@ -113,6 +115,7 @@ def register_umg_tools(mcp: FastMCP):
             text_block_name: Name of the Text Block to bind
             binding_property: Name of the property to bind to
             binding_type: Type of binding (Text, Visibility, etc.)
+            variable_type: Type of variable to create if it doesn't exist (Text, String, Int, Float, Bool)
             
         Returns:
             Dict containing success status and binding information
@@ -125,16 +128,26 @@ def register_umg_tools(mcp: FastMCP):
                 binding_property="CurrentScore"
             )
             
-            # Set binding with specific binding type
+            # Set binding with specific binding type and variable type
             set_text_block_widget_component_binding(
                 widget_name="GameUI",
                 text_block_name="TimerText",
                 binding_property="RemainingTime",
-                binding_type="Text"
+                binding_type="Text",
+                variable_type="Int"
+            )
+            
+            # Set binding with custom variable type
+            set_text_block_widget_component_binding(
+                widget_name="ShopUI",
+                text_block_name="PriceText",
+                binding_property="ItemPrice",
+                binding_type="Text",
+                variable_type="Float"
             )
         """
         # Call aliased implementation
-        return set_text_block_widget_component_binding_impl(ctx, widget_name, text_block_name, binding_property, binding_type)
+        return set_text_block_widget_component_binding_impl(ctx, widget_name, text_block_name, binding_property, binding_type, variable_type)
 
     @mcp.tool()
     def add_child_widget_component_to_parent(
