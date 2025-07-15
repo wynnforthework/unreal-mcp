@@ -1834,6 +1834,12 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateCustomBlueprint
     EntryNode->NodePosX = 0;
     EntryNode->NodePosY = 0;
 
+    // Make sure the function is marked as BlueprintCallable by setting the extra flags
+    EntryNode->SetExtraFlags(FUNC_BlueprintCallable | FUNC_BlueprintEvent);
+    
+    // Also set the metadata on the function entry node to ensure proper blueprint compilation
+    EntryNode->MetaData.SetMetaData(FBlueprintMetadata::MD_CallInEditor, FString(TEXT("true")));
+
     // Clear any existing user defined pins to avoid duplicates
     EntryNode->UserDefinedPins.Empty();
 

@@ -700,33 +700,40 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 
 	if (FuncGraph)
 	{
-		// Add the function to the blueprint with proper template parameter
-		FBlueprintEditorUtils::AddFunctionGraph<UClass>(WidgetBlueprint, FuncGraph, false, nullptr);
+	// Add the function to the blueprint with proper template parameter
+	FBlueprintEditorUtils::AddFunctionGraph<UClass>(WidgetBlueprint, FuncGraph, false, nullptr);
 
-		// Create entry node
-		UK2Node_FunctionEntry* EntryNode = nullptr;
-		// When a new function graph is added via AddFunctionGraph, Unreal automatically creates
-		// a UK2Node_FunctionEntry for us. Creating another one leads to duplicate entry nodes
-		// and compile errors ("Expected only one function entry node in graph").  We therefore
-		// locate the auto-generated entry node and reuse it instead of adding a second one.
-		for (UEdGraphNode* Node : FuncGraph->Nodes)
-		{
-		    EntryNode = Cast<UK2Node_FunctionEntry>(Node);
-		    if (EntryNode)
-		    {
-		        break;
-		    }
-		}
-		if (!EntryNode)
-		{
-		    // Fallback: create only if somehow missing (should not normally happen)
-		    EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
-		    FuncGraph->AddNode(EntryNode, false, false);
-		    EntryNode->NodePosX = 0;
-		    EntryNode->NodePosY = 0;
-		    EntryNode->FunctionReference.SetExternalMember(FName(*FunctionName), WidgetBlueprint->GeneratedClass);
-		    EntryNode->AllocateDefaultPins();
-		}
+	// Create entry node
+	UK2Node_FunctionEntry* EntryNode = nullptr;
+	// When a new function graph is added via AddFunctionGraph, Unreal automatically creates
+	// a UK2Node_FunctionEntry for us. Creating another one leads to duplicate entry nodes
+	// and compile errors ("Expected only one function entry node in graph").  We therefore
+	// locate the auto-generated entry node and reuse it instead of adding a second one.
+	for (UEdGraphNode* Node : FuncGraph->Nodes)
+	{
+	    EntryNode = Cast<UK2Node_FunctionEntry>(Node);
+	    if (EntryNode)
+	    {
+	        break;
+	    }
+	}
+	if (!EntryNode)
+	{
+	    // Fallback: create only if somehow missing (should not normally happen)
+	    EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
+	    FuncGraph->AddNode(EntryNode, false, false);
+	    EntryNode->NodePosX = 0;
+	    EntryNode->NodePosY = 0;
+	    EntryNode->FunctionReference.SetExternalMember(FName(*FunctionName), WidgetBlueprint->GeneratedClass);
+	    EntryNode->AllocateDefaultPins();
+	}
+
+	// Make sure the function is marked as BlueprintCallable
+	if (EntryNode)
+	{
+		EntryNode->SetExtraFlags(FUNC_BlueprintCallable | FUNC_BlueprintEvent);
+		EntryNode->MetaData.SetMetaData(FBlueprintMetadata::MD_CallInEditor, FString(TEXT("true")));
+	}
 
 		// Create get variable node that fetches the bound property
 		UK2Node_VariableGet* GetVarNode = NewObject<UK2Node_VariableGet>(FuncGraph);
