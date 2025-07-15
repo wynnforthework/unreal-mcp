@@ -11,7 +11,7 @@ Located in the Python/ directory
 Handles MCP protocol communication
 Provides tool modules for AI assistants
 Various tools for Unreal Engine development like: blueprint_action_mcp_server.py, datatable_mcp_server.py, etc.
-Unreal Engine Plugin
+Unreal Engine Plugin is working with Unreal Engine 5.6 version
 Located in MCPGameProject/Plugins/UnrealMCP/
 Native C++ implementation within Unreal Engine
 Executes commands received from the Python server
