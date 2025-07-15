@@ -119,21 +119,6 @@ def add_function_node(
         
     return send_unreal_command("add_blueprint_function_node", command_params)
 
-def add_self_reference(
-    ctx: Context,
-    blueprint_name: str,
-    node_position: List[float] = None
-) -> Dict[str, Any]:
-    """Implementation for adding a 'Get Self' node to a Blueprint's event graph."""
-    params = {
-        "blueprint_name": blueprint_name
-    }
-    
-    if node_position is not None:
-        params["node_position"] = node_position
-        
-    raise RuntimeError("add_blueprint_self_reference MCP command has been removed.")
-
 def find_nodes(
     ctx: Context,
     blueprint_name: str,

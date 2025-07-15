@@ -68,10 +68,6 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleCommand(const FSt
     {
         return HandleAddBlueprintInputActionNode(Params);
     }
-    else if (CommandType == TEXT("add_blueprint_self_reference"))
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("add_blueprint_self_reference command removed. Use create_node_by_action_name with 'Get Self'."));
-    }
     else if (CommandType == TEXT("find_blueprint_nodes"))
     {
         return HandleFindBlueprintNodes(Params);
