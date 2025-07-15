@@ -123,7 +123,8 @@ def find_nodes(
     ctx: Context,
     blueprint_name: str,
     node_type: str = None,
-    event_type: str = None
+    event_type: str = None,
+    target_graph: str = None
 ) -> Dict[str, Any]:
     """Implementation for finding nodes in a Blueprint's event graph."""
     params = {
@@ -133,6 +134,9 @@ def find_nodes(
     
     if event_type is not None:
         params["event_name"] = event_type
+        
+    if target_graph is not None:
+        params["target_graph"] = target_graph
         
     return send_unreal_command("find_blueprint_nodes", params)
 

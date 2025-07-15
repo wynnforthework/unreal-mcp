@@ -851,7 +851,8 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 				
 				GetVarOutPin->BreakAllPinLinks();
 				ResultReturnPin->BreakAllPinLinks();
-				bool bConnected = GetVarOutPin->MakeLinkTo(ResultReturnPin);
+				GetVarOutPin->MakeLinkTo(ResultReturnPin);
+				bool bConnected = GetVarOutPin->LinkedTo.Contains(ResultReturnPin);
 				
 				UE_LOG(LogTemp, Warning, TEXT("Connection result: %s"), bConnected ? TEXT("SUCCESS") : TEXT("FAILED"));
 			}
