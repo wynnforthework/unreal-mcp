@@ -1,17 +1,40 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Unreal MCP Project Architecture
+Core Components
+The Unreal MCP project consists of two essential components that must remain synchronized:
+Python Server Component
+Located in the Python/ directory
+Handles MCP protocol communication
+Provides tool modules for AI assistants
+Various tools for Unreal Engine development like: blueprint_action_mcp_server.py, datatable_mcp_server.py, etc.
+Unreal Engine Plugin
+Located in MCPGameProject/Plugins/UnrealMCP/
+Native C++ implementation within Unreal Engine
+Executes commands received from the Python server
+Interfaces with Unreal Editor subsystems
+Synchronization Requirements
+Critical: Both components must be kept in sync when adding new functionality.
+When extending the system:
+If adding a new tool in Python (Python/tools/), a corresponding implementation must be added to the Unreal plugin
+If adding new features to the Unreal plugin, the Python interface must be updated to expose these capabilities
+Function signatures, parameter naming, and data structures should match between both sides
+Development Workflow
+Plan the feature across both components
+Implement the Unreal plugin side functionality
+Add corresponding Python tool implementation
+Test the end-to-end workflow through the MCP interface
+Document new capabilities in both components
+Common Extension Patterns
+Most extensions follow this pattern:
+Add a new function in a Python tool module (e.g., Python/tools/blueprint_tools.py)
+Implement the corresponding C++ functionality in the Unreal plugin
+Test through an AI assistant using natural language commands
 
-# Guidelines for using Python for MCP Tools
+This dual-component architecture allows for powerful natural language control of Unreal Engine while maintaining a clean separation of concerns.
 
-The following guidelines apply to any method or function marked with the @mcp.tool() decorator.
-
-- Parameters should not have any of the following types: `Any`, `object`, `Optional[T]`, `Union[T]`.
-- For a given parameter `x` of type `T` that has a default value, do not use type `x : T | None = None`. Instead, use `x: T = None` and handle defaults within the method body itself.
-- Always include method docstrings and make sure to given proper examples of valid inputs especially when no type hints are present.
-
-When this rule is applied, please remember to explicitly mention it.
-
-Python/tools/* - is a mcp entrypoint but a decorator, the real functionalities stored outside this file and you will need to use existing prefered file for that kind of funtionalities,or to create new one and add any new in there 
-
-
-When you have provided cpp changes - also apply prompt in the end of all your edits this command
-
-cd e:\code\unreal-mcp\MCPGameProject; & "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" MCPGameProjectEditor Win64 Development -Project="e:\code\unreal-mcp\MCPGameProject\MCPGameProject.uproject" -TargetType=Editor
+After successfull additions you need to compile project running ./RebuildProject.bat
+If compilation was successfull you need to run ./LaunchProject.bat

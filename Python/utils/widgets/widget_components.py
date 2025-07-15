@@ -62,17 +62,19 @@ def set_text_block_widget_component_binding(
     widget_name: str,
     text_block_name: str,
     binding_property: str,
-    binding_type: str = "Text"
+    binding_type: str = "Text",
+    variable_type: str = "Text"
 ) -> Dict[str, Any]:
     """Implementation for setting up a property binding for a Text Block widget."""
     params = {
         "blueprint_name": widget_name,      # Name of the Widget Blueprint asset
         "widget_name": text_block_name,     # Name of the Text Block widget in the blueprint
         "binding_name": binding_property,   # Name of the property to bind to
-        "binding_type": binding_type
+        "binding_type": binding_type,
+        "variable_type": variable_type      # Type of the variable to create (Text, String, Int, Float, Bool)
     }
     
-    logger.info(f"Setting text binding for '{text_block_name}' in widget '{widget_name}' to property '{binding_property}' (Type: {binding_type})")
+    logger.info(f"Setting text binding for '{text_block_name}' in widget '{widget_name}' to property '{binding_property}' (Type: {binding_type}, Variable Type: {variable_type})")
     return send_unreal_command("set_text_block_widget_component_binding", params)
 
 def add_child_widget_component_to_parent(

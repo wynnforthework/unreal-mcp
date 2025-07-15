@@ -596,6 +596,13 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 		return Response;
 	}
 
+	// Get optional variable type parameter (default to Text)
+	FString VariableType;
+	if (!Params->TryGetStringField(TEXT("variable_type"), VariableType))
+	{
+		VariableType = TEXT("Text");
+	}
+
 	// Load the Widget Blueprint using our helper function
 	UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
 	if (!WidgetBlueprint)
@@ -605,11 +612,54 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 	}
 
 	// Create a variable for binding if it doesn't exist
-	FBlueprintEditorUtils::AddMemberVariable(
-		WidgetBlueprint,
-		FName(*BindingName),
-		FEdGraphPinType(UEdGraphSchema_K2::PC_Text, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType())
-	);
+	// Check if the variable already exists
+	bool bVariableExists = false;
+	for (FBPVariableDescription& Variable : WidgetBlueprint->NewVariables)
+	{
+		if (Variable.VarName == FName(*BindingName))
+		{
+			bVariableExists = true;
+			break;
+		}
+	}
+	
+	// Only create the variable if it doesn't exist
+	if (!bVariableExists)
+	{
+		// Determine the pin type based on the variable type parameter
+		FEdGraphPinType PinType;
+		if (VariableType == TEXT("Text"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Text, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else if (VariableType == TEXT("String"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_String, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else if (VariableType == TEXT("Int") || VariableType == TEXT("Integer"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Int, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else if (VariableType == TEXT("Float"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Real, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else if (VariableType == TEXT("Boolean") || VariableType == TEXT("Bool"))
+		{
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Boolean, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+		else
+		{
+			// Default to Text if type is not recognized
+			PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Text, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+		}
+
+		FBlueprintEditorUtils::AddMemberVariable(
+			WidgetBlueprint,
+			FName(*BindingName),
+			PinType
+		);
+	}
 
 	// Find the TextBlock widget
 	UTextBlock* TextBlock = Cast<UTextBlock>(WidgetBlueprint->WidgetTree->FindWidget(FName(*WidgetName)));
@@ -651,7 +701,6 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 	if (FuncGraph)
 	{
 		// Add the function to the blueprint with proper template parameter
-		// Template requires null for last parameter when not using a signature-source
 		FBlueprintEditorUtils::AddFunctionGraph<UClass>(WidgetBlueprint, FuncGraph, false, nullptr);
 
 		// Create entry node
@@ -692,16 +741,56 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 		FuncGraph->AddNode(ResultNode, false, false);
 		ResultNode->NodePosX = 400;
 		ResultNode->NodePosY = 0;
-		// Allocate pins; this will create a ReturnValue pin we can wire
-		ResultNode->AllocateDefaultPins();
-
-		// Link variable output to function return pin
-		UEdGraphPin* GetVarOutPin = GetVarNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue);
-		UEdGraphPin* ResultReturnPin = ResultNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue);
-		if (GetVarOutPin && ResultReturnPin)
+		
+		// Clear any existing user defined pins to avoid duplicates
+		ResultNode->UserDefinedPins.Empty();
+		
+		// Determine the correct pin type based on variable type
+		FEdGraphPinType ReturnPinType;
+		if (VariableType == TEXT("Text"))
 		{
-			GetVarOutPin->MakeLinkTo(ResultReturnPin);
+			ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
 		}
+		else if (VariableType == TEXT("String"))
+		{
+			ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_String;
+		}
+		else if (VariableType == TEXT("Int") || VariableType == TEXT("Integer"))
+		{
+			ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+		}
+		else if (VariableType == TEXT("Float"))
+		{
+			ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+			ReturnPinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
+		}
+		else if (VariableType == TEXT("Boolean") || VariableType == TEXT("Bool"))
+		{
+			ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+		}
+		else
+		{
+			// Default to Text for unknown types
+			ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
+		}
+		
+		// Add return value output parameter to function result using UserDefinedPins
+		ResultNode->UserDefinedPins.Add(MakeShared<FUserPinInfo>());
+		FUserPinInfo& ReturnPin = *ResultNode->UserDefinedPins.Last();
+		ReturnPin.PinName = UEdGraphSchema_K2::PN_ReturnValue;
+		ReturnPin.PinType = ReturnPinType;
+		ReturnPin.DesiredPinDirection = EGPD_Input; // Result node inputs are function outputs
+		
+		// Allocate pins for result node after adding the return value
+		ResultNode->AllocateDefaultPins();
+		
+		// Reconstruct nodes first
+		EntryNode->ReconstructNode();
+		GetVarNode->ReconstructNode();
+		ResultNode->ReconstructNode();
+		
+		// Mark the graph as modified
+		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WidgetBlueprint);
 	}
 
 	// Save the Widget Blueprint
@@ -709,8 +798,96 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
 	FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
 	UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
 
+	// NOW DO THE FUCKING CONNECTIONS AT THE END
+	if (FuncGraph)
+	{
+		// Find all nodes again after everything is set up
+		UK2Node_FunctionEntry* FinalEntryNode = nullptr;
+		UK2Node_VariableGet* FinalGetVarNode = nullptr;
+		UK2Node_FunctionResult* FinalResultNode = nullptr;
+		
+		for (UEdGraphNode* Node : FuncGraph->Nodes)
+		{
+			if (UK2Node_FunctionEntry* Entry = Cast<UK2Node_FunctionEntry>(Node))
+			{
+				FinalEntryNode = Entry;
+			}
+			else if (UK2Node_VariableGet* GetVar = Cast<UK2Node_VariableGet>(Node))
+			{
+				if (GetVar->VariableReference.GetMemberName() == FName(*BindingName))
+				{
+					FinalGetVarNode = GetVar;
+				}
+			}
+			else if (UK2Node_FunctionResult* Result = Cast<UK2Node_FunctionResult>(Node))
+			{
+				FinalResultNode = Result;
+			}
+		}
+		
+		// Now connect the pins
+		if (FinalGetVarNode && FinalResultNode)
+		{
+			// For variable get nodes, the output pin is typically named with the variable name
+			UEdGraphPin* GetVarOutPin = nullptr;
+			
+			// Try to find the output pin - it should be the one with direction EGPD_Output
+			for (UEdGraphPin* Pin : FinalGetVarNode->Pins)
+			{
+				if (Pin && Pin->Direction == EGPD_Output && Pin->PinType.PinCategory != UEdGraphSchema_K2::PC_Exec)
+				{
+					GetVarOutPin = Pin;
+					UE_LOG(LogTemp, Warning, TEXT("Found Variable Get output pin: %s"), *Pin->PinName.ToString());
+					break;
+				}
+			}
+			
+			UEdGraphPin* ResultReturnPin = FinalResultNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue);
+			
+			if (GetVarOutPin && ResultReturnPin)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Connecting Variable Get pin '%s' to Result pin '%s'"), 
+					*GetVarOutPin->PinName.ToString(), *ResultReturnPin->PinName.ToString());
+				
+				GetVarOutPin->BreakAllPinLinks();
+				ResultReturnPin->BreakAllPinLinks();
+				bool bConnected = GetVarOutPin->MakeLinkTo(ResultReturnPin);
+				
+				UE_LOG(LogTemp, Warning, TEXT("Connection result: %s"), bConnected ? TEXT("SUCCESS") : TEXT("FAILED"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Missing pins - GetVarOutPin: %s, ResultReturnPin: %s"), 
+					GetVarOutPin ? TEXT("Found") : TEXT("NULL"), 
+					ResultReturnPin ? TEXT("Found") : TEXT("NULL"));
+			}
+		}
+		
+		// Connect execution pins
+		if (FinalEntryNode && FinalResultNode)
+		{
+			UEdGraphPin* EntryExecPin = FinalEntryNode->FindPin(UEdGraphSchema_K2::PN_Then);
+			UEdGraphPin* ResultExecPin = FinalResultNode->FindPin(UEdGraphSchema_K2::PN_Execute);
+			
+			if (EntryExecPin && ResultExecPin)
+			{
+				EntryExecPin->BreakAllPinLinks();
+				ResultExecPin->BreakAllPinLinks();
+				EntryExecPin->MakeLinkTo(ResultExecPin);
+			}
+		}
+		
+		// Final mark as modified
+		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WidgetBlueprint);
+	}
+
 	Response->SetBoolField(TEXT("success"), true);
 	Response->SetStringField(TEXT("binding_name"), BindingName);
+	Response->SetStringField(TEXT("variable_type"), VariableType);
+	Response->SetStringField(TEXT("function_name"), FunctionName);
+	Response->SetStringField(TEXT("widget_name"), WidgetName);
+	Response->SetBoolField(TEXT("variable_created"), !bVariableExists);
+	Response->SetStringField(TEXT("message"), TEXT("Text block binding created successfully with proper pin connections"));
 	return Response;
 }
 
