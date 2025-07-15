@@ -12,7 +12,6 @@ from utils.nodes.node_operations import (
     add_input_action_node as add_input_action_node_impl,
     # add_function_node as add_function_node_impl,  # REMOVED: Use create_node_by_action_name instead
     connect_nodes_impl,
-    add_self_reference as add_self_reference_impl,
     find_nodes as find_nodes_impl,
     get_variable_info_impl
 )
@@ -128,8 +127,6 @@ def register_blueprint_node_tools(mcp: FastMCP):
                 "success": False,
                 "message": f"Failed to connect nodes: {str(e)}"
             }
-
-    # add_blueprint_self_reference removed – use create_node_by_action_name("Get Self") instead.
 
     @mcp.tool()
     def find_blueprint_nodes(

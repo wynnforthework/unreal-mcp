@@ -138,52 +138,6 @@ Create an input mapping for the project.
 }
 ```
 
-### add_blueprint_get_self_component_reference
-
-Add a node that gets a reference to a component owned by the current Blueprint.
-
-**Parameters:**
-- `blueprint_name` (string) - Name of the target Blueprint
-- `component_name` (string) - Name of the component to get a reference to
-- `node_position` (array, optional) - [X, Y] position in the graph (default: [0, 0])
-
-**Returns:**
-- Response containing the node ID and success status
-
-**Example:**
-```json
-{
-  "command": "add_blueprint_get_self_component_reference",
-  "params": {
-    "blueprint_name": "MyActor",
-    "component_name": "Mesh",
-    "node_position": [400, 400]
-  }
-}
-```
-
-### add_blueprint_self_reference
-
-Add a 'Get Self' node to a Blueprint's event graph.
-
-**Parameters:**
-- `blueprint_name` (string) - Name of the target Blueprint
-- `node_position` (array, optional) - [X, Y] position in the graph (default: [0, 0])
-
-**Returns:**
-- Response containing the node ID and success status
-
-**Example:**
-```json
-{
-  "command": "add_blueprint_self_reference",
-  "params": {
-    "blueprint_name": "MyActor",
-    "node_position": [500, 500]
-  }
-}
-```
-
 ### find_blueprint_nodes
 
 Find nodes in a Blueprint's event graph.
