@@ -1519,6 +1519,13 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
         NodeType = TEXT("All"); // Default to finding all nodes
     }
 
+    // Get optional target_graph parameter - DEFAULT to EventGraph if not specified
+    FString TargetGraphName;
+    if (!Params->TryGetStringField(TEXT("target_graph"), TargetGraphName) || TargetGraphName.IsEmpty())
+    {
+        TargetGraphName = TEXT("EventGraph"); // Default to EventGraph for backward compatibility
+    }
+
     // Find the blueprint
     UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
     if (!Blueprint)
@@ -1526,18 +1533,60 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
         return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
     }
 
-    // Get the event graph
-    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
-    if (!EventGraph)
+    // Find the specific target graph - NO fallback to search all graphs
+    UEdGraph* TargetGraph = nullptr;
+    
+    UE_LOG(LogTemp, Display, TEXT("Looking for specific graph: %s"), *TargetGraphName);
+    
+    // First search function graphs
+    for (UEdGraph* Graph : Blueprint->FunctionGraphs)
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
+        if (Graph)
+        {
+            UE_LOG(LogTemp, Display, TEXT("Checking function graph: %s"), *Graph->GetName());
+            if (Graph->GetName().Equals(TargetGraphName, ESearchCase::IgnoreCase))
+            {
+                TargetGraph = Graph;
+                UE_LOG(LogTemp, Display, TEXT("Found target graph in function graphs: %s"), *Graph->GetName());
+                break;
+            }
+        }
     }
+    
+    // If not found in function graphs, search all graphs but only for the specific name
+    if (!TargetGraph)
+    {
+        TArray<UEdGraph*> AllGraphs;
+        Blueprint->GetAllGraphs(AllGraphs);
+        UE_LOG(LogTemp, Display, TEXT("Target graph not found in function graphs, searching all %d graphs"), AllGraphs.Num());
+        for (UEdGraph* Graph : AllGraphs)
+        {
+            if (Graph)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Checking graph: %s"), *Graph->GetName());
+                if (Graph->GetName().Equals(TargetGraphName, ESearchCase::IgnoreCase))
+                {
+                    TargetGraph = Graph;
+                    UE_LOG(LogTemp, Display, TEXT("Found target graph in all graphs: %s"), *Graph->GetName());
+                    break;
+                }
+            }
+        }
+    }
+    
+    // If still not found, return error - NO fallback to all graphs
+    if (!TargetGraph)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Target graph not found: %s"), *TargetGraphName));
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("Added target graph to search list: %s"), *TargetGraph->GetName());
 
     // Create a JSON array for detailed node information
     TArray<TSharedPtr<FJsonValue>> NodesArray;
     
-    UE_LOG(LogTemp, Display, TEXT("Searching for nodes of type '%s' in blueprint '%s'"), *NodeType, *BlueprintName);
-    UE_LOG(LogTemp, Display, TEXT("Total nodes in graph: %d"), EventGraph->Nodes.Num());
+    UE_LOG(LogTemp, Display, TEXT("Searching for nodes of type '%s' in blueprint '%s', graph '%s'"), *NodeType, *BlueprintName, *TargetGraph->GetName());
+    UE_LOG(LogTemp, Display, TEXT("Total nodes in graph '%s': %d"), *TargetGraph->GetName(), TargetGraph->Nodes.Num());
     
     // Helper function to create detailed node info
     auto CreateNodeInfo = [](UEdGraphNode* Node) -> TSharedPtr<FJsonObject> {
@@ -1576,7 +1625,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
         return NodeInfo;
     };
     
-    // Filter nodes by the requested type
+    // Filter nodes by the requested type in the single target graph
     if (NodeType.Equals(TEXT("Event"), ESearchCase::IgnoreCase))
     {
         // Get optional event_name parameter for specific event filtering
@@ -1586,8 +1635,8 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
         UE_LOG(LogTemp, Display, TEXT("Looking for Event nodes%s"), 
                bHasSpecificEvent ? *FString::Printf(TEXT(" with name '%s'"), *EventName) : TEXT(" (all events)"));
         
-        // Look for event nodes
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        // Look for event nodes in the target graph
+        for (UEdGraphNode* Node : TargetGraph->Nodes)
         {
             UK2Node_Event* EventNode = Cast<UK2Node_Event>(Node);
             if (EventNode)
@@ -1615,8 +1664,8 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
     }
     else if (NodeType.Equals(TEXT("Function"), ESearchCase::IgnoreCase))
     {
-        // Look for function call nodes
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        // Look for function call nodes in the target graph
+        for (UEdGraphNode* Node : TargetGraph->Nodes)
         {
             UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(Node);
             if (FunctionNode)
@@ -1628,8 +1677,8 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
     }
     else if (NodeType.Equals(TEXT("Variable"), ESearchCase::IgnoreCase))
     {
-        // Look for variable nodes (get/set)
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        // Look for variable nodes (get/set) in the target graph
+        for (UEdGraphNode* Node : TargetGraph->Nodes)
         {
             UK2Node_VariableGet* VarGetNode = Cast<UK2Node_VariableGet>(Node);
             if (VarGetNode)
@@ -1649,22 +1698,23 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
     }
     else if (NodeType.Equals(TEXT("All"), ESearchCase::IgnoreCase))
     {
-        // Return all nodes with detailed information
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        // Return all nodes with detailed information from the target graph
+        for (UEdGraphNode* Node : TargetGraph->Nodes)
         {
             if (Node)
             {
-                UE_LOG(LogTemp, Display, TEXT("Found node: %s (Type: %s)"), 
+                UE_LOG(LogTemp, Display, TEXT("Found node: %s (Type: %s) in graph: %s"), 
                        *Node->NodeGuid.ToString(), 
-                       *Node->GetClass()->GetName());
+                       *Node->GetClass()->GetName(),
+                       *TargetGraph->GetName());
                 NodesArray.Add(MakeShared<FJsonValueObject>(CreateNodeInfo(Node)));
             }
         }
     }
     else if (NodeType.Equals(TEXT("BreakStruct"), ESearchCase::IgnoreCase) || NodeType.Equals(TEXT("UK2Node_BreakStruct"), ESearchCase::IgnoreCase))
     {
-        // Explicitly find all Break Struct nodes
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        // Explicitly find all Break Struct nodes in the target graph
+        for (UEdGraphNode* Node : TargetGraph->Nodes)
         {
             UK2Node_BreakStruct* BreakStructNode = Cast<UK2Node_BreakStruct>(Node);
             if (BreakStructNode)
@@ -1677,8 +1727,8 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNode
     else
     {
         UE_LOG(LogTemp, Warning, TEXT("Unsupported node type: %s"), *NodeType);
-        // For unsupported types, we'll still search by class name
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        // For unsupported types, we'll still search by class name in the target graph
+        for (UEdGraphNode* Node : TargetGraph->Nodes)
         {
             if (Node && Node->GetClass()->GetName().Contains(NodeType))
             {

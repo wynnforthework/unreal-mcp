@@ -133,7 +133,8 @@ def register_blueprint_node_tools(mcp: FastMCP):
         ctx: Context,
         blueprint_name: str,
         node_type: str = None,
-        event_type: str = None
+        event_type: str = None,
+        target_graph: str = None
     ) -> Dict[str, Any]:
         """
         Find nodes in a Blueprint's event graph.
@@ -142,13 +143,14 @@ def register_blueprint_node_tools(mcp: FastMCP):
             blueprint_name: Name of the target Blueprint
             node_type: Optional type of node to find (Event, Function, Variable, etc.)
             event_type: Optional specific event type to find (BeginPlay, Tick, etc.)
+            target_graph: Optional specific graph to search in (e.g. "EventGraph", "UpdateDialogueText")
             
         Returns:
             Response containing array of found node IDs and success status
         """
         try:
             return find_nodes_impl(
-                ctx, blueprint_name, node_type, event_type
+                ctx, blueprint_name, node_type, event_type, target_graph
             )
         except Exception as e:
             logger.error(f"Error finding nodes: {e}")
