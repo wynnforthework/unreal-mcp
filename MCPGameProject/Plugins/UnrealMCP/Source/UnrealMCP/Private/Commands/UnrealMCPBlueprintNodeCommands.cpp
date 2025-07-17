@@ -876,7 +876,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
                             // - Non-actor classes must start with 'U' (e.g., UObject)
                             const FString& ClassName = StringVal;
                             
-                            // TODO: This likely won't work in UE5.5+, so don't rely on it.
+                            // Note: Direct class loading may have compatibility issues in future UE versions
                             UClass* Class = LoadObject<UClass>(nullptr, *ClassName);
 
                             if (!Class)

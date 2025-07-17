@@ -1,4 +1,5 @@
 #include "Commands/UnrealMCPBlueprintCommands.h"
+#include "Commands/UnrealMCPMainDispatcher.h"
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
@@ -45,64 +46,8 @@ FUnrealMCPBlueprintCommands::FUnrealMCPBlueprintCommands()
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCommand(const FString& CommandType, const TSharedPtr<FJsonObject>& Params)
 {
-    if (CommandType == TEXT("create_blueprint"))
-    {
-        return HandleCreateBlueprint(Params);
-    }
-    else if (CommandType == TEXT("add_component_to_blueprint"))
-    {
-        return HandleAddComponentToBlueprint(Params);
-    }
-    else if (CommandType == TEXT("set_component_property"))
-    {
-        return HandleSetComponentProperty(Params);
-    }
-    else if (CommandType == TEXT("set_physics_properties"))
-    {
-        return HandleSetPhysicsProperties(Params);
-    }
-    else if (CommandType == TEXT("compile_blueprint"))
-    {
-        return HandleCompileBlueprint(Params);
-    }
-    else if (CommandType == TEXT("spawn_blueprint_actor"))
-    {
-        return HandleSpawnBlueprintActor(Params);
-    }
-    else if (CommandType == TEXT("set_blueprint_property"))
-    {
-        return HandleSetBlueprintProperty(Params);
-    }
-    else if (CommandType == TEXT("set_static_mesh_properties"))
-    {
-        return HandleSetStaticMeshProperties(Params);
-    }
-    else if (CommandType == TEXT("set_pawn_properties"))
-    {
-        return HandleSetPawnProperties(Params);
-    }
-    else if (CommandType == TEXT("call_function_by_name"))
-    {
-        return HandleCallFunctionByName(Params);
-    }
-    else if (CommandType == TEXT("add_interface_to_blueprint"))
-    {
-        return HandleAddInterfaceToBlueprint(Params);
-    }
-    else if (CommandType == TEXT("create_blueprint_interface"))
-    {
-        return HandleCreateBlueprintInterface(Params);
-    }
-    else if (CommandType == TEXT("list_blueprint_components"))
-    {
-        return HandleListBlueprintComponents(Params);
-    }
-    else if (CommandType == TEXT("create_custom_blueprint_function"))
-    {
-        return HandleCreateCustomBlueprintFunction(Params);
-    }
-    
-    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint command: %s"), *CommandType));
+    // Delegate to the new main dispatcher for registered commands
+    return FUnrealMCPMainDispatcher::Get().HandleCommand(CommandType, Params);
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const TSharedPtr<FJsonObject>& Params)
