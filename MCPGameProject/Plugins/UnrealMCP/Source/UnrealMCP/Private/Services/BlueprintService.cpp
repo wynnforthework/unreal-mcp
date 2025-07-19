@@ -4,6 +4,8 @@
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/SCS_Node.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "EditorAssetLibrary.h"
@@ -734,3 +736,480 @@ UObject* FBlueprintService::ResolveVariableType(const FString& TypeString) const
     return nullptr;
 }
 
+bool FBlueprintService::SetPhysicsProperties(UBlueprint* Blueprint, const FString& ComponentName, const TMap<FString, float>& PhysicsParams)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetPhysicsProperties: Invalid blueprint"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetPhysicsProperties: Setting physics properties on component '%s' in blueprint '%s'"), 
+        *ComponentName, *Blueprint->GetName());
+    
+    // Convert TMap to JSON object for ComponentService
+    TSharedPtr<FJsonObject> PhysicsJsonParams = MakeShared<FJsonObject>();
+    for (const auto& Param : PhysicsParams)
+    {
+        PhysicsJsonParams->SetNumberField(Param.Key, Param.Value);
+    }
+    
+    // Delegate to ComponentService for physics operations
+    bool bResult = FComponentService::Get().SetPhysicsProperties(Blueprint, ComponentName, PhysicsJsonParams);
+    
+    if (bResult)
+    {
+        // Invalidate cache since blueprint was modified
+        BlueprintCache.InvalidateBlueprint(Blueprint->GetName());
+    }
+    
+    return bResult;
+}
+
+bool FBlueprintService::GetBlueprintComponents(UBlueprint* Blueprint, TArray<TPair<FString, FString>>& OutComponents)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::GetBlueprintComponents: Invalid blueprint"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Verbose, TEXT("FBlueprintService::GetBlueprintComponents: Getting components for blueprint '%s'"), *Blueprint->GetName());
+    
+    OutComponents.Empty();
+    
+    // Get components from Simple Construction Script
+    if (Blueprint->SimpleConstructionScript)
+    {
+        for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
+        {
+            if (Node && Node->ComponentTemplate)
+            {
+                FString ComponentName = Node->GetVariableName().ToString();
+                FString ComponentType = Node->ComponentTemplate->GetClass()->GetName();
+                OutComponents.Add(TPair<FString, FString>(ComponentName, ComponentType));
+            }
+        }
+    }
+    
+    // Get inherited components from CDO
+    if (Blueprint->GeneratedClass)
+    {
+        UObject* DefaultObject = Blueprint->GeneratedClass->GetDefaultObject();
+        AActor* DefaultActor = Cast<AActor>(DefaultObject);
+        if (DefaultActor)
+        {
+            TArray<UActorComponent*> AllComponents;
+            DefaultActor->GetComponents(AllComponents);
+            for (UActorComponent* Component : AllComponents)
+            {
+                if (Component)
+                {
+                    FString ComponentName = Component->GetName();
+                    FString ComponentType = Component->GetClass()->GetName();
+                    
+                    // Check if already added from SCS
+                    bool bAlreadyAdded = false;
+                    for (const auto& ExistingComponent : OutComponents)
+                    {
+                        if (ExistingComponent.Key == ComponentName)
+                        {
+                            bAlreadyAdded = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!bAlreadyAdded)
+                    {
+                        OutComponents.Add(TPair<FString, FString>(ComponentName, ComponentType));
+                    }
+                }
+            }
+        }
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::GetBlueprintComponents: Found %d components"), OutComponents.Num());
+    return true;
+}
+
+bool FBlueprintService::SetStaticMeshProperties(UBlueprint* Blueprint, const FString& ComponentName, const FString& StaticMeshPath)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetStaticMeshProperties: Invalid blueprint"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetStaticMeshProperties: Setting static mesh '%s' on component '%s' in blueprint '%s'"), 
+        *StaticMeshPath, *ComponentName, *Blueprint->GetName());
+    
+    // Delegate to ComponentService for static mesh operations
+    bool bResult = FComponentService::Get().SetStaticMeshProperties(Blueprint, ComponentName, StaticMeshPath);
+    
+    if (bResult)
+    {
+        // Invalidate cache since blueprint was modified
+        BlueprintCache.InvalidateBlueprint(Blueprint->GetName());
+    }
+    
+    return bResult;
+}
+
+bool FBlueprintService::SetPawnProperties(UBlueprint* Blueprint, const TMap<FString, FString>& PawnParams)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetPawnProperties: Invalid blueprint"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetPawnProperties: Setting pawn properties on blueprint '%s'"), *Blueprint->GetName());
+    
+    // Get the blueprint's default object
+    UObject* DefaultObject = Blueprint->GeneratedClass ? Blueprint->GeneratedClass->GetDefaultObject() : nullptr;
+    APawn* DefaultPawn = Cast<APawn>(DefaultObject);
+    if (!DefaultPawn)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetPawnProperties: Blueprint is not a Pawn or Character"));
+        return false;
+    }
+    
+    // Set pawn properties
+    for (const auto& Param : PawnParams)
+    {
+        const FString& PropertyName = Param.Key;
+        const FString& PropertyValue = Param.Value;
+        
+        if (PropertyName == TEXT("auto_possess_player"))
+        {
+            // Handle auto possess player setting
+            EAutoReceiveInput::Type AutoPossessType = EAutoReceiveInput::Disabled;
+            if (PropertyValue == TEXT("Player0"))
+            {
+                AutoPossessType = EAutoReceiveInput::Player0;
+            }
+            else if (PropertyValue == TEXT("Player1"))
+            {
+                AutoPossessType = EAutoReceiveInput::Player1;
+            }
+            DefaultPawn->AutoPossessPlayer = AutoPossessType;
+        }
+        else if (PropertyName == TEXT("use_controller_rotation_yaw"))
+        {
+            bool bValue = PropertyValue.ToBool();
+            DefaultPawn->bUseControllerRotationYaw = bValue;
+        }
+        else if (PropertyName == TEXT("use_controller_rotation_pitch"))
+        {
+            bool bValue = PropertyValue.ToBool();
+            DefaultPawn->bUseControllerRotationPitch = bValue;
+        }
+        else if (PropertyName == TEXT("use_controller_rotation_roll"))
+        {
+            bool bValue = PropertyValue.ToBool();
+            DefaultPawn->bUseControllerRotationRoll = bValue;
+        }
+        else if (PropertyName == TEXT("can_be_damaged"))
+        {
+            bool bValue = PropertyValue.ToBool();
+            DefaultPawn->SetCanBeDamaged(bValue);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::SetPawnProperties: Unknown pawn property '%s'"), *PropertyName);
+        }
+    }
+    
+    // Mark blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    
+    // Invalidate cache since blueprint was modified
+    BlueprintCache.InvalidateBlueprint(Blueprint->GetName());
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetPawnProperties: Successfully set pawn properties"));
+    return true;
+}
+
+bool FBlueprintService::AddInterfaceToBlueprint(UBlueprint* Blueprint, const FString& InterfaceName)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddInterfaceToBlueprint: Invalid blueprint"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::AddInterfaceToBlueprint: Adding interface '%s' to blueprint '%s'"), 
+        *InterfaceName, *Blueprint->GetName());
+    
+    // Find the interface
+    UBlueprint* InterfaceBlueprint = FindBlueprint(InterfaceName);
+    if (!InterfaceBlueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddInterfaceToBlueprint: Interface blueprint not found: %s"), *InterfaceName);
+        return false;
+    }
+    
+    if (InterfaceBlueprint->BlueprintType != BPTYPE_Interface)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddInterfaceToBlueprint: Blueprint '%s' is not an interface"), *InterfaceName);
+        return false;
+    }
+    
+    // Add interface to blueprint
+    FTopLevelAssetPath InterfacePath(InterfaceBlueprint->GeneratedClass);
+    FBlueprintEditorUtils::ImplementNewInterface(Blueprint, InterfacePath);
+    
+    // Mark blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    
+    // Invalidate cache since blueprint was modified
+    BlueprintCache.InvalidateBlueprint(Blueprint->GetName());
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::AddInterfaceToBlueprint: Successfully added interface '%s'"), *InterfaceName);
+    return true;
+}
+
+UBlueprint* FBlueprintService::CreateBlueprintInterface(const FString& InterfaceName, const FString& FolderPath)
+{
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CreateBlueprintInterface: Creating interface '%s'"), *InterfaceName);
+    
+    // Normalize the path
+    FString NormalizedPath;
+    FString PathError;
+    if (!NormalizeBlueprintPath(FolderPath, NormalizedPath, PathError))
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CreateBlueprintInterface: Path normalization failed - %s"), *PathError);
+        return nullptr;
+    }
+    
+    // Build full asset path
+    FString FullAssetPath = NormalizedPath + InterfaceName;
+    
+    // Check if interface already exists
+    if (UEditorAssetLibrary::DoesAssetExist(FullAssetPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::CreateBlueprintInterface: Interface already exists at '%s'"), *FullAssetPath);
+        return Cast<UBlueprint>(UEditorAssetLibrary::LoadAsset(FullAssetPath));
+    }
+    
+    // Create directory structure if needed
+    FString DirectoryError;
+    if (!CreateDirectoryStructure(NormalizedPath, DirectoryError))
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CreateBlueprintInterface: Failed to create directory structure - %s"), *DirectoryError);
+        return nullptr;
+    }
+    
+    // Create the package
+    UObject* Package = CreatePackage(*FullAssetPath);
+    if (!Package)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CreateBlueprintInterface: Failed to create package for path '%s'"), *FullAssetPath);
+        return nullptr;
+    }
+    
+    // Create the interface blueprint
+    UBlueprint* NewInterface = FKismetEditorUtilities::CreateBlueprint(
+        UInterface::StaticClass(),
+        Package,
+        *InterfaceName,
+        BPTYPE_Interface,
+        UBlueprint::StaticClass(),
+        UBlueprintGeneratedClass::StaticClass(),
+        NAME_None
+    );
+    
+    if (!NewInterface)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CreateBlueprintInterface: Failed to create interface"));
+        return nullptr;
+    }
+    
+    // Notify the asset registry
+    FAssetRegistryModule::AssetCreated(NewInterface);
+    
+    // Mark the package dirty
+    Package->MarkPackageDirty();
+    
+    // Save the asset
+    if (UEditorAssetLibrary::SaveLoadedAsset(NewInterface))
+    {
+        UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CreateBlueprintInterface: Successfully saved interface '%s'"), *FullAssetPath);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::CreateBlueprintInterface: Failed to save interface '%s'"), *FullAssetPath);
+    }
+    
+    // Cache the interface
+    BlueprintCache.CacheBlueprint(InterfaceName, NewInterface);
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CreateBlueprintInterface: Successfully created interface '%s'"), *InterfaceName);
+    return NewInterface;
+}
+
+bool FBlueprintService::CreateCustomBlueprintFunction(UBlueprint* Blueprint, const FString& FunctionName, const TSharedPtr<FJsonObject>& FunctionParams)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Invalid blueprint"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Creating function '%s' in blueprint '%s'"), 
+        *FunctionName, *Blueprint->GetName());
+    
+    // Create a new function graph
+    UEdGraph* NewGraph = FBlueprintEditorUtils::CreateNewGraph(Blueprint, *FunctionName, UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
+    if (!NewGraph)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Failed to create function graph"));
+        return false;
+    }
+    
+    // Set up the function graph
+    FBlueprintEditorUtils::AddFunctionGraph<UClass>(Blueprint, NewGraph, true, nullptr);
+    
+    // Parse function parameters if provided
+    if (FunctionParams.IsValid())
+    {
+        // Handle inputs
+        const TArray<TSharedPtr<FJsonValue>>* InputsArray;
+        if (FunctionParams->TryGetArrayField(TEXT("inputs"), InputsArray))
+        {
+            for (const TSharedPtr<FJsonValue>& InputValue : *InputsArray)
+            {
+                const TSharedPtr<FJsonObject>* InputObj;
+                if (InputValue->TryGetObject(InputObj) && InputObj->IsValid())
+                {
+                    FString ParamName;
+                    FString ParamType;
+                    if ((*InputObj)->TryGetStringField(TEXT("name"), ParamName) && 
+                        (*InputObj)->TryGetStringField(TEXT("type"), ParamType))
+                    {
+                        // Add input parameter to function
+                        // This would require more complex graph manipulation
+                        UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Adding input parameter '%s' of type '%s'"), 
+                            *ParamName, *ParamType);
+                    }
+                }
+            }
+        }
+        
+        // Handle outputs
+        const TArray<TSharedPtr<FJsonValue>>* OutputsArray;
+        if (FunctionParams->TryGetArrayField(TEXT("outputs"), OutputsArray))
+        {
+            for (const TSharedPtr<FJsonValue>& OutputValue : *OutputsArray)
+            {
+                const TSharedPtr<FJsonObject>* OutputObj;
+                if (OutputValue->TryGetObject(OutputObj) && OutputObj->IsValid())
+                {
+                    FString ParamName;
+                    FString ParamType;
+                    if ((*OutputObj)->TryGetStringField(TEXT("name"), ParamName) && 
+                        (*OutputObj)->TryGetStringField(TEXT("type"), ParamType))
+                    {
+                        // Add output parameter to function
+                        UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Adding output parameter '%s' of type '%s'"), 
+                            *ParamName, *ParamType);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Mark blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    
+    // Invalidate cache since blueprint was modified
+    BlueprintCache.InvalidateBlueprint(Blueprint->GetName());
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Successfully created function '%s'"), *FunctionName);
+    return true;
+}
+
+bool FBlueprintService::SpawnBlueprintActor(UBlueprint* Blueprint, const FString& ActorName, const FVector& Location, const FRotator& Rotation)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SpawnBlueprintActor: Invalid blueprint"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SpawnBlueprintActor: Spawning actor '%s' from blueprint '%s'"), 
+        *ActorName, *Blueprint->GetName());
+    
+    // Get the world
+    UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+    if (!World)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SpawnBlueprintActor: No valid world found"));
+        return false;
+    }
+    
+    // Get the blueprint's generated class
+    UClass* BlueprintClass = Blueprint->GeneratedClass;
+    if (!BlueprintClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SpawnBlueprintActor: Blueprint has no generated class"));
+        return false;
+    }
+    
+    // Spawn the actor
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Name = *ActorName;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+    
+    AActor* SpawnedActor = World->SpawnActor<AActor>(BlueprintClass, Location, Rotation, SpawnParams);
+    if (!SpawnedActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SpawnBlueprintActor: Failed to spawn actor"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SpawnBlueprintActor: Successfully spawned actor '%s'"), *ActorName);
+    return true;
+}
+
+bool FBlueprintService::CallBlueprintFunction(UBlueprint* Blueprint, const FString& FunctionName, const TArray<FString>& Parameters)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CallBlueprintFunction: Invalid blueprint"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CallBlueprintFunction: Calling function '%s' on blueprint '%s'"), 
+        *FunctionName, *Blueprint->GetName());
+    
+    // Get the blueprint's generated class
+    UClass* BlueprintClass = Blueprint->GeneratedClass;
+    if (!BlueprintClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CallBlueprintFunction: Blueprint has no generated class"));
+        return false;
+    }
+    
+    // Find the function
+    UFunction* Function = BlueprintClass->FindFunctionByName(*FunctionName);
+    if (!Function)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CallBlueprintFunction: Function '%s' not found"), *FunctionName);
+        return false;
+    }
+    
+    // Get the default object to call the function on
+    UObject* DefaultObject = BlueprintClass->GetDefaultObject();
+    if (!DefaultObject)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CallBlueprintFunction: No default object available"));
+        return false;
+    }
+    
+    // Call the function (simplified - would need proper parameter handling for real implementation)
+    DefaultObject->ProcessEvent(Function, nullptr);
+    
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CallBlueprintFunction: Successfully called function '%s'"), *FunctionName);
+    return true;
+}

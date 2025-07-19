@@ -67,7 +67,7 @@ TArray<AActor*> FEditorService::FindActorsByName(const FString& Pattern)
     
     for (AActor* Actor : AllActors)
     {
-        if (Actor && Actor->GetName().Contains(Pattern))
+        if (Actor && Actor->GetName().MatchesWildcard(Pattern))
         {
             MatchingActors.Add(Actor);
         }

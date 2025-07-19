@@ -154,6 +154,15 @@ public:
     virtual UBlueprint* FindBlueprint(const FString& BlueprintName) override;
     virtual bool AddVariableToBlueprint(UBlueprint* Blueprint, const FString& VariableName, const FString& VariableType, bool bIsExposed = false) override;
     virtual bool SetBlueprintProperty(UBlueprint* Blueprint, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue) override;
+    virtual bool SetPhysicsProperties(UBlueprint* Blueprint, const FString& ComponentName, const TMap<FString, float>& PhysicsParams) override;
+    virtual bool GetBlueprintComponents(UBlueprint* Blueprint, TArray<TPair<FString, FString>>& OutComponents) override;
+    virtual bool SetStaticMeshProperties(UBlueprint* Blueprint, const FString& ComponentName, const FString& StaticMeshPath) override;
+    virtual bool SetPawnProperties(UBlueprint* Blueprint, const TMap<FString, FString>& PawnParams) override;
+    virtual bool AddInterfaceToBlueprint(UBlueprint* Blueprint, const FString& InterfaceName) override;
+    virtual UBlueprint* CreateBlueprintInterface(const FString& InterfaceName, const FString& FolderPath) override;
+    virtual bool CreateCustomBlueprintFunction(UBlueprint* Blueprint, const FString& FunctionName, const TSharedPtr<FJsonObject>& FunctionParams) override;
+    virtual bool SpawnBlueprintActor(UBlueprint* Blueprint, const FString& ActorName, const FVector& Location, const FRotator& Rotation) override;
+    virtual bool CallBlueprintFunction(UBlueprint* Blueprint, const FString& FunctionName, const TArray<FString>& Parameters) override;
 
 private:
     /** Private constructor for singleton pattern */

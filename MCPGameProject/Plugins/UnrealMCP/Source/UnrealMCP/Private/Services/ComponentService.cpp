@@ -687,3 +687,107 @@ void FComponentService::SetComponentTransform(USceneComponent* SceneComponent,
         SceneComponent->SetRelativeScale3D(ScaleVector);
     }
 }
+
+bool FComponentService::SetPhysicsProperties(UBlueprint* Blueprint, const FString& ComponentName, const TSharedPtr<FJsonObject>& PhysicsParams)
+{
+    if (!Blueprint || !PhysicsParams.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::SetPhysicsProperties: Invalid parameters"));
+        return false;
+    }
+    
+    // Find the component
+    UObject* Component = FindComponentInBlueprint(Blueprint, ComponentName);
+    if (!Component)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::SetPhysicsProperties: Component '%s' not found"), *ComponentName);
+        return false;
+    }
+    
+    // Check if it's a primitive component (supports physics)
+    UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
+    if (!PrimitiveComponent)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::SetPhysicsProperties: Component '%s' is not a primitive component"), *ComponentName);
+        return false;
+    }
+    
+    // Set physics properties
+    bool bSimulatePhysics = false;
+    if (PhysicsParams->TryGetBoolField(TEXT("simulate_physics"), bSimulatePhysics))
+    {
+        PrimitiveComponent->SetSimulatePhysics(bSimulatePhysics);
+    }
+    
+    bool bGravityEnabled = true;
+    if (PhysicsParams->TryGetBoolField(TEXT("gravity_enabled"), bGravityEnabled))
+    {
+        PrimitiveComponent->SetEnableGravity(bGravityEnabled);
+    }
+    
+    double Mass = 1.0;
+    if (PhysicsParams->TryGetNumberField(TEXT("mass"), Mass))
+    {
+        PrimitiveComponent->SetMassOverrideInKg(NAME_None, static_cast<float>(Mass), true);
+    }
+    
+    double LinearDamping = 0.01;
+    if (PhysicsParams->TryGetNumberField(TEXT("linear_damping"), LinearDamping))
+    {
+        PrimitiveComponent->SetLinearDamping(static_cast<float>(LinearDamping));
+    }
+    
+    double AngularDamping = 0.0;
+    if (PhysicsParams->TryGetNumberField(TEXT("angular_damping"), AngularDamping))
+    {
+        PrimitiveComponent->SetAngularDamping(static_cast<float>(AngularDamping));
+    }
+    
+    // Mark blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    
+    UE_LOG(LogTemp, Log, TEXT("FComponentService::SetPhysicsProperties: Successfully set physics properties for component '%s'"), *ComponentName);
+    return true;
+}
+
+bool FComponentService::SetStaticMeshProperties(UBlueprint* Blueprint, const FString& ComponentName, const FString& StaticMeshPath)
+{
+    if (!Blueprint || StaticMeshPath.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::SetStaticMeshProperties: Invalid parameters"));
+        return false;
+    }
+    
+    // Find the component
+    UObject* Component = FindComponentInBlueprint(Blueprint, ComponentName);
+    if (!Component)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::SetStaticMeshProperties: Component '%s' not found"), *ComponentName);
+        return false;
+    }
+    
+    // Check if it's a static mesh component
+    UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
+    if (!StaticMeshComponent)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::SetStaticMeshProperties: Component '%s' is not a static mesh component"), *ComponentName);
+        return false;
+    }
+    
+    // Load the static mesh
+    UStaticMesh* StaticMesh = LoadObject<UStaticMesh>(nullptr, *StaticMeshPath);
+    if (!StaticMesh)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::SetStaticMeshProperties: Failed to load static mesh '%s'"), *StaticMeshPath);
+        return false;
+    }
+    
+    // Set the static mesh
+    StaticMeshComponent->SetStaticMesh(StaticMesh);
+    
+    // Mark blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    
+    UE_LOG(LogTemp, Log, TEXT("FComponentService::SetStaticMeshProperties: Successfully set static mesh '%s' for component '%s'"), *StaticMeshPath, *ComponentName);
+    return true;
+}

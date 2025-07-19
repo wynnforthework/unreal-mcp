@@ -145,8 +145,7 @@
   - Add debug logging for troubleshooting
   - _Requirements: 5.3, 8.1, 8.2_
 
-- [ ] 11. Create unit tests for refactored components
-
+- [-] 11. Create unit tests for refactored components
 
 - [x] 11.1 Create service layer unit tests
   - Write tests for BlueprintService operations
@@ -169,73 +168,43 @@
   - Create performance tests for factory operations
   - _Requirements: 9.1, 9.2, 9.4_
 
-- [x] 12. Implement backward compatibility layer
-
-- [x] 12.1 Create legacy command adapter
-  - Implement FLegacyCommandAdapter for existing API compatibility
-  - Create command mapping from old to new command names
-  - Add parameter transformation for changed parameter formats
-  - Implement response format compatibility
-  - _Requirements: 10.1, 10.2, 10.3_
-
-- [x] 12.2 Add deprecation warnings and migration guidance
-  - Add deprecation warnings for legacy command usage
-  - Create migration documentation for API changes
-  - Implement gradual migration path with feature flags
-  - Add logging for legacy API usage tracking
-  - _Requirements: 10.1, 10.4_
-
-- [x] 13. Update remaining command handlers
-
-- [x] 13.1 Refactor Editor command handlers
-  - Apply same refactoring pattern to FUnrealMCPEditorCommands
-  - Extract editor operations to service layer
-  - Create individual editor command classes
-  - Update editor commands to use new architecture
-  - _Requirements: 1.1, 1.2, 1.3_
-
-- [x] 13.2 Refactor DataTable command handlers
-  - Apply refactoring pattern to FUnrealMCPDataTableCommands
-  - Extract data table operations to service layer
-  - Create individual data table command classes
-  - Update data table commands to use new architecture
-  - _Requirements: 1.1, 1.2, 1.3_
-
-- [x] 13.3 Refactor Project command handlers
-  - Apply refactoring pattern to FUnrealMCPProjectCommands
-  - Extract project operations to service layer
-  - Create individual project command classes
-  - Update project commands to use new architecture
-  - _Requirements: 1.1, 1.2, 1.3_
-
-- [-] 14. Final integration and testing
-
-
-
-- [x] 14.1 Integration testing of refactored system
-  - Test complete command execution flow through new architecture
-  - Verify all existing MCP functionality works correctly
-  - Test error handling and recovery scenarios
-  - Perform load testing with multiple concurrent commands
+- [x] 11.4 Audit command coverage between legacy and new architecture
+  - Extract all Handle* methods from legacy command handlers
+  - Compare with commands registered in new architecture
+  - Identify missing commands that need to be implemented
+  - Create comprehensive command mapping document
   - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
-- [x] 14.2 Performance benchmarking and optimization
-  - Benchmark command execution times before and after refactoring
-  - Profile memory usage and optimize allocations
-  - Identify and resolve performance bottlenecks
-  - Validate that performance meets or exceeds original implementation
-  - _Requirements: 6.1, 6.2, 6.3, 10.4_
+- [x] 11.5 Implement missing UMG command registration (CRITICAL)
+  - Create UMGCommandRegistration.cpp/.h files
+  - Register all 28 missing UMG commands in new architecture
+  - Update main dispatcher to include UMG command registration
+  - Test UMG command execution through new architecture
+  - _Requirements: 1.1, 1.2, 2.1, 4.2_
 
-- [x] 14.3 Documentation and code cleanup
+- [ ] 11.6 Implement missing Blueprint Node command registration (CRITICAL)
+  - Create BlueprintNodeCommandRegistration.cpp/.h files
+  - Register all 9 missing Blueprint Node commands in new architecture
+  - Update main dispatcher to include Blueprint Node command registration
+  - Test Blueprint Node command execution through new architecture
+  - _Requirements: 1.1, 1.2, 2.1, 4.1_
+
+- [ ] 11.7 Complete missing Editor command registration (HIGH)
+  - Add 11 missing Editor commands to EditorCommandRegistration
+  - Create individual command classes for missing Editor commands
+  - Test Editor command execution through new architecture
+  - _Requirements: 1.1, 1.2, 2.1, 4.3_
+
+- [ ] 11.8 Complete missing Blueprint command registration (HIGH)
+  - Add 5 missing Blueprint commands to BlueprintCommandRegistration
+  - Create individual command classes for missing Blueprint commands
+  - Test Blueprint command execution through new architecture
+  - _Requirements: 1.1, 1.2, 2.1, 4.1_
+
+- [ ] 11.9 Complete missing Project command registration (MEDIUM)
+  - Add 4 missing Project commands to ProjectCommandRegistration
+  - Create individual command classes for missing Project commands
+  - Test Project command execution through new architecture
+  - _Requirements: 1.1, 1.2, 2.1, 4.4_
 
 
-
-
-
-
-
-  - Add comprehensive API documentation for all new interfaces
-  - Update existing documentation to reflect new architecture
-  - Remove deprecated code and unused includes
-  - Ensure all code follows consistent style guidelines
-  - _Requirements: 8.1, 8.2, 8.3, 8.4_

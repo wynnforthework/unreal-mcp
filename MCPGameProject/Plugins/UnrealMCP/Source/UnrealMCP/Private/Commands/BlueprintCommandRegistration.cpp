@@ -4,6 +4,11 @@
 #include "Commands/AddComponentToBlueprintCommand.h"
 #include "Commands/SetComponentPropertyCommand.h"
 #include "Commands/CompileBlueprintCommand.h"
+#include "Commands/SetPhysicsPropertiesCommand.h"
+#include "Commands/SetBlueprintPropertyCommand.h"
+#include "Commands/ListBlueprintComponentsCommand.h"
+#include "Commands/SetStaticMeshPropertiesCommand.h"
+#include "Commands/SetPawnPropertiesCommand.h"
 #include "Services/BlueprintService.h"
 
 // Static member definition
@@ -21,6 +26,11 @@ void FBlueprintCommandRegistration::RegisterAllBlueprintCommands()
     RegisterAddComponentToBlueprintCommand();
     RegisterSetComponentPropertyCommand();
     RegisterCompileBlueprintCommand();
+    RegisterSetPhysicsPropertiesCommand();
+    RegisterSetBlueprintPropertyCommand();
+    RegisterListBlueprintComponentsCommand();
+    RegisterSetStaticMeshPropertiesCommand();
+    RegisterSetPawnPropertiesCommand();
     
     UE_LOG(LogTemp, Log, TEXT("FBlueprintCommandRegistration::RegisterAllBlueprintCommands: Registered %d Blueprint commands"), 
         RegisteredCommandNames.Num());
@@ -68,6 +78,36 @@ void FBlueprintCommandRegistration::RegisterSetComponentPropertyCommand()
 void FBlueprintCommandRegistration::RegisterCompileBlueprintCommand()
 {
     TSharedPtr<FCompileBlueprintCommand> Command = MakeShared<FCompileBlueprintCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterSetPhysicsPropertiesCommand()
+{
+    TSharedPtr<FSetPhysicsPropertiesCommand> Command = MakeShared<FSetPhysicsPropertiesCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterSetBlueprintPropertyCommand()
+{
+    TSharedPtr<FSetBlueprintPropertyCommand> Command = MakeShared<FSetBlueprintPropertyCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterListBlueprintComponentsCommand()
+{
+    TSharedPtr<FListBlueprintComponentsCommand> Command = MakeShared<FListBlueprintComponentsCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterSetStaticMeshPropertiesCommand()
+{
+    TSharedPtr<FSetStaticMeshPropertiesCommand> Command = MakeShared<FSetStaticMeshPropertiesCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterSetPawnPropertiesCommand()
+{
+    TSharedPtr<FSetPawnPropertiesCommand> Command = MakeShared<FSetPawnPropertiesCommand>(FBlueprintService::Get());
     RegisterAndTrackCommand(Command);
 }
 

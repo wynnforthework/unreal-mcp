@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IUnrealMCPCommand.h"
+#include "Commands/IUnrealMCPCommand.h"
 #include "Services/IDataTableService.h"
 
 /**

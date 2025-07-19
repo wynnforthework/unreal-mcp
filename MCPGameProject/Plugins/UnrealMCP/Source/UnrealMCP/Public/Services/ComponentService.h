@@ -162,6 +162,24 @@ public:
     virtual TArray<TPair<FString, FString>> GetBlueprintComponents(UBlueprint* Blueprint) override;
     virtual bool IsValidComponentType(const FString& ComponentType) override;
     virtual UClass* GetComponentClass(const FString& ComponentType) override;
+    
+    /**
+     * Set physics properties on a component
+     * @param Blueprint - Target blueprint
+     * @param ComponentName - Name of the component
+     * @param PhysicsParams - Physics parameters to set
+     * @return True if successful
+     */
+    bool SetPhysicsProperties(UBlueprint* Blueprint, const FString& ComponentName, const TSharedPtr<FJsonObject>& PhysicsParams);
+    
+    /**
+     * Set static mesh properties on a component
+     * @param Blueprint - Target blueprint
+     * @param ComponentName - Name of the component
+     * @param StaticMeshPath - Path to the static mesh asset
+     * @return True if successful
+     */
+    bool SetStaticMeshProperties(UBlueprint* Blueprint, const FString& ComponentName, const FString& StaticMeshPath);
 
 private:
     /** Private constructor for singleton pattern */

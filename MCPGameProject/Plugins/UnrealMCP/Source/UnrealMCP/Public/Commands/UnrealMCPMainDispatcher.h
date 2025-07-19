@@ -78,4 +78,10 @@ private:
      * @return JSON object containing error response
      */
     TSharedPtr<FJsonObject> CreateErrorResponse(const FString& ErrorMessage) const;
+    
+    /**
+     * Register all command types with the registry
+     * This includes Blueprint, Project, DataTable, Editor, and UMG commands
+     */
+    void RegisterAllCommands();
 };

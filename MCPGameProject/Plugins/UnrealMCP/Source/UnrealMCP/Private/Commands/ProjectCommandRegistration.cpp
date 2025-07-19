@@ -4,6 +4,14 @@
 #include "Commands/Project/CreateFolderCommand.h"
 #include "Commands/Project/CreateStructCommand.h"
 #include "Commands/Project/GetProjectDirCommand.h"
+#include "Commands/Project/CreateEnhancedInputActionCommand.h"
+#include "Commands/Project/CreateInputMappingContextCommand.h"
+#include "Commands/Project/AddMappingToContextCommand.h"
+#include "Commands/Project/ListInputActionsCommand.h"
+#include "Commands/Project/ListInputMappingContextsCommand.h"
+#include "Commands/Project/UpdateStructCommand.h"
+#include "Commands/Project/ShowStructVariablesCommand.h"
+#include "Commands/Project/ListFolderContentsCommand.h"
 #include "Services/IProjectService.h"
 
 void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Registry, TSharedPtr<IProjectService> ProjectService)
@@ -26,14 +34,17 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     // Register get project directory command
     Registry.RegisterCommand(MakeShared<FGetProjectDirCommand>(ProjectService));
     
-    // Note: Additional project commands (update_struct, show_struct_variables) 
-    // are handled by legacy command system and will be migrated in future iterations
-    // - list_folder_contents
-    // - create_enhanced_input_action
-    // - create_input_mapping_context
-    // - add_mapping_to_context
-    // - list_input_actions
-    // - list_input_mapping_contexts
+    // Register Enhanced Input commands
+    Registry.RegisterCommand(MakeShared<FCreateEnhancedInputActionCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FCreateInputMappingContextCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FAddMappingToContextCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FListInputActionsCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FListInputMappingContextsCommand>(ProjectService));
+    
+    // Register remaining project commands
+    Registry.RegisterCommand(MakeShared<FUpdateStructCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FShowStructVariablesCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FListFolderContentsCommand>(ProjectService));
 
     UE_LOG(LogTemp, Log, TEXT("Registered project commands successfully"));
 }

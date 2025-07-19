@@ -17,8 +17,13 @@ class UWidget;
 class UNREALMCP_API FUMGService : public IUMGService
 {
 public:
-    FUMGService();
-    virtual ~FUMGService() = default;
+    /**
+     * Get the singleton instance of the UMG service
+     * @return Reference to the singleton instance
+     */
+    static FUMGService& Get();
+    
+    virtual ~FUMGService();
 
     // IUMGService interface
     virtual UWidgetBlueprint* CreateWidgetBlueprint(const FString& Name, const FString& ParentClass = TEXT("UserWidget"), const FString& Path = TEXT("/Game/Widgets")) override;
@@ -42,6 +47,9 @@ public:
                                              FVector2D& OutDimensions) override;
 
 private:
+    /** Private constructor for singleton pattern */
+    FUMGService();
+    
     /** Widget component service for creating widget components */
     TUniquePtr<FWidgetComponentService> WidgetComponentService;
 

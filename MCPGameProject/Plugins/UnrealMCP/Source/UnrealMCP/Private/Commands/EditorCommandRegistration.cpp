@@ -8,6 +8,10 @@
 #include "Commands/Editor/SpawnActorCommand.h"
 #include "Commands/Editor/DeleteActorCommand.h"
 #include "Commands/Editor/SpawnBlueprintActorCommand.h"
+#include "Commands/Editor/SetActorTransformCommand.h"
+#include "Commands/Editor/GetActorPropertiesCommand.h"
+#include "Commands/Editor/SetActorPropertyCommand.h"
+#include "Commands/Editor/SetLightPropertyCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -24,6 +28,10 @@ void FEditorCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FSpawnActorCommand>(EditorService));
     RegisterAndTrackCommand(MakeShared<FDeleteActorCommand>(EditorService));
     RegisterAndTrackCommand(MakeShared<FSpawnBlueprintActorCommand>(EditorService));
+    RegisterAndTrackCommand(MakeShared<FSetActorTransformCommand>(EditorService));
+    RegisterAndTrackCommand(MakeShared<FGetActorPropertiesCommand>(EditorService));
+    RegisterAndTrackCommand(MakeShared<FSetActorPropertyCommand>(EditorService));
+    RegisterAndTrackCommand(MakeShared<FSetLightPropertyCommand>(EditorService));
     
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:

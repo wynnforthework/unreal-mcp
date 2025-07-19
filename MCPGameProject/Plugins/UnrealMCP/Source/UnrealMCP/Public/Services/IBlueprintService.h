@@ -93,4 +93,82 @@ public:
      * @return true if property was set successfully
      */
     virtual bool SetBlueprintProperty(UBlueprint* Blueprint, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue) = 0;
+    
+    /**
+     * Set physics properties on a component in a Blueprint
+     * @param Blueprint - Target Blueprint
+     * @param ComponentName - Name of the component
+     * @param PhysicsParams - Physics parameters to set
+     * @return true if physics properties were set successfully
+     */
+    virtual bool SetPhysicsProperties(UBlueprint* Blueprint, const FString& ComponentName, const TMap<FString, float>& PhysicsParams) = 0;
+    
+    /**
+     * Get list of components in a Blueprint
+     * @param Blueprint - Target Blueprint
+     * @param OutComponents - Array of component name/type pairs
+     * @return true if components were retrieved successfully
+     */
+    virtual bool GetBlueprintComponents(UBlueprint* Blueprint, TArray<TPair<FString, FString>>& OutComponents) = 0;
+    
+    /**
+     * Set static mesh properties on a component
+     * @param Blueprint - Target Blueprint
+     * @param ComponentName - Name of the component
+     * @param StaticMeshPath - Path to the static mesh asset
+     * @return true if static mesh was set successfully
+     */
+    virtual bool SetStaticMeshProperties(UBlueprint* Blueprint, const FString& ComponentName, const FString& StaticMeshPath) = 0;
+    
+    /**
+     * Set pawn properties on a Blueprint
+     * @param Blueprint - Target Blueprint (must be a Pawn or Character)
+     * @param PawnParams - Pawn parameters to set
+     * @return true if pawn properties were set successfully
+     */
+    virtual bool SetPawnProperties(UBlueprint* Blueprint, const TMap<FString, FString>& PawnParams) = 0;
+    
+    /**
+     * Add an interface to a Blueprint
+     * @param Blueprint - Target Blueprint
+     * @param InterfaceName - Name or path of the interface to add
+     * @return true if interface was added successfully
+     */
+    virtual bool AddInterfaceToBlueprint(UBlueprint* Blueprint, const FString& InterfaceName) = 0;
+    
+    /**
+     * Create a Blueprint interface
+     * @param InterfaceName - Name of the interface to create
+     * @param FolderPath - Folder path where the interface should be created
+     * @return Created Blueprint interface or nullptr if failed
+     */
+    virtual UBlueprint* CreateBlueprintInterface(const FString& InterfaceName, const FString& FolderPath) = 0;
+    
+    /**
+     * Create a custom function in a Blueprint
+     * @param Blueprint - Target Blueprint
+     * @param FunctionName - Name of the function to create
+     * @param FunctionParams - Function parameters (inputs, outputs, etc.)
+     * @return true if function was created successfully
+     */
+    virtual bool CreateCustomBlueprintFunction(UBlueprint* Blueprint, const FString& FunctionName, const TSharedPtr<FJsonObject>& FunctionParams) = 0;
+    
+    /**
+     * Spawn an actor from a Blueprint
+     * @param Blueprint - Blueprint to spawn from
+     * @param ActorName - Name for the spawned actor
+     * @param Location - World location to spawn at
+     * @param Rotation - World rotation to spawn with
+     * @return true if actor was spawned successfully
+     */
+    virtual bool SpawnBlueprintActor(UBlueprint* Blueprint, const FString& ActorName, const FVector& Location, const FRotator& Rotation) = 0;
+    
+    /**
+     * Call a function by name on a Blueprint
+     * @param Blueprint - Target Blueprint
+     * @param FunctionName - Name of the function to call
+     * @param Parameters - Function parameters
+     * @return true if function was called successfully
+     */
+    virtual bool CallBlueprintFunction(UBlueprint* Blueprint, const FString& FunctionName, const TArray<FString>& Parameters) = 0;
 };

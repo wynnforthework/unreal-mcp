@@ -1,7 +1,16 @@
 #include "Commands/UnrealMCPMainDispatcher.h"
 #include "Commands/UnrealMCPCommandRegistry.h"
 #include "Commands/BlueprintCommandRegistration.h"
-#include "Commands/FLegacyCommandAdapter.h"
+#include "Commands/BlueprintNodeCommandRegistration.h"
+#include "Commands/ProjectCommandRegistration.h"
+#include "Commands/DataTableCommandRegistration.h"
+#include "Commands/EditorCommandRegistration.h"
+#include "Commands/UMGCommandRegistration.h"
+// Legacy adapter removed
+#include "Services/BlueprintService.h"
+#include "Services/ProjectService.h"
+#include "Services/DataTableService.h"
+#include "Services/EditorService.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -26,12 +35,7 @@ TSharedPtr<FJsonObject> FUnrealMCPMainDispatcher::HandleCommand(const FString& C
         return CreateErrorResponse(TEXT("Empty command type"));
     }
     
-    // Check if this is a legacy command that needs adaptation
-    if (FLegacyCommandAdapter::Get().IsLegacyCommand(CommandType))
-    {
-        UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::HandleCommand: Adapting legacy command '%s'"), *CommandType);
-        return FLegacyCommandAdapter::Get().AdaptLegacyCommand(CommandType, Params);
-    }
+    // Legacy adapter removed - all commands now use the new system
     
     // Convert JSON object to string for registry
     FString ParametersString = JsonObjectToString(Params);
@@ -70,6 +74,34 @@ FString FUnrealMCPMainDispatcher::HandleCommandString(const FString& CommandType
     return FUnrealMCPCommandRegistry::Get().ExecuteCommand(CommandType, Parameters);
 }
 
+void FUnrealMCPMainDispatcher::RegisterAllCommands()
+{
+    UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::RegisterAllCommands: Registering all command types"));
+    
+    FUnrealMCPCommandRegistry& Registry = FUnrealMCPCommandRegistry::Get();
+    
+    // Register Blueprint commands
+    FBlueprintCommandRegistration::RegisterAllBlueprintCommands();
+    
+    // Register Blueprint Node commands
+    FBlueprintNodeCommandRegistration::RegisterAllBlueprintNodeCommands();
+    
+    // Register Project commands
+    TSharedPtr<IProjectService> ProjectService = MakeShared<FProjectService>();
+    FProjectCommandRegistration::RegisterCommands(Registry, ProjectService);
+    
+    // Register DataTable commands
+    FDataTableCommandRegistration::RegisterAllCommands();
+    
+    // Register Editor commands
+    FEditorCommandRegistration::RegisterAllCommands();
+    
+    // Register UMG commands
+    FUMGCommandRegistration::RegisterAllUMGCommands();
+    
+    UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::RegisterAllCommands: All command types registered"));
+}
+
 void FUnrealMCPMainDispatcher::Initialize()
 {
     if (bIsInitialized)
@@ -80,11 +112,10 @@ void FUnrealMCPMainDispatcher::Initialize()
     
     UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::Initialize: Initializing command dispatcher"));
     
-    // Initialize legacy command adapter
-    FLegacyCommandAdapter::Get().Initialize();
+    // Legacy adapter removed
     
-    // Register all Blueprint commands
-    FBlueprintCommandRegistration::RegisterAllBlueprintCommands();
+    // Register all command types
+    RegisterAllCommands();
     
     bIsInitialized = true;
     
@@ -101,8 +132,12 @@ void FUnrealMCPMainDispatcher::Shutdown()
     
     UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::Shutdown: Shutting down command dispatcher"));
     
-    // Unregister all Blueprint commands
+    // Unregister all command types
     FBlueprintCommandRegistration::UnregisterAllBlueprintCommands();
+    FBlueprintNodeCommandRegistration::UnregisterAllBlueprintNodeCommands();
+    FDataTableCommandRegistration::UnregisterAllCommands();
+    FEditorCommandRegistration::UnregisterAllCommands();
+    FUMGCommandRegistration::UnregisterAllUMGCommands();
     
     // Clear the entire registry
     FUnrealMCPCommandRegistry::Get().ClearRegistry();

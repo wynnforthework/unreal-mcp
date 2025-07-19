@@ -22,10 +22,21 @@
 #include "Serialization/JsonSerializer.h"
 #include "Dom/JsonObject.h"
 
+FUMGService& FUMGService::Get()
+{
+    static FUMGService Instance;
+    return Instance;
+}
+
 FUMGService::FUMGService()
 {
     WidgetComponentService = MakeUnique<FWidgetComponentService>();
     ValidationService = MakeUnique<FWidgetValidationService>();
+}
+
+FUMGService::~FUMGService()
+{
+    // Destructor implementation - unique_ptr will handle cleanup automatically
 }
 
 UWidgetBlueprint* FUMGService::CreateWidgetBlueprint(const FString& Name, const FString& ParentClass, const FString& Path)
