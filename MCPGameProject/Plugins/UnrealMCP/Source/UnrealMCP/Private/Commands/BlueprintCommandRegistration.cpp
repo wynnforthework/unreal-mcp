@@ -2,6 +2,7 @@
 #include "Commands/UnrealMCPCommandRegistry.h"
 #include "Commands/CreateBlueprintCommand.h"
 #include "Commands/AddComponentToBlueprintCommand.h"
+#include "Commands/AddBlueprintVariableCommand.h"
 #include "Commands/SetComponentPropertyCommand.h"
 #include "Commands/CompileBlueprintCommand.h"
 #include "Commands/SetPhysicsPropertiesCommand.h"
@@ -9,6 +10,10 @@
 #include "Commands/ListBlueprintComponentsCommand.h"
 #include "Commands/SetStaticMeshPropertiesCommand.h"
 #include "Commands/SetPawnPropertiesCommand.h"
+#include "Commands/CallBlueprintFunctionCommand.h"
+#include "Commands/CreateBlueprintInterfaceCommand.h"
+#include "Commands/AddInterfaceToBlueprintCommand.h"
+#include "Commands/CreateCustomBlueprintFunctionCommand.h"
 #include "Services/BlueprintService.h"
 
 // Static member definition
@@ -24,6 +29,7 @@ void FBlueprintCommandRegistration::RegisterAllBlueprintCommands()
     // Register individual commands
     RegisterCreateBlueprintCommand();
     RegisterAddComponentToBlueprintCommand();
+    RegisterAddBlueprintVariableCommand();
     RegisterSetComponentPropertyCommand();
     RegisterCompileBlueprintCommand();
     RegisterSetPhysicsPropertiesCommand();
@@ -31,6 +37,10 @@ void FBlueprintCommandRegistration::RegisterAllBlueprintCommands()
     RegisterListBlueprintComponentsCommand();
     RegisterSetStaticMeshPropertiesCommand();
     RegisterSetPawnPropertiesCommand();
+    RegisterCallBlueprintFunctionCommand();
+    RegisterCreateBlueprintInterfaceCommand();
+    RegisterAddInterfaceToBlueprintCommand();
+    RegisterCreateCustomBlueprintFunctionCommand();
     
     UE_LOG(LogTemp, Log, TEXT("FBlueprintCommandRegistration::RegisterAllBlueprintCommands: Registered %d Blueprint commands"), 
         RegisteredCommandNames.Num());
@@ -108,6 +118,36 @@ void FBlueprintCommandRegistration::RegisterSetStaticMeshPropertiesCommand()
 void FBlueprintCommandRegistration::RegisterSetPawnPropertiesCommand()
 {
     TSharedPtr<FSetPawnPropertiesCommand> Command = MakeShared<FSetPawnPropertiesCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterAddBlueprintVariableCommand()
+{
+    TSharedPtr<FAddBlueprintVariableCommand> Command = MakeShared<FAddBlueprintVariableCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterCallBlueprintFunctionCommand()
+{
+    TSharedPtr<FCallBlueprintFunctionCommand> Command = MakeShared<FCallBlueprintFunctionCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterCreateBlueprintInterfaceCommand()
+{
+    TSharedPtr<FCreateBlueprintInterfaceCommand> Command = MakeShared<FCreateBlueprintInterfaceCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterAddInterfaceToBlueprintCommand()
+{
+    TSharedPtr<FAddInterfaceToBlueprintCommand> Command = MakeShared<FAddInterfaceToBlueprintCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterCreateCustomBlueprintFunctionCommand()
+{
+    TSharedPtr<FCreateCustomBlueprintFunctionCommand> Command = MakeShared<FCreateCustomBlueprintFunctionCommand>(FBlueprintService::Get());
     RegisterAndTrackCommand(Command);
 }
 

@@ -8,10 +8,10 @@
  * Command for adding variable nodes to Blueprints
  * Implements the IUnrealMCPCommand interface for standardized command execution
  */
-class UNREALMCP_API FAddBlueprintVariableCommand : public IUnrealMCPCommand
+class UNREALMCP_API FAddBlueprintVariableNodeCommand : public IUnrealMCPCommand
 {
 public:
-    explicit FAddBlueprintVariableCommand(IBlueprintNodeService& InBlueprintNodeService);
+    explicit FAddBlueprintVariableNodeCommand(IBlueprintNodeService& InBlueprintNodeService);
 
     // IUnrealMCPCommand interface
     virtual FString Execute(const FString& Parameters) override;

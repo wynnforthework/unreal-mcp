@@ -3,7 +3,7 @@
 #include "Commands/BlueprintNode/ConnectBlueprintNodesCommand.h"
 #include "Commands/BlueprintNode/AddBlueprintInputActionNodeCommand.h"
 #include "Commands/BlueprintNode/FindBlueprintNodesCommand.h"
-#include "Commands/BlueprintNode/AddBlueprintVariableCommand.h"
+#include "Commands/BlueprintNode/AddBlueprintVariableNodeCommand.h"
 #include "Commands/BlueprintNode/GetVariableInfoCommand.h"
 #include "Commands/BlueprintNode/AddBlueprintEventNodeCommand.h"
 #include "Commands/BlueprintNode/AddBlueprintFunctionNodeCommand.h"
@@ -77,7 +77,7 @@ void FBlueprintNodeCommandRegistration::RegisterFindBlueprintNodesCommand()
 
 void FBlueprintNodeCommandRegistration::RegisterAddBlueprintVariableCommand()
 {
-    TSharedPtr<FAddBlueprintVariableCommand> Command = MakeShared<FAddBlueprintVariableCommand>(FBlueprintNodeService::Get());
+    TSharedPtr<FAddBlueprintVariableNodeCommand> Command = MakeShared<FAddBlueprintVariableNodeCommand>(FBlueprintNodeService::Get());
     RegisterAndTrackCommand(Command);
 }
 

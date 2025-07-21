@@ -30,6 +30,7 @@ private:
      */
     static void RegisterCreateBlueprintCommand();
     static void RegisterAddComponentToBlueprintCommand();
+    static void RegisterAddBlueprintVariableCommand();
     static void RegisterSetComponentPropertyCommand();
     static void RegisterCompileBlueprintCommand();
     static void RegisterSetPhysicsPropertiesCommand();
@@ -37,6 +38,10 @@ private:
     static void RegisterListBlueprintComponentsCommand();
     static void RegisterSetStaticMeshPropertiesCommand();
     static void RegisterSetPawnPropertiesCommand();
+    static void RegisterCallBlueprintFunctionCommand();
+    static void RegisterCreateBlueprintInterfaceCommand();
+    static void RegisterAddInterfaceToBlueprintCommand();
+    static void RegisterCreateCustomBlueprintFunctionCommand();
     
     /**
      * Helper to register a command and track it for cleanup

@@ -1,16 +1,16 @@
-#include "Commands/BlueprintNode/AddBlueprintVariableCommand.h"
+#include "Commands/BlueprintNode/AddBlueprintVariableNodeCommand.h"
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Engine/Blueprint.h"
 
-FAddBlueprintVariableCommand::FAddBlueprintVariableCommand(IBlueprintNodeService& InBlueprintNodeService)
+FAddBlueprintVariableNodeCommand::FAddBlueprintVariableNodeCommand(IBlueprintNodeService& InBlueprintNodeService)
     : BlueprintNodeService(InBlueprintNodeService)
 {
 }
 
-FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
+FString FAddBlueprintVariableNodeCommand::Execute(const FString& Parameters)
 {
     FString BlueprintName, VariableName;
     bool bIsGetter = true;
@@ -39,12 +39,12 @@ FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
     }
 }
 
-FString FAddBlueprintVariableCommand::GetCommandName() const
+FString FAddBlueprintVariableNodeCommand::GetCommandName() const
 {
-    return TEXT("add_blueprint_variable");
+    return TEXT("add_blueprint_variable_node");
 }
 
-bool FAddBlueprintVariableCommand::ValidateParams(const FString& Parameters) const
+bool FAddBlueprintVariableNodeCommand::ValidateParams(const FString& Parameters) const
 {
     FString BlueprintName, VariableName;
     bool bIsGetter;
@@ -54,7 +54,7 @@ bool FAddBlueprintVariableCommand::ValidateParams(const FString& Parameters) con
     return ParseParameters(Parameters, BlueprintName, VariableName, bIsGetter, Position, ParseError);
 }
 
-bool FAddBlueprintVariableCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutVariableName, bool& OutIsGetter, FVector2D& OutPosition, FString& OutError) const
+bool FAddBlueprintVariableNodeCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutVariableName, bool& OutIsGetter, FVector2D& OutPosition, FString& OutError) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -97,7 +97,7 @@ bool FAddBlueprintVariableCommand::ParseParameters(const FString& JsonString, FS
     return true;
 }
 
-FString FAddBlueprintVariableCommand::CreateSuccessResponse(const FString& NodeId) const
+FString FAddBlueprintVariableNodeCommand::CreateSuccessResponse(const FString& NodeId) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
@@ -110,7 +110,7 @@ FString FAddBlueprintVariableCommand::CreateSuccessResponse(const FString& NodeI
     return OutputString;
 }
 
-FString FAddBlueprintVariableCommand::CreateErrorResponse(const FString& ErrorMessage) const
+FString FAddBlueprintVariableNodeCommand::CreateErrorResponse(const FString& ErrorMessage) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), false);

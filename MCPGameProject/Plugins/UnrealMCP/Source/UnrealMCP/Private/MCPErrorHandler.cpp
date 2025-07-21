@@ -1,12 +1,11 @@
 #include "MCPErrorHandler.h"
 #include "MCPOperationContext.h"
+#include "MCPLogging.h"
 #include "Engine/Engine.h"
 #include "Logging/LogMacros.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
 
 FMCPError FMCPErrorHandler::CreateInvalidParametersError(const FString& Details)
 {

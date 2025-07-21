@@ -201,4 +201,12 @@ private:
      * @return UClass/UStruct pointer for the type, or nullptr if not found
      */
     UObject* ResolveVariableType(const FString& TypeString) const;
+    
+    /**
+     * Convert string type to Blueprint pin type
+     * @param TypeString - String representation of the type
+     * @param OutPinType - Output pin type structure
+     * @return true if conversion was successful
+     */
+    bool ConvertStringToPinType(const FString& TypeString, FEdGraphPinType& OutPinType) const;
 };
