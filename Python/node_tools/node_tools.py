@@ -78,21 +78,13 @@ def register_blueprint_node_tools(mcp: FastMCP):
     def connect_blueprint_nodes(
         ctx: Context,
         blueprint_name: str,
-        source_node_id: str = None,
-        source_pin: str = None,
-        target_node_id: str = None,
-        target_pin: str = None,
-        connections: list = None
+        connections: list
     ) -> Dict[str, Any]:
         """
         Connect nodes in a Blueprint's event graph.
 
         Args:
             blueprint_name: Name of the target Blueprint
-            source_node_id: ID of the source node (legacy, single connection)
-            source_pin: Name of the output pin on the source node (legacy, single connection)
-            target_node_id: ID of the target node (legacy, single connection)
-            target_pin: Name of the input pin on the target node (legacy, single connection)
             connections: List of connection dicts (batch mode). Each dict must have:
                 - source_node_id
                 - source_pin
@@ -100,13 +92,10 @@ def register_blueprint_node_tools(mcp: FastMCP):
                 - target_pin
 
         Returns:
-            Response indicating success or failure. In batch mode, returns an array of results.
+            Response indicating success or failure. Returns an array of results.
 
         Examples:
-            # Single connection (legacy)
-            connect_blueprint_nodes(ctx, blueprint_name="BP_MyActor", source_node_id="...", source_pin="Exec", target_node_id="...", target_pin="Then")
-
-            # Batch connection
+            # Batch connection (only supported mode)
             connect_blueprint_nodes(ctx, blueprint_name="BP_MyActor", connections=[
                 {"source_node_id": "id1", "source_pin": "Exec", "target_node_id": "id2", "target_pin": "Then"},
                 {"source_node_id": "id3", "source_pin": "Out", "target_node_id": "id4", "target_pin": "In"}
@@ -115,10 +104,6 @@ def register_blueprint_node_tools(mcp: FastMCP):
         try:
             return connect_nodes_impl(
                 ctx, blueprint_name,
-                source_node_id=source_node_id,
-                source_pin=source_pin,
-                target_node_id=target_node_id,
-                target_pin=target_pin,
                 connections=connections
             )
         except Exception as e:

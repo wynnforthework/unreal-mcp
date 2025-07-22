@@ -14,6 +14,8 @@
 #include "K2Node_CallFunction.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
+#include "K2Node_CustomEvent.h"
+#include "K2Node_InputAction.h"
 
 bool FBlueprintNodeConnectionParams::IsValid(FString& OutError) const
 {
@@ -435,30 +437,27 @@ bool FBlueprintNodeService::AddEnhancedInputActionNode(UBlueprint* Blueprint, co
         return false;
     }
     
-    // Use the existing BlueprintNodeCreationService as a dependency
-    FBlueprintNodeCreationService CreationService;
-    
-    FString PositionStr = FString::Printf(TEXT("[%f, %f]"), Position.X, Position.Y);
-    FString JsonParams = FString::Printf(TEXT("{\"action_name\": \"%s\"}"), *ActionName);
-    
-    // Call the creation service with Enhanced Input action parameters
-    FString Result = CreationService.CreateNodeByActionName(Blueprint->GetName(), TEXT("EnhancedInputAction"), TEXT(""), PositionStr, JsonParams);
-    
-    // Parse the result to extract node ID
-    TSharedPtr<FJsonObject> ResultObj;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Result);
-    
-    if (FJsonSerializer::Deserialize(Reader, ResultObj) && ResultObj.IsValid())
+    // Get the event graph
+    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
+    if (!EventGraph)
     {
-        bool bSuccess = false;
-        if (ResultObj->TryGetBoolField(TEXT("success"), bSuccess) && bSuccess)
-        {
-            ResultObj->TryGetStringField(TEXT("node_id"), OutNodeId);
-            return true;
-        }
+        return false;
     }
     
-    return false;
+    // Create the proper input action node using the common utils
+    UK2Node_InputAction* InputActionNode = FUnrealMCPCommonUtils::CreateInputActionNode(EventGraph, ActionName, Position);
+    if (!InputActionNode)
+    {
+        return false;
+    }
+    
+    // Generate node ID
+    OutNodeId = InputActionNode->NodeGuid.ToString();
+    
+    // Mark Blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    
+    return true;
 }
 
 UEdGraph* FBlueprintNodeService::FindGraphInBlueprint(UBlueprint* Blueprint, const FString& GraphName) const
