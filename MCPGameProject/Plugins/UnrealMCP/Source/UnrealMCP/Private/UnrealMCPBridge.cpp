@@ -276,13 +276,14 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("connect_blueprint_nodes"), 
                     TEXT("find_blueprint_nodes"),
                     TEXT("add_blueprint_event_node"),
-                    TEXT("add_blueprint_input_action_node"),
-                    TEXT("add_enhanced_input_action_node"),
+                    // TEXT("add_blueprint_input_action_node"),  // REMOVED: Use create_node_by_action_name instead
+                    // TEXT("add_enhanced_input_action_node"),  // REMOVED: Use create_node_by_action_name instead
                     TEXT("add_blueprint_function_node"),
                     TEXT("add_blueprint_get_component_node"),
                     TEXT("add_blueprint_variable"),
                     TEXT("add_blueprint_custom_event_node"),
-                    TEXT("get_variable_info")
+                    TEXT("get_variable_info"),
+                    TEXT("create_node_by_action_name")
                 };
                 
                 static const TArray<FString> ProjectCommandsList = {

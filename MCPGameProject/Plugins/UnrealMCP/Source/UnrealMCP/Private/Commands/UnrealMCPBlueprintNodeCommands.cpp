@@ -60,8 +60,5 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleGetVariableInfo(c
     return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("get_variable_info"), Params);
 }
 
-TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddEnhancedInputActionNode(const TSharedPtr<FJsonObject>& Params)
-{
-    // Route through new architecture - all Blueprint Node commands now use the service layer and command registry
-    return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("add_enhanced_input_action_node"), Params);
-}
+// REMOVED: Enhanced Input Action nodes now created via Blueprint Action system
+// Use create_node_by_action_name with function_name="EnhancedInputAction {ActionName}" instead

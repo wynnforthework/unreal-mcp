@@ -16,6 +16,7 @@
   - Create test project structure and clean baseline
   - Establish test data management and cleanup procedures
   - Set up result collection and reporting framework
+  - Ensure compatibility with the new C++ architecture from the refactoring spec
   - _Requirements: 8.1, 8.3, 10.1_
 
 - [x] 2. Implement Phase 1: Foundation Testing (Project Tools - 10 tools)
@@ -272,30 +273,32 @@
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 1.9_
 
-- [x] 5. Implement Phase 4: Advanced Logic Testing (Node Tools - 4 tools)
+- [-] 5. Implement Phase 4: Advanced Logic Testing (Node Tools - 4 tools)
 
   - [x] 5.1 Test mcp_nodeMCP_add_blueprint_input_action_node functionality
+
+
     - Test input action event node creation
     - Verify action name parameter handling and node positioning
     - Test node integration with Blueprint event graphs
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 4.1_
 
-  - [x] 5.2 Test mcp_nodeMCP_connect_blueprint_nodes functionality
+  - [ ] 5.2 Test mcp_nodeMCP_connect_blueprint_nodes functionality
     - Test single node connection with source and target pins
     - Test batch connection mode with multiple connections
     - Verify pin name validation and connection establishment
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 4.2_
 
-  - [x] 5.3 Test mcp_nodeMCP_find_blueprint_nodes functionality
+  - [ ] 5.3 Test mcp_nodeMCP_find_blueprint_nodes functionality
     - Test node discovery by type and event type
     - Verify target graph filtering and node identification
     - Test node search across different Blueprint graphs
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 4.3_
 
-  - [x] 5.4 Test mcp_nodeMCP_get_variable_info functionality
+  - [ ] 5.4 Test mcp_nodeMCP_get_variable_info functionality
     - Test variable type information retrieval
     - Verify struct type identification for automation
     - Test variable metadata and property information
@@ -303,28 +306,28 @@
     - _Requirements: 4.4_
 
 - [-] 6. Implement Phase 5: Blueprint Action Discovery Testing (Blueprint Action Tools - 6 tools)
-  - [x] 6.1 Test mcp_blueprintActionMCP_get_actions_for_pin functionality
+  - [ ] 6.1 Test mcp_blueprintActionMCP_get_actions_for_pin functionality
     - Test action discovery for various pin types (object, float, string, bool)
     - Verify pin subcategory handling (PlayerController, Vector, etc.)
     - Test search filtering and result limitation
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 2.1_
 
-  - [x] 6.2 Test mcp_blueprintActionMCP_get_actions_for_class functionality
+  - [ ] 6.2 Test mcp_blueprintActionMCP_get_actions_for_class functionality
     - Test action discovery for specific classes
     - Verify class name and path resolution
     - Test search filtering and action categorization
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 2.2_
 
-  - [x] 6.3 Test mcp_blueprintActionMCP_get_actions_for_class_hierarchy functionality
+  - [ ] 6.3 Test mcp_blueprintActionMCP_get_actions_for_class_hierarchy functionality
     - Test comprehensive action discovery including inheritance
     - Verify parent class action inclusion
     - Test hierarchy traversal and action aggregation
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 2.3_
 
-  - [x] 6.4 Test mcp_blueprintActionMCP_search_blueprint_actions functionality
+  - [ ] 6.4 Test mcp_blueprintActionMCP_search_blueprint_actions functionality
     - Test keyword-based action searching
     - Verify category filtering and Blueprint-specific searches
     - Test search result relevance and completeness
@@ -332,10 +335,6 @@
     - _Requirements: 2.4_
 
   - [ ] 6.5 Test mcp_blueprintActionMCP_get_node_pin_info functionality
-
-
-
-
     - Test detailed pin information retrieval
     - Verify pin type, direction, and requirement information
     - Test pin description and expected type reporting
@@ -550,3 +549,44 @@
     - Estimate effort and timeline for restoration work
     - Identify critical path dependencies for fixes
     - _Requirements: 10.5_
+## 
+Architecture Compliance Requirements
+
+All tool implementations must adhere to the new C++ architecture defined in the CPP refactoring spec:
+
+- [ ] 12. Ensure all tool implementations follow the new layered architecture
+  - [ ] 12.1 Implement Command Pattern for all tools
+    - Refactor existing tools to use the IUnrealMCPCommand interface
+    - Ensure proper command registration in the FUnrealMCPCommandRegistry
+    - Implement ValidateParams method for each command
+    - _Requirements: 8.1, 8.3, 9.1_
+
+  - [ ] 12.2 Implement Service Layer for all tool categories
+    - Extract business logic into appropriate service classes (BlueprintService, ComponentService, etc.)
+    - Ensure services follow single responsibility principle
+    - Create proper interfaces for all services to enable testing
+    - _Requirements: 8.2, 9.1_
+
+  - [ ] 12.3 Implement Factory Pattern for component creation
+    - Use ComponentFactory for Blueprint component creation
+    - Use WidgetFactory for UMG widget creation
+    - Ensure proper registration of component and widget types
+    - _Requirements: 8.2, 9.1_
+
+  - [ ] 12.4 Implement Validation Framework for all tools
+    - Use FParameterValidator for parameter validation
+    - Define validation rules for each command
+    - Ensure consistent error reporting
+    - _Requirements: 8.3, 8.4_
+
+  - [ ] 12.5 Implement Error Handling System
+    - Use structured FMCPError for error reporting
+    - Implement proper error categorization
+    - Ensure detailed error messages for troubleshooting
+    - _Requirements: 8.4, 10.2_
+
+  - [ ] 12.6 Implement Caching Strategy
+    - Use appropriate caching for Blueprint and component references
+    - Implement proper cache invalidation
+    - Ensure thread safety for cached resources
+    - _Requirements: 8.5_

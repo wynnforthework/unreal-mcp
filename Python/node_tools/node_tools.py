@@ -9,7 +9,7 @@ from typing import Dict, List, Any
 from mcp.server.fastmcp import FastMCP, Context
 from utils.nodes.node_operations import (
     # add_event_node as add_event_node_impl,  # REMOVED: Use create_node_by_action_name instead
-    add_input_action_node as add_input_action_node_impl,
+    # add_input_action_node as add_input_action_node_impl,  # REMOVED: Use create_node_by_action_name instead
     # add_function_node as add_function_node_impl,  # REMOVED: Use create_node_by_action_name instead
     connect_nodes_impl,
     find_nodes as find_nodes_impl,
@@ -34,34 +34,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
     # ) -> Dict[str, Any]:
     #     """Add an event node to a Blueprint's event graph."""
     
-    @mcp.tool()
-    def add_blueprint_input_action_node(
-        ctx: Context,
-        blueprint_name: str,
-        action_name: str,
-        node_position: List[float] = None
-    ) -> Dict[str, Any]:
-        """
-        Add an input action event node to a Blueprint's event graph.
 
-        Args:
-            blueprint_name: Name of the target Blueprint
-            action_name: Name of the input action to respond to
-            node_position: Optional [X, Y] position in the graph
-            
-        Returns:
-            Response containing the node ID and success status
-        """
-        try:
-            return add_input_action_node_impl(
-                ctx, blueprint_name, action_name, node_position
-            )
-        except Exception as e:
-            logger.error(f"Error adding input action node: {e}")
-            return {
-                "success": False,
-                "message": f"Failed to add input action node: {str(e)}"
-            }
 
     # REMOVED: Function nodes now handled by create_node_by_action_name  
     # @mcp.tool()

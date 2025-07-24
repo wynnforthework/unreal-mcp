@@ -17,6 +17,7 @@
 #include "K2Node_CustomEvent.h"
 #include "K2Node_InputAction.h"
 
+
 bool FBlueprintNodeConnectionParams::IsValid(FString& OutError) const
 {
     if (SourceNodeId.IsEmpty())
@@ -430,35 +431,8 @@ bool FBlueprintNodeService::AddCustomEventNode(UBlueprint* Blueprint, const FStr
     return false;
 }
 
-bool FBlueprintNodeService::AddEnhancedInputActionNode(UBlueprint* Blueprint, const FString& ActionName, const FVector2D& Position, FString& OutNodeId)
-{
-    if (!Blueprint || ActionName.IsEmpty())
-    {
-        return false;
-    }
-    
-    // Get the event graph
-    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
-    if (!EventGraph)
-    {
-        return false;
-    }
-    
-    // Create the proper input action node using the common utils
-    UK2Node_InputAction* InputActionNode = FUnrealMCPCommonUtils::CreateInputActionNode(EventGraph, ActionName, Position);
-    if (!InputActionNode)
-    {
-        return false;
-    }
-    
-    // Generate node ID
-    OutNodeId = InputActionNode->NodeGuid.ToString();
-    
-    // Mark Blueprint as modified
-    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-    
-    return true;
-}
+// REMOVED: Enhanced Input Action nodes now created via Blueprint Action system
+// Use create_node_by_action_name with function_name="EnhancedInputAction {ActionName}" instead
 
 UEdGraph* FBlueprintNodeService::FindGraphInBlueprint(UBlueprint* Blueprint, const FString& GraphName) const
 {

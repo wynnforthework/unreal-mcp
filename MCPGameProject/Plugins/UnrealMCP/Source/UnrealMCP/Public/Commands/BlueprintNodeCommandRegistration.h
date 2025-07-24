@@ -29,14 +29,15 @@ private:
      * Register individual Blueprint Node commands
      */
     static void RegisterConnectBlueprintNodesCommand();
-    static void RegisterAddBlueprintInputActionNodeCommand();
+    // static void RegisterAddBlueprintInputActionNodeCommand();  // REMOVED: Use create_node_by_action_name instead
     static void RegisterFindBlueprintNodesCommand();
     static void RegisterAddBlueprintVariableCommand();
     static void RegisterGetVariableInfoCommand();
     static void RegisterAddBlueprintEventNodeCommand();
     static void RegisterAddBlueprintFunctionNodeCommand();
     static void RegisterAddBlueprintCustomEventNodeCommand();
-    static void RegisterAddEnhancedInputActionNodeCommand();
+    static void RegisterCreateNodeByActionNameCommand();
+    // static void RegisterAddEnhancedInputActionNodeCommand();  // REMOVED: Use create_node_by_action_name instead
     
     /**
      * Helper to register a command and track it for cleanup

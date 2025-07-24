@@ -5,6 +5,7 @@ This module provides utilities for working with Blueprint nodes in Unreal Engine
 """
 
 import logging
+import json
 from typing import Dict, List, Any
 from mcp.server.fastmcp import Context
 from utils.unreal_connection_utils import send_unreal_command
@@ -71,22 +72,7 @@ def add_event_node(
         
     return send_unreal_command("add_blueprint_event_node", params)
 
-def add_input_action_node(
-    ctx: Context,
-    blueprint_name: str,
-    action_name: str,
-    node_position: List[float] = None
-) -> Dict[str, Any]:
-    """Implementation for adding an Enhanced Input action event node to a Blueprint's event graph."""
-    params = {
-        "blueprint_name": blueprint_name,
-        "action_name": action_name
-    }
-    
-    if node_position is not None:
-        params["node_position"] = node_position
-        
-    return send_unreal_command("add_enhanced_input_action_node", params)
+
 
 def add_function_node(
     ctx: Context,

@@ -161,5 +161,5 @@ public:
      * @param OutNodeId - ID of the created node
      * @return true if node was created successfully
      */
-    virtual bool AddEnhancedInputActionNode(UBlueprint* Blueprint, const FString& ActionName, const FVector2D& Position, FString& OutNodeId) = 0;
+    // virtual bool AddEnhancedInputActionNode(UBlueprint* Blueprint, const FString& ActionName, const FVector2D& Position, FString& OutNodeId) = 0;  // REMOVED: Use create_node_by_action_name instead
 };

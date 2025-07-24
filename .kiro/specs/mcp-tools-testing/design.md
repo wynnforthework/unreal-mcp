@@ -4,7 +4,7 @@
 
 This design outlines a comprehensive testing framework for verifying the functionality of all 64 Unreal MCP tools after the recent C++ architecture refactoring. The testing system will systematically validate each tool category, identify broken functionality, and provide detailed reporting to guide restoration efforts.
 
-The design follows a structured approach that tests tools in logical dependency order, captures detailed results, and provides actionable feedback for fixing any issues discovered during the refactoring process.
+The design follows a structured approach that tests tools in logical dependency order, captures detailed results, and provides actionable feedback for fixing any issues discovered during the refactoring process. All tool implementations must adhere to the new layered architecture defined in the CPP refactoring spec, which includes Command Pattern, Service Layer, Factory Pattern, Validation Framework, Error Handling System, and Caching Strategy.
 
 ## Architecture
 
@@ -40,6 +40,18 @@ The design follows a structured approach that tests tools in logical dependency 
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
 │  │ Parameter       │  │ Execution       │  │ Result      │ │
 │  │ Validation      │  │ Testing         │  │ Verification│ │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                Architecture Compliance                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │ Command Pattern │  │ Service Layer   │  │ Factory     │ │
+│  │ Compliance      │  │ Compliance      │  │ Pattern     │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │ Validation      │  │ Error Handling  │  │ Caching     │ │
+│  │ Framework       │  │ System          │  │ Strategy    │ │
 │  └─────────────────┘  └─────────────────┘  └─────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -360,6 +372,7 @@ Tool Test {
 2. **Identify Root Causes**: Determine if issues are in C++ refactoring, Python MCP servers, or integration
 3. **Prioritize Fixes**: Focus on critical tools that block other functionality
 4. **Create Fix Plans**: Develop specific remediation strategies for each issue type
+5. **Architecture Compliance**: Ensure all fixes adhere to the new layered architecture
 
 ### Restoration Approach
 
@@ -367,16 +380,24 @@ Tool Test {
 - Foundation tools (Project Tools) that other tools depend on
 - Core Blueprint and Editor tools needed for basic functionality
 - Critical integration points between C++ and Python layers
+- Command Pattern implementation for all tools
+- Service Layer extraction for core functionality
 
 **Medium Priority Fixes:**
 - Advanced functionality tools
 - Performance optimizations
 - Error handling improvements
+- Factory Pattern implementation
+- Validation Framework integration
+- Error Handling System standardization
 
 **Low Priority Fixes:**
 - Edge case handling
 - Documentation updates
 - Minor feature enhancements
+- Caching Strategy implementation
+- Performance monitoring integration
+- Memory optimization
 
 ### Success Metrics
 
@@ -393,3 +414,158 @@ Tool Test {
 - Overall system reliability and stability
 
 This comprehensive testing design ensures that all 64 MCP tools are thoroughly validated, issues are clearly identified, and a clear path to restoration is established for the post-refactoring system.
+## A
+rchitecture Compliance Testing
+
+### Command Pattern Compliance
+
+Each tool implementation must follow the Command Pattern as defined in the CPP refactoring spec:
+
+```cpp
+class UNREALMCP_API IUnrealMCPCommand
+{
+public:
+    virtual ~IUnrealMCPCommand() = default;
+    virtual TSharedPtr<FJsonObject> Execute(const TSharedPtr<FJsonObject>& Params) = 0;
+    virtual FString GetCommandName() const = 0;
+    virtual bool ValidateParams(const TSharedPtr<FJsonObject>& Params, FString& OutError) const = 0;
+};
+```
+
+**Testing Approach:**
+1. Verify each tool has a corresponding command class implementing IUnrealMCPCommand
+2. Confirm proper command registration in FUnrealMCPCommandRegistry
+3. Test ValidateParams implementation for parameter validation
+4. Verify Execute method properly delegates to service layer
+
+### Service Layer Compliance
+
+Business logic should be extracted into service classes following the single responsibility principle:
+
+```cpp
+class UNREALMCP_API IBlueprintService
+{
+public:
+    virtual ~IBlueprintService() = default;
+    virtual UBlueprint* CreateBlueprint(const FBlueprintCreationParams& Params) = 0;
+    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params) = 0;
+    virtual bool CompileBlueprint(UBlueprint* Blueprint, FString& OutError) = 0;
+    virtual UBlueprint* FindBlueprint(const FString& BlueprintName) = 0;
+};
+```
+
+**Testing Approach:**
+1. Verify business logic is extracted from command handlers into appropriate services
+2. Confirm services follow single responsibility principle
+3. Test service interfaces for proper abstraction
+4. Verify command handlers delegate to services rather than implementing logic directly
+
+### Factory Pattern Compliance
+
+Component and widget creation should use factory patterns:
+
+```cpp
+class UNREALMCP_API FComponentFactory
+{
+public:
+    static FComponentFactory& Get();
+    
+    void RegisterComponentType(const FString& TypeName, UClass* ComponentClass);
+    UClass* GetComponentClass(const FString& TypeName) const;
+    TArray<FString> GetAvailableTypes() const;
+    
+    // Specialized creation methods
+    UActorComponent* CreateComponent(const FString& TypeName, const FString& ComponentName);
+    
+private:
+    TMap<FString, UClass*> ComponentTypeMap;
+    void InitializeDefaultTypes();
+};
+```
+
+**Testing Approach:**
+1. Verify component creation uses ComponentFactory
+2. Confirm widget creation uses WidgetFactory
+3. Test proper registration of component and widget types
+4. Verify factory methods are used instead of direct creation
+
+### Validation Framework Compliance
+
+Parameter validation should use the validation framework:
+
+```cpp
+class UNREALMCP_API FParameterValidator
+{
+public:
+    struct FValidationRule
+    {
+        FString FieldName;
+        bool bRequired;
+        TFunction<bool(const TSharedPtr<FJsonValue>&)> ValidationFunc;
+        FString ErrorMessage;
+    };
+    
+    void AddRule(const FValidationRule& Rule);
+    bool ValidateParams(const TSharedPtr<FJsonObject>& Params, FString& OutError) const;
+};
+```
+
+**Testing Approach:**
+1. Verify each command uses FParameterValidator for validation
+2. Confirm validation rules are properly defined
+3. Test validation error reporting
+4. Verify consistent validation approach across all commands
+
+### Error Handling System Compliance
+
+Error handling should use the structured error system:
+
+```cpp
+struct UNREALMCP_API FMCPError
+{
+    enum class EErrorType
+    {
+        ValidationError,
+        NotFoundError,
+        OperationError,
+        InternalError
+    };
+    
+    EErrorType Type;
+    FString Message;
+    FString Details;
+    TMap<FString, FString> Context;
+    
+    TSharedPtr<FJsonObject> ToJson() const;
+};
+```
+
+**Testing Approach:**
+1. Verify commands use FMCPError for error reporting
+2. Confirm proper error categorization
+3. Test error message clarity and detail
+4. Verify consistent error handling across all commands
+
+### Caching Strategy Compliance
+
+Appropriate caching should be implemented:
+
+```cpp
+class UNREALMCP_API FBlueprintCache
+{
+public:
+    UBlueprint* GetBlueprint(const FString& BlueprintName);
+    void InvalidateBlueprint(const FString& BlueprintName);
+    void ClearCache();
+    
+private:
+    TMap<FString, TWeakObjectPtr<UBlueprint>> CachedBlueprints;
+    FCriticalSection CacheLock;
+};
+```
+
+**Testing Approach:**
+1. Verify appropriate caching for Blueprint and component references
+2. Confirm proper cache invalidation
+3. Test thread safety for cached resources
+4. Verify performance improvements from caching
