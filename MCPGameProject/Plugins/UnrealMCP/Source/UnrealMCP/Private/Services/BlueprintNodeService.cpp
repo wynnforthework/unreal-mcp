@@ -16,6 +16,8 @@
 #include "K2Node_VariableSet.h"
 #include "K2Node_CustomEvent.h"
 #include "K2Node_InputAction.h"
+#include "K2Node_DynamicCast.h"
+#include "KismetCompiler.h"
 
 
 bool FBlueprintNodeConnectionParams::IsValid(FString& OutError) const
@@ -115,8 +117,8 @@ bool FBlueprintNodeService::ConnectBlueprintNodes(UBlueprint* Blueprint, const T
             continue;
         }
         
-        // Connect the nodes using the common utils
-        bool bConnectionSucceeded = FUnrealMCPCommonUtils::ConnectGraphNodes(EventGraph, SourceNode, Connection.SourcePin, TargetNode, Connection.TargetPin);
+        // Try to connect the nodes with automatic cast node creation if needed
+        bool bConnectionSucceeded = ConnectNodesWithAutoCast(EventGraph, SourceNode, Connection.SourcePin, TargetNode, Connection.TargetPin);
         OutResults.Add(bConnectionSucceeded);
         
         if (!bConnectionSucceeded)
@@ -557,5 +559,368 @@ bool FBlueprintNodeService::ConnectPins(UEdGraphNode* SourceNode, const FString&
     // Make the connection
     SourcePin->MakeLinkTo(TargetPin);
     
+    return true;
+}
+
+bool FBlueprintNodeService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName)
+{
+    if (!Graph || !SourceNode || !TargetNode)
+    {
+        return false;
+    }
+    
+    // Find the pins
+    UEdGraphPin* SourcePin = FUnrealMCPCommonUtils::FindPin(SourceNode, SourcePinName, EGPD_Output);
+    UEdGraphPin* TargetPin = FUnrealMCPCommonUtils::FindPin(TargetNode, TargetPinName, EGPD_Input);
+    
+    if (!SourcePin || !TargetPin)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ConnectNodesWithAutoCast: Could not find pins - Source: %s, Target: %s"), 
+               SourcePin ? TEXT("Found") : TEXT("Not Found"), 
+               TargetPin ? TEXT("Found") : TEXT("Not Found"));
+        return false;
+    }
+    
+    // Check if this is an execution pin connection (no cast needed for exec pins)
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec || 
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+    {
+        SourcePin->MakeLinkTo(TargetPin);
+        return true;
+    }
+    
+    // Check if types are compatible
+    if (ArePinTypesCompatible(SourcePin->PinType, TargetPin->PinType))
+    {
+        // Direct connection
+        SourcePin->MakeLinkTo(TargetPin);
+        UE_LOG(LogTemp, Display, TEXT("ConnectNodesWithAutoCast: Direct connection successful"));
+        return true;
+    }
+    else
+    {
+        // Types are incompatible, try to create a cast node
+        UE_LOG(LogTemp, Display, TEXT("ConnectNodesWithAutoCast: Types incompatible, attempting to create cast node"));
+        UE_LOG(LogTemp, Display, TEXT("  Source type: %s"), *SourcePin->PinType.PinCategory.ToString());
+        UE_LOG(LogTemp, Display, TEXT("  Target type: %s"), *TargetPin->PinType.PinCategory.ToString());
+        
+        return CreateCastNode(Graph, SourcePin, TargetPin);
+    }
+}
+
+bool FBlueprintNodeService::ArePinTypesCompatible(const FEdGraphPinType& SourcePinType, const FEdGraphPinType& TargetPinType) const
+{
+    // Execution pins are always compatible with execution pins
+    if (SourcePinType.PinCategory == UEdGraphSchema_K2::PC_Exec && TargetPinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+    {
+        return true;
+    }
+    
+    // Exact type match
+    if (SourcePinType.PinCategory == TargetPinType.PinCategory)
+    {
+        // For basic types, category match is sufficient
+        if (SourcePinType.PinCategory == UEdGraphSchema_K2::PC_Int ||
+            SourcePinType.PinCategory == UEdGraphSchema_K2::PC_Real ||
+            SourcePinType.PinCategory == UEdGraphSchema_K2::PC_String ||
+            SourcePinType.PinCategory == UEdGraphSchema_K2::PC_Boolean)
+        {
+            return true;
+        }
+        
+        // For object types, check subcategory
+        if (SourcePinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+        {
+            return SourcePinType.PinSubCategoryObject == TargetPinType.PinSubCategoryObject;
+        }
+        
+        // For struct types, check subcategory
+        if (SourcePinType.PinCategory == UEdGraphSchema_K2::PC_Struct)
+        {
+            return SourcePinType.PinSubCategoryObject == TargetPinType.PinSubCategoryObject;
+        }
+    }
+    
+    // Some implicit conversions that don't need cast nodes
+    // Int to Float
+    if (SourcePinType.PinCategory == UEdGraphSchema_K2::PC_Int && TargetPinType.PinCategory == UEdGraphSchema_K2::PC_Real)
+    {
+        return true;
+    }
+    
+    return false;
+}
+
+bool FBlueprintNodeService::CreateCastNode(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+{
+    if (!Graph || !SourcePin || !TargetPin)
+    {
+        return false;
+    }
+    
+    UBlueprint* Blueprint = FBlueprintEditorUtils::FindBlueprintForGraph(Graph);
+    if (!Blueprint)
+    {
+        return false;
+    }
+    
+    // Handle common cast scenarios
+    
+    // Integer to String cast
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Int && 
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_String)
+    {
+        return CreateIntToStringCast(Graph, SourcePin, TargetPin);
+    }
+    
+    // Float to String cast
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Real && 
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_String)
+    {
+        return CreateFloatToStringCast(Graph, SourcePin, TargetPin);
+    }
+    
+    // Boolean to String cast
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean && 
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_String)
+    {
+        return CreateBoolToStringCast(Graph, SourcePin, TargetPin);
+    }
+    
+    // String to Int cast
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_String && 
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Int)
+    {
+        return CreateStringToIntCast(Graph, SourcePin, TargetPin);
+    }
+    
+    // String to Float cast
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_String && 
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Real)
+    {
+        return CreateStringToFloatCast(Graph, SourcePin, TargetPin);
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("CreateCastNode: No cast implementation for %s to %s"), 
+           *SourcePin->PinType.PinCategory.ToString(), 
+           *TargetPin->PinType.PinCategory.ToString());
+    
+    return false;
+}
+
+bool FBlueprintNodeService::CreateIntToStringCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+{
+    // Find the Conv_IntToString function
+    UClass* KismetStringLibrary = FindObject<UClass>(nullptr, TEXT("/Script/Engine.KismetStringLibrary"));
+    if (!KismetStringLibrary)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateIntToStringCast: Could not find KismetStringLibrary"));
+        return false;
+    }
+    
+    UFunction* ConvFunction = KismetStringLibrary->FindFunctionByName(TEXT("Conv_IntToString"));
+    if (!ConvFunction)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateIntToStringCast: Could not find Conv_IntToString function"));
+        return false;
+    }
+    
+    // Create the conversion node
+    UK2Node_CallFunction* ConvNode = NewObject<UK2Node_CallFunction>(Graph);
+    ConvNode->SetFromFunction(ConvFunction);
+    
+    // Position the cast node between source and target
+    FVector2D SourcePos(SourcePin->GetOwningNode()->NodePosX, SourcePin->GetOwningNode()->NodePosY);
+    FVector2D TargetPos(TargetPin->GetOwningNode()->NodePosX, TargetPin->GetOwningNode()->NodePosY);
+    FVector2D CastPos = (SourcePos + TargetPos) * 0.5f;
+    
+    ConvNode->NodePosX = CastPos.X;
+    ConvNode->NodePosY = CastPos.Y;
+    
+    Graph->AddNode(ConvNode, true);
+    ConvNode->PostPlacedNewNode();
+    ConvNode->AllocateDefaultPins();
+    
+    // Find the input and output pins on the conversion node
+    UEdGraphPin* ConvInputPin = ConvNode->FindPinChecked(TEXT("InInt"), EGPD_Input);
+    UEdGraphPin* ConvOutputPin = ConvNode->FindPinChecked(TEXT("ReturnValue"), EGPD_Output);
+    
+    // Connect: Source -> Conv Input -> Conv Output -> Target
+    SourcePin->MakeLinkTo(ConvInputPin);
+    ConvOutputPin->MakeLinkTo(TargetPin);
+    
+    UE_LOG(LogTemp, Display, TEXT("CreateIntToStringCast: Successfully created Int to String cast node"));
+    return true;
+}
+
+bool FBlueprintNodeService::CreateFloatToStringCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+{
+    // Find the Conv_FloatToString function
+    UClass* KismetStringLibrary = FindObject<UClass>(nullptr, TEXT("/Script/Engine.KismetStringLibrary"));
+    if (!KismetStringLibrary)
+    {
+        return false;
+    }
+    
+    UFunction* ConvFunction = KismetStringLibrary->FindFunctionByName(TEXT("Conv_FloatToString"));
+    if (!ConvFunction)
+    {
+        return false;
+    }
+    
+    // Create the conversion node
+    UK2Node_CallFunction* ConvNode = NewObject<UK2Node_CallFunction>(Graph);
+    ConvNode->SetFromFunction(ConvFunction);
+    
+    // Position the cast node between source and target
+    FVector2D SourcePos(SourcePin->GetOwningNode()->NodePosX, SourcePin->GetOwningNode()->NodePosY);
+    FVector2D TargetPos(TargetPin->GetOwningNode()->NodePosX, TargetPin->GetOwningNode()->NodePosY);
+    FVector2D CastPos = (SourcePos + TargetPos) * 0.5f;
+    
+    ConvNode->NodePosX = CastPos.X;
+    ConvNode->NodePosY = CastPos.Y;
+    
+    Graph->AddNode(ConvNode, true);
+    ConvNode->PostPlacedNewNode();
+    ConvNode->AllocateDefaultPins();
+    
+    // Find the input and output pins on the conversion node
+    UEdGraphPin* ConvInputPin = ConvNode->FindPinChecked(TEXT("InFloat"), EGPD_Input);
+    UEdGraphPin* ConvOutputPin = ConvNode->FindPinChecked(TEXT("ReturnValue"), EGPD_Output);
+    
+    // Connect: Source -> Conv Input -> Conv Output -> Target
+    SourcePin->MakeLinkTo(ConvInputPin);
+    ConvOutputPin->MakeLinkTo(TargetPin);
+    
+    UE_LOG(LogTemp, Display, TEXT("CreateFloatToStringCast: Successfully created Float to String cast node"));
+    return true;
+}
+
+bool FBlueprintNodeService::CreateBoolToStringCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+{
+    // Find the Conv_BoolToString function
+    UClass* KismetStringLibrary = FindObject<UClass>(nullptr, TEXT("/Script/Engine.KismetStringLibrary"));
+    if (!KismetStringLibrary)
+    {
+        return false;
+    }
+    
+    UFunction* ConvFunction = KismetStringLibrary->FindFunctionByName(TEXT("Conv_BoolToString"));
+    if (!ConvFunction)
+    {
+        return false;
+    }
+    
+    // Create the conversion node
+    UK2Node_CallFunction* ConvNode = NewObject<UK2Node_CallFunction>(Graph);
+    ConvNode->SetFromFunction(ConvFunction);
+    
+    // Position the cast node between source and target
+    FVector2D SourcePos(SourcePin->GetOwningNode()->NodePosX, SourcePin->GetOwningNode()->NodePosY);
+    FVector2D TargetPos(TargetPin->GetOwningNode()->NodePosX, TargetPin->GetOwningNode()->NodePosY);
+    FVector2D CastPos = (SourcePos + TargetPos) * 0.5f;
+    
+    ConvNode->NodePosX = CastPos.X;
+    ConvNode->NodePosY = CastPos.Y;
+    
+    Graph->AddNode(ConvNode, true);
+    ConvNode->PostPlacedNewNode();
+    ConvNode->AllocateDefaultPins();
+    
+    // Find the input and output pins on the conversion node
+    UEdGraphPin* ConvInputPin = ConvNode->FindPinChecked(TEXT("InBool"), EGPD_Input);
+    UEdGraphPin* ConvOutputPin = ConvNode->FindPinChecked(TEXT("ReturnValue"), EGPD_Output);
+    
+    // Connect: Source -> Conv Input -> Conv Output -> Target
+    SourcePin->MakeLinkTo(ConvInputPin);
+    ConvOutputPin->MakeLinkTo(TargetPin);
+    
+    UE_LOG(LogTemp, Display, TEXT("CreateBoolToStringCast: Successfully created Bool to String cast node"));
+    return true;
+}
+
+bool FBlueprintNodeService::CreateStringToIntCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+{
+    // Find the Conv_StringToInt function
+    UClass* KismetStringLibrary = FindObject<UClass>(nullptr, TEXT("/Script/Engine.KismetStringLibrary"));
+    if (!KismetStringLibrary)
+    {
+        return false;
+    }
+    
+    UFunction* ConvFunction = KismetStringLibrary->FindFunctionByName(TEXT("Conv_StringToInt"));
+    if (!ConvFunction)
+    {
+        return false;
+    }
+    
+    // Create the conversion node
+    UK2Node_CallFunction* ConvNode = NewObject<UK2Node_CallFunction>(Graph);
+    ConvNode->SetFromFunction(ConvFunction);
+    
+    // Position the cast node between source and target
+    FVector2D SourcePos(SourcePin->GetOwningNode()->NodePosX, SourcePin->GetOwningNode()->NodePosY);
+    FVector2D TargetPos(TargetPin->GetOwningNode()->NodePosX, TargetPin->GetOwningNode()->NodePosY);
+    FVector2D CastPos = (SourcePos + TargetPos) * 0.5f;
+    
+    ConvNode->NodePosX = CastPos.X;
+    ConvNode->NodePosY = CastPos.Y;
+    
+    Graph->AddNode(ConvNode, true);
+    ConvNode->PostPlacedNewNode();
+    ConvNode->AllocateDefaultPins();
+    
+    // Find the input and output pins on the conversion node
+    UEdGraphPin* ConvInputPin = ConvNode->FindPinChecked(TEXT("InString"), EGPD_Input);
+    UEdGraphPin* ConvOutputPin = ConvNode->FindPinChecked(TEXT("ReturnValue"), EGPD_Output);
+    
+    // Connect: Source -> Conv Input -> Conv Output -> Target
+    SourcePin->MakeLinkTo(ConvInputPin);
+    ConvOutputPin->MakeLinkTo(TargetPin);
+    
+    UE_LOG(LogTemp, Display, TEXT("CreateStringToIntCast: Successfully created String to Int cast node"));
+    return true;
+}
+
+bool FBlueprintNodeService::CreateStringToFloatCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+{
+    // Find the Conv_StringToFloat function
+    UClass* KismetStringLibrary = FindObject<UClass>(nullptr, TEXT("/Script/Engine.KismetStringLibrary"));
+    if (!KismetStringLibrary)
+    {
+        return false;
+    }
+    
+    UFunction* ConvFunction = KismetStringLibrary->FindFunctionByName(TEXT("Conv_StringToFloat"));
+    if (!ConvFunction)
+    {
+        return false;
+    }
+    
+    // Create the conversion node
+    UK2Node_CallFunction* ConvNode = NewObject<UK2Node_CallFunction>(Graph);
+    ConvNode->SetFromFunction(ConvFunction);
+    
+    // Position the cast node between source and target
+    FVector2D SourcePos(SourcePin->GetOwningNode()->NodePosX, SourcePin->GetOwningNode()->NodePosY);
+    FVector2D TargetPos(TargetPin->GetOwningNode()->NodePosX, TargetPin->GetOwningNode()->NodePosY);
+    FVector2D CastPos = (SourcePos + TargetPos) * 0.5f;
+    
+    ConvNode->NodePosX = CastPos.X;
+    ConvNode->NodePosY = CastPos.Y;
+    
+    Graph->AddNode(ConvNode, true);
+    ConvNode->PostPlacedNewNode();
+    ConvNode->AllocateDefaultPins();
+    
+    // Find the input and output pins on the conversion node
+    UEdGraphPin* ConvInputPin = ConvNode->FindPinChecked(TEXT("InString"), EGPD_Input);
+    UEdGraphPin* ConvOutputPin = ConvNode->FindPinChecked(TEXT("ReturnValue"), EGPD_Output);
+    
+    // Connect: Source -> Conv Input -> Conv Output -> Target
+    SourcePin->MakeLinkTo(ConvInputPin);
+    ConvOutputPin->MakeLinkTo(TargetPin);
+    
+    UE_LOG(LogTemp, Display, TEXT("CreateStringToFloatCast: Successfully created String to Float cast node"));
     return true;
 }

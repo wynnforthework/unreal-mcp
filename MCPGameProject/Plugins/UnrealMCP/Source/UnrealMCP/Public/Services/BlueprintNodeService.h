@@ -63,4 +63,57 @@ private:
      * @return true if connection succeeded
      */
     bool ConnectPins(UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName) const;
+    
+    /**
+     * Connect two nodes with automatic cast node creation if types don't match
+     * @param Graph - The graph containing the nodes
+     * @param SourceNode - Source node
+     * @param SourcePinName - Name of the source pin
+     * @param TargetNode - Target node
+     * @param TargetPinName - Name of the target pin
+     * @return true if connection succeeded (with or without cast node)
+     */
+    bool ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName);
+    
+    /**
+     * Check if two pin types are compatible or need a cast
+     * @param SourcePinType - Type of the source pin
+     * @param TargetPinType - Type of the target pin
+     * @return true if types are compatible without cast
+     */
+    bool ArePinTypesCompatible(const FEdGraphPinType& SourcePinType, const FEdGraphPinType& TargetPinType) const;
+    
+    /**
+     * Create a cast node between two incompatible pins
+     * @param Graph - The graph to create the cast node in
+     * @param SourcePin - Source pin
+     * @param TargetPin - Target pin
+     * @return true if cast node was created and connected successfully
+     */
+    bool CreateCastNode(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
+    
+    /**
+     * Create an Integer to String conversion node
+     */
+    bool CreateIntToStringCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
+    
+    /**
+     * Create a Float to String conversion node
+     */
+    bool CreateFloatToStringCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
+    
+    /**
+     * Create a Boolean to String conversion node
+     */
+    bool CreateBoolToStringCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
+    
+    /**
+     * Create a String to Integer conversion node
+     */
+    bool CreateStringToIntCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
+    
+    /**
+     * Create a String to Float conversion node
+     */
+    bool CreateStringToFloatCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
 };

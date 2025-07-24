@@ -276,15 +276,13 @@
 - [-] 5. Implement Phase 4: Advanced Logic Testing (Node Tools - 4 tools)
 
   - [x] 5.1 Test mcp_nodeMCP_add_blueprint_input_action_node functionality
-
-
     - Test input action event node creation
     - Verify action name parameter handling and node positioning
     - Test node integration with Blueprint event graphs
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 4.1_
 
-  - [ ] 5.2 Test mcp_nodeMCP_connect_blueprint_nodes functionality
+  - [x] 5.2 Test mcp_nodeMCP_connect_blueprint_nodes functionality
     - Test single node connection with source and target pins
     - Test batch connection mode with multiple connections
     - Verify pin name validation and connection establishment
@@ -292,6 +290,9 @@
     - _Requirements: 4.2_
 
   - [ ] 5.3 Test mcp_nodeMCP_find_blueprint_nodes functionality
+
+
+
     - Test node discovery by type and event type
     - Verify target graph filtering and node identification
     - Test node search across different Blueprint graphs

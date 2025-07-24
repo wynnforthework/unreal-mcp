@@ -7,15 +7,16 @@
 /**
  * Command for connecting Blueprint nodes
  * Implements the IUnrealMCPCommand interface for standardized command execution
+ * Follows the new architecture with proper service layer delegation
  */
 class UNREALMCP_API FConnectBlueprintNodesCommand : public IUnrealMCPCommand
 {
 public:
     /**
      * Constructor
-     * @param InBlueprintNodeService - Reference to the Blueprint node service for operations
+     * @param InBlueprintNodeService - Shared pointer to the Blueprint node service for operations
      */
-    explicit FConnectBlueprintNodesCommand(IBlueprintNodeService& InBlueprintNodeService);
+    explicit FConnectBlueprintNodesCommand(TSharedPtr<IBlueprintNodeService> InBlueprintNodeService);
 
     // IUnrealMCPCommand interface
     virtual FString Execute(const FString& Parameters) override;
@@ -23,25 +24,26 @@ public:
     virtual bool ValidateParams(const FString& Parameters) const override;
 
 private:
-    /** Reference to the Blueprint node service */
-    IBlueprintNodeService& BlueprintNodeService;
+    /** Shared pointer to the Blueprint node service */
+    TSharedPtr<IBlueprintNodeService> BlueprintNodeService;
     
     /**
      * Parse JSON parameters into connection parameters
-     * @param JsonString - JSON string containing parameters
+     * @param JsonObject - JSON object containing parameters
      * @param OutBlueprintName - Parsed Blueprint name
      * @param OutConnections - Parsed connection parameters
      * @param OutError - Error message if parsing fails
      * @return true if parsing succeeded
      */
-    bool ParseParameters(const FString& JsonString, FString& OutBlueprintName, TArray<FBlueprintNodeConnectionParams>& OutConnections, FString& OutError) const;
+    bool ParseParameters(const TSharedPtr<FJsonObject>& JsonObject, FString& OutBlueprintName, TArray<FBlueprintNodeConnectionParams>& OutConnections, FString& OutError) const;
     
     /**
      * Create success response JSON
      * @param Results - Connection results
+     * @param Connections - Original connection parameters for detailed response
      * @return JSON response string
      */
-    FString CreateSuccessResponse(const TArray<bool>& Results) const;
+    FString CreateSuccessResponse(const TArray<bool>& Results, const TArray<FBlueprintNodeConnectionParams>& Connections) const;
     
     /**
      * Create error response JSON

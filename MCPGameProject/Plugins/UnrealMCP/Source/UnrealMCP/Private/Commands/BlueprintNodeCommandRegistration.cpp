@@ -61,7 +61,9 @@ void FBlueprintNodeCommandRegistration::UnregisterAllBlueprintNodeCommands()
 
 void FBlueprintNodeCommandRegistration::RegisterConnectBlueprintNodesCommand()
 {
-    TSharedPtr<FConnectBlueprintNodesCommand> Command = MakeShared<FConnectBlueprintNodesCommand>(FBlueprintNodeService::Get());
+    // Use the singleton instance wrapped in a shared pointer
+    TSharedPtr<IBlueprintNodeService> Service = TSharedPtr<IBlueprintNodeService>(&FBlueprintNodeService::Get(), [](IBlueprintNodeService*){});
+    TSharedPtr<FConnectBlueprintNodesCommand> Command = MakeShared<FConnectBlueprintNodesCommand>(Service);
     RegisterAndTrackCommand(Command);
 }
 
