@@ -7,12 +7,13 @@
 /**
  * Command for finding nodes in Blueprint graphs
  * Implements the IUnrealMCPCommand interface for standardized command execution
+ * Uses Service Layer pattern for business logic delegation
  */
 class UNREALMCP_API FFindBlueprintNodesCommand : public IUnrealMCPCommand
 {
 public:
     /**
-     * Constructor
+     * Constructor - Uses service layer pattern
      * @param InBlueprintNodeService - Reference to the Blueprint node service for operations
      */
     explicit FFindBlueprintNodesCommand(IBlueprintNodeService& InBlueprintNodeService);
@@ -23,11 +24,11 @@ public:
     virtual bool ValidateParams(const FString& Parameters) const override;
 
 private:
-    /** Reference to the Blueprint node service */
+    /** Reference to the Blueprint node service - Service Layer Pattern */
     IBlueprintNodeService& BlueprintNodeService;
     
     /**
-     * Parse JSON parameters
+     * Parse JSON parameters with proper validation
      * @param JsonString - JSON string containing parameters
      * @param OutBlueprintName - Parsed Blueprint name
      * @param OutNodeType - Parsed node type filter

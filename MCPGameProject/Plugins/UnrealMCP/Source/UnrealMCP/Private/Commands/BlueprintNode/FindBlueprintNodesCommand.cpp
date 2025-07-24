@@ -15,19 +15,20 @@ FString FFindBlueprintNodesCommand::Execute(const FString& Parameters)
     FString BlueprintName, NodeType, EventType, TargetGraph;
     FString ParseError;
     
+    // Parse parameters with proper validation
     if (!ParseParameters(Parameters, BlueprintName, NodeType, EventType, TargetGraph, ParseError))
     {
         return CreateErrorResponse(ParseError);
     }
     
-    // Find the Blueprint
+    // Find the Blueprint using common utilities - Service Layer Pattern
     UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
     if (!Blueprint)
     {
         return CreateErrorResponse(FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
     }
     
-    // Find nodes using the service
+    // Delegate to service layer for business logic
     TArray<FString> NodeIds;
     if (BlueprintNodeService.FindBlueprintNodes(Blueprint, NodeType, EventType, TargetGraph, NodeIds))
     {
@@ -49,6 +50,7 @@ bool FFindBlueprintNodesCommand::ValidateParams(const FString& Parameters) const
     FString BlueprintName, NodeType, EventType, TargetGraph;
     FString ParseError;
     
+    // Delegate to parameter parsing for validation
     return ParseParameters(Parameters, BlueprintName, NodeType, EventType, TargetGraph, ParseError);
 }
 
@@ -67,6 +69,13 @@ bool FFindBlueprintNodesCommand::ParseParameters(const FString& JsonString, FStr
     if (!JsonObject->TryGetStringField(TEXT("blueprint_name"), OutBlueprintName))
     {
         OutError = TEXT("Missing required 'blueprint_name' parameter");
+        return false;
+    }
+    
+    // Validate blueprint name is not empty
+    if (OutBlueprintName.IsEmpty())
+    {
+        OutError = TEXT("Blueprint name cannot be empty");
         return false;
     }
     

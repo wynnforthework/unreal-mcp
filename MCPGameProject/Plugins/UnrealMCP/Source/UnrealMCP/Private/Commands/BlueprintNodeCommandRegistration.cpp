@@ -76,6 +76,7 @@ void FBlueprintNodeCommandRegistration::RegisterConnectBlueprintNodesCommand()
 
 void FBlueprintNodeCommandRegistration::RegisterFindBlueprintNodesCommand()
 {
+    // Use service layer pattern with singleton service
     TSharedPtr<FFindBlueprintNodesCommand> Command = MakeShared<FFindBlueprintNodesCommand>(FBlueprintNodeService::Get());
     RegisterAndTrackCommand(Command);
 }
