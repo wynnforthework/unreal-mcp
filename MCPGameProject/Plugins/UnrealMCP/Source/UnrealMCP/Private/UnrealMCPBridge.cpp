@@ -319,7 +319,6 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 static const TArray<FString> BlueprintActionCommandsList = {
                     TEXT("get_actions_for_pin"),
                     TEXT("get_actions_for_class"),
-                    TEXT("get_actions_for_class_hierarchy"),
                     TEXT("search_blueprint_actions"),
                     TEXT("get_node_pin_info"),
                     TEXT("create_node_by_action_name")

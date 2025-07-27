@@ -312,20 +312,13 @@
     - _Requirements: 2.1_
 
   - [x] 6.2 Test mcp_blueprintActionMCP_get_actions_for_class functionality
-
-
-
-
-
-
-
     - Test action discovery for specific classes
     - Verify class name and path resolution
     - Test search filtering and action categorization
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 2.2_
 
-  - [ ] 6.3 Test mcp_blueprintActionMCP_get_actions_for_class_hierarchy functionality
+  - [x] 6.3 Test mcp_blueprintActionMCP_get_actions_for_class_hierarchy functionality
     - Test comprehensive action discovery including inheritance
     - Verify parent class action inclusion
     - Test hierarchy traversal and action aggregation
@@ -333,6 +326,10 @@
     - _Requirements: 2.3_
 
   - [ ] 6.4 Test mcp_blueprintActionMCP_search_blueprint_actions functionality
+
+
+
+
     - Test keyword-based action searching
     - Verify category filtering and Blueprint-specific searches
     - Test search result relevance and completeness

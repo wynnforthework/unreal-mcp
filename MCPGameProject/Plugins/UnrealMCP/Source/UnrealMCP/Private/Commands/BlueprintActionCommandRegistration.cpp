@@ -1,6 +1,7 @@
 #include "Commands/BlueprintActionCommandRegistration.h"
 #include "Commands/UnrealMCPCommandRegistry.h"
 #include "Commands/BlueprintAction/GetActionsForClassCommand.h"
+#include "Commands/BlueprintAction/GetActionsForClassHierarchyCommand.h"
 #include "Commands/GetActionsForPinCommand.h"
 #include "Services/IBlueprintActionService.h"
 
@@ -20,6 +21,10 @@ void FBlueprintActionCommandRegistration::RegisterCommands(FUnrealMCPCommandRegi
     // Register GetActionsForClass command
     TSharedPtr<IUnrealMCPCommand> GetActionsForClassCommand = MakeShared<FGetActionsForClassCommand>(BlueprintActionService);
     RegisterAndTrackCommand(GetActionsForClassCommand);
+
+    // Register GetActionsForClassHierarchy command
+    TSharedPtr<IUnrealMCPCommand> GetActionsForClassHierarchyCommand = MakeShared<FGetActionsForClassHierarchyCommand>(BlueprintActionService);
+    RegisterAndTrackCommand(GetActionsForClassHierarchyCommand);
 
     // Register GetActionsForPin command
     TSharedPtr<IUnrealMCPCommand> GetActionsForPinCommand = MakeShared<FGetActionsForPinCommand>(BlueprintActionService);
