@@ -6,6 +6,8 @@
 #include "Commands/DataTableCommandRegistration.h"
 #include "Commands/EditorCommandRegistration.h"
 #include "Commands/UMGCommandRegistration.h"
+#include "Commands/GetActionsForPinCommand.h"
+#include "Services/BlueprintActionService.h"
 // Legacy adapter removed
 #include "Services/BlueprintService.h"
 #include "Services/ProjectService.h"
@@ -85,6 +87,11 @@ void FUnrealMCPMainDispatcher::RegisterAllCommands()
     
     // Register Blueprint Node commands
     FBlueprintNodeCommandRegistration::RegisterAllBlueprintNodeCommands();
+    
+    // Register Blueprint Action commands (new architecture)
+    TSharedPtr<IBlueprintActionService> BlueprintActionService = MakeShared<FBlueprintActionService>();
+    TSharedPtr<IUnrealMCPCommand> GetActionsForPinCommand = MakeShared<FGetActionsForPinCommand>(BlueprintActionService);
+    Registry.RegisterCommand(GetActionsForPinCommand);
     
     // Register Project commands
     TSharedPtr<IProjectService> ProjectService = MakeShared<FProjectService>();

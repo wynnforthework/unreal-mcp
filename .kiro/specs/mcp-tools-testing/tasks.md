@@ -290,24 +290,13 @@
     - _Requirements: 4.2_
 
   - [x] 5.3 Test mcp_nodeMCP_find_blueprint_nodes functionality
-
-
-
-
-
-
-
-
-
-
-
     - Test node discovery by type and event type
     - Verify target graph filtering and node identification
     - Test node search across different Blueprint graphs
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 4.3_
 
-  - [ ] 5.4 Test mcp_nodeMCP_get_variable_info functionality
+  - [x] 5.4 Test mcp_nodeMCP_get_variable_info functionality
     - Test variable type information retrieval
     - Verify struct type identification for automation
     - Test variable metadata and property information
@@ -315,7 +304,9 @@
     - _Requirements: 4.4_
 
 - [-] 6. Implement Phase 5: Blueprint Action Discovery Testing (Blueprint Action Tools - 6 tools)
-  - [ ] 6.1 Test mcp_blueprintActionMCP_get_actions_for_pin functionality
+  - [x] 6.1 Test mcp_blueprintActionMCP_get_actions_for_pin functionality
+
+
     - Test action discovery for various pin types (object, float, string, bool)
     - Verify pin subcategory handling (PlayerController, Vector, etc.)
     - Test search filtering and result limitation
@@ -323,6 +314,9 @@
     - _Requirements: 2.1_
 
   - [ ] 6.2 Test mcp_blueprintActionMCP_get_actions_for_class functionality
+
+
+
     - Test action discovery for specific classes
     - Verify class name and path resolution
     - Test search filtering and action categorization
