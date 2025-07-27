@@ -50,6 +50,14 @@ public:
     virtual FString SearchBlueprintActions(const FString& SearchQuery, const FString& Category, int32 MaxResults, const FString& BlueprintName) = 0;
 
     /**
+     * Get specific information about a Blueprint node's pin including expected types
+     * @param NodeName - Name of the Blueprint node
+     * @param PinName - Name of the specific pin
+     * @return JSON string containing pin information
+     */
+    virtual FString GetNodePinInfo(const FString& NodeName, const FString& PinName) = 0;
+
+    /**
      * Create a blueprint node by discovered action/function name
      * @param BlueprintName - Name of the target Blueprint
      * @param FunctionName - Name of the function to create a node for
