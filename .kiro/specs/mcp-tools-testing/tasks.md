@@ -328,8 +328,6 @@
   - [ ] 6.4 Test mcp_blueprintActionMCP_search_blueprint_actions functionality
 
 
-
-
     - Test keyword-based action searching
     - Verify category filtering and Blueprint-specific searches
     - Test search result relevance and completeness

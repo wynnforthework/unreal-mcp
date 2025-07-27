@@ -3,6 +3,7 @@
 #include "Commands/BlueprintAction/GetActionsForClassCommand.h"
 #include "Commands/BlueprintAction/GetActionsForClassHierarchyCommand.h"
 #include "Commands/GetActionsForPinCommand.h"
+#include "Commands/SearchBlueprintActionsCommand.h"
 #include "Services/IBlueprintActionService.h"
 
 // Static member definition
@@ -29,6 +30,10 @@ void FBlueprintActionCommandRegistration::RegisterCommands(FUnrealMCPCommandRegi
     // Register GetActionsForPin command
     TSharedPtr<IUnrealMCPCommand> GetActionsForPinCommand = MakeShared<FGetActionsForPinCommand>(BlueprintActionService);
     RegisterAndTrackCommand(GetActionsForPinCommand);
+
+    // Register SearchBlueprintActions command
+    TSharedPtr<IUnrealMCPCommand> SearchBlueprintActionsCommand = MakeShared<FSearchBlueprintActionsCommand>(BlueprintActionService);
+    RegisterAndTrackCommand(SearchBlueprintActionsCommand);
 
     UE_LOG(LogTemp, Log, TEXT("FBlueprintActionCommandRegistration::RegisterCommands: Successfully registered %d Blueprint Action commands"), RegisteredCommands.Num());
 }
