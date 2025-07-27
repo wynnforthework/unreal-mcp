@@ -1,29 +1,62 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Dom/JsonObject.h"
 
 /**
- * Interface for Blueprint Action service operations
- * Provides abstraction for Blueprint action discovery using FBlueprintActionDatabase
+ * Interface for Blueprint Action services
+ * Provides methods for discovering and managing Blueprint actions
  */
 class UNREALMCP_API IBlueprintActionService
 {
 public:
     virtual ~IBlueprintActionService() = default;
-    
+
     /**
      * Get all available Blueprint actions for a specific pin type
-     * @param PinType - Pin type to search for (object, float, int, bool, string, struct, etc.)
-     * @param PinSubcategory - Pin subcategory/class name for object pins (e.g., "PlayerController", "Pawn")
-     * @param SearchFilter - Search filter to apply to results
+     * @param PinType - The type of pin (object, int, float, bool, string, struct, etc.)
+     * @param PinSubCategory - The subcategory/class name for object pins
+     * @param SearchFilter - Optional search string to filter results
      * @param MaxResults - Maximum number of results to return
-     * @return JSON object containing discovered actions
+     * @return JSON string containing the actions
      */
-    virtual TSharedPtr<FJsonObject> GetActionsForPin(
-        const FString& PinType,
-        const FString& PinSubcategory,
-        const FString& SearchFilter,
-        int32 MaxResults
-    ) = 0;
+    virtual FString GetActionsForPin(const FString& PinType, const FString& PinSubCategory, const FString& SearchFilter, int32 MaxResults) = 0;
+
+    /**
+     * Get all available Blueprint actions for a specific class
+     * @param ClassName - Name or path of the class to get actions for
+     * @param SearchFilter - Optional search string to filter results
+     * @param MaxResults - Maximum number of results to return
+     * @return JSON string containing the actions
+     */
+    virtual FString GetActionsForClass(const FString& ClassName, const FString& SearchFilter, int32 MaxResults) = 0;
+
+    /**
+     * Get all available Blueprint actions for a class and its entire inheritance hierarchy
+     * @param ClassName - Name or path of the class to get actions for
+     * @param SearchFilter - Optional search string to filter results
+     * @param MaxResults - Maximum number of results to return
+     * @return JSON string containing the actions
+     */
+    virtual FString GetActionsForClassHierarchy(const FString& ClassName, const FString& SearchFilter, int32 MaxResults) = 0;
+
+    /**
+     * Search for Blueprint actions using keywords
+     * @param SearchQuery - Search string to find actions
+     * @param Category - Optional category filter
+     * @param MaxResults - Maximum number of results to return
+     * @param BlueprintName - Optional name of the Blueprint asset for local variable discovery
+     * @return JSON string containing the actions
+     */
+    virtual FString SearchBlueprintActions(const FString& SearchQuery, const FString& Category, int32 MaxResults, const FString& BlueprintName) = 0;
+
+    /**
+     * Create a blueprint node by discovered action/function name
+     * @param BlueprintName - Name of the target Blueprint
+     * @param FunctionName - Name of the function to create a node for
+     * @param ClassName - Optional class name
+     * @param NodePosition - Optional position in the graph
+     * @param JsonParams - Additional parameters for special nodes
+     * @return JSON string containing the result
+     */
+    virtual FString CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams) = 0;
 };

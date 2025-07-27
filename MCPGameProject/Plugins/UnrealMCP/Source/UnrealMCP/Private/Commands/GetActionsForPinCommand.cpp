@@ -25,13 +25,7 @@ FString FGetActionsForPinCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(ParseError);
     }
     
-    TSharedPtr<FJsonObject> Result = BlueprintActionService->GetActionsForPin(PinType, PinSubcategory, SearchFilter, MaxResults);
-    
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(Result.ToSharedRef(), Writer);
-    
-    return OutputString;
+    return BlueprintActionService->GetActionsForPin(PinType, PinSubcategory, SearchFilter, MaxResults);
 }
 
 FString FGetActionsForPinCommand::GetCommandName() const

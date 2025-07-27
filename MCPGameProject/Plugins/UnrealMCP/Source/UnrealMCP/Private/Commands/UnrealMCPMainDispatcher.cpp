@@ -2,11 +2,11 @@
 #include "Commands/UnrealMCPCommandRegistry.h"
 #include "Commands/BlueprintCommandRegistration.h"
 #include "Commands/BlueprintNodeCommandRegistration.h"
+#include "Commands/BlueprintActionCommandRegistration.h"
 #include "Commands/ProjectCommandRegistration.h"
 #include "Commands/DataTableCommandRegistration.h"
 #include "Commands/EditorCommandRegistration.h"
 #include "Commands/UMGCommandRegistration.h"
-#include "Commands/GetActionsForPinCommand.h"
 #include "Services/BlueprintActionService.h"
 // Legacy adapter removed
 #include "Services/BlueprintService.h"
@@ -90,8 +90,7 @@ void FUnrealMCPMainDispatcher::RegisterAllCommands()
     
     // Register Blueprint Action commands (new architecture)
     TSharedPtr<IBlueprintActionService> BlueprintActionService = MakeShared<FBlueprintActionService>();
-    TSharedPtr<IUnrealMCPCommand> GetActionsForPinCommand = MakeShared<FGetActionsForPinCommand>(BlueprintActionService);
-    Registry.RegisterCommand(GetActionsForPinCommand);
+    FBlueprintActionCommandRegistration::RegisterCommands(Registry, BlueprintActionService);
     
     // Register Project commands
     TSharedPtr<IProjectService> ProjectService = MakeShared<FProjectService>();
@@ -142,6 +141,7 @@ void FUnrealMCPMainDispatcher::Shutdown()
     // Unregister all command types
     FBlueprintCommandRegistration::UnregisterAllBlueprintCommands();
     FBlueprintNodeCommandRegistration::UnregisterAllBlueprintNodeCommands();
+    FBlueprintActionCommandRegistration::UnregisterAllBlueprintActionCommands();
     FDataTableCommandRegistration::UnregisterAllCommands();
     FEditorCommandRegistration::UnregisterAllCommands();
     FUMGCommandRegistration::UnregisterAllUMGCommands();

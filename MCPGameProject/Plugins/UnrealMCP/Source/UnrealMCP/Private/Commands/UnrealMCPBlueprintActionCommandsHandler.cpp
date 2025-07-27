@@ -69,6 +69,8 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::GetActionsForP
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintActionCommandsHandler::GetActionsForClass(const TSharedPtr<FJsonObject>& Params)
 {
+    UE_LOG(LogTemp, Error, TEXT("FUnrealMCPBlueprintActionCommandsHandler::GetActionsForClass: OLD LEGACY HANDLER CALLED! This should not happen!"));
+    
     FString ClassName = Params->GetStringField(TEXT("class_name"));
     FString SearchFilter = Params->GetStringField(TEXT("search_filter"));
     int32 MaxResults = Params->GetIntegerField(TEXT("max_results"));

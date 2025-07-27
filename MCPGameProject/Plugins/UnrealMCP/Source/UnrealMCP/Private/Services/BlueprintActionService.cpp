@@ -1,46 +1,27 @@
 #include "Services/BlueprintActionService.h"
 #include "Commands/UnrealMCPBlueprintActionCommands.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonReader.h"
 
-TSharedPtr<FJsonObject> FBlueprintActionService::GetActionsForPin(
-    const FString& PinType,
-    const FString& PinSubcategory,
-    const FString& SearchFilter,
-    int32 MaxResults)
+FString FBlueprintActionService::GetActionsForPin(const FString& PinType, const FString& PinSubCategory, const FString& SearchFilter, int32 MaxResults)
 {
-    if (MaxResults <= 0 || MaxResults > 1000)
-    {
-        TSharedPtr<FJsonObject> ErrorResponse = MakeShared<FJsonObject>();
-        ErrorResponse->SetBoolField(TEXT("success"), false);
-        ErrorResponse->SetStringField(TEXT("error"), TEXT("MaxResults must be between 1 and 1000"));
-        return ErrorResponse;
-    }
-    
-    FString JsonResult = UUnrealMCPBlueprintActionCommands::GetActionsForPin(
-        PinType,
-        PinSubcategory,
-        SearchFilter,
-        MaxResults
-    );
-    
-    return ParseJsonResult(JsonResult);
+    return UUnrealMCPBlueprintActionCommands::GetActionsForPin(PinType, PinSubCategory, SearchFilter, MaxResults);
 }
 
-TSharedPtr<FJsonObject> FBlueprintActionService::ParseJsonResult(const FString& JsonString)
+FString FBlueprintActionService::GetActionsForClass(const FString& ClassName, const FString& SearchFilter, int32 MaxResults)
 {
-    TSharedPtr<FJsonObject> ParsedResult;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
-    
-    if (FJsonSerializer::Deserialize(Reader, ParsedResult) && ParsedResult.IsValid())
-    {
-        return ParsedResult;
-    }
-    else
-    {
-        TSharedPtr<FJsonObject> ErrorResponse = MakeShared<FJsonObject>();
-        ErrorResponse->SetBoolField(TEXT("success"), false);
-        ErrorResponse->SetStringField(TEXT("error"), TEXT("Failed to parse blueprint action result"));
-        return ErrorResponse;
-    }
+    return UUnrealMCPBlueprintActionCommands::GetActionsForClass(ClassName, SearchFilter, MaxResults);
+}
+
+FString FBlueprintActionService::GetActionsForClassHierarchy(const FString& ClassName, const FString& SearchFilter, int32 MaxResults)
+{
+    return UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(ClassName, SearchFilter, MaxResults);
+}
+
+FString FBlueprintActionService::SearchBlueprintActions(const FString& SearchQuery, const FString& Category, int32 MaxResults, const FString& BlueprintName)
+{
+    return UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(SearchQuery, Category, MaxResults, BlueprintName);
+}
+
+FString FBlueprintActionService::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams)
+{
+    return UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition, JsonParams);
 }
