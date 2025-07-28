@@ -11,6 +11,7 @@
 #include "Commands/BlueprintNode/CreateNodeByActionNameCommand.h"
 // #include "Commands/BlueprintNode/AddEnhancedInputActionNodeCommand.h"  // REMOVED: Use create_node_by_action_name instead
 #include "Services/BlueprintNodeService.h"
+#include "Services/BlueprintActionService.h"
 
 // Static member definition
 TArray<FString> FBlueprintNodeCommandRegistration::RegisteredCommandNames;
@@ -113,7 +114,9 @@ void FBlueprintNodeCommandRegistration::RegisterAddBlueprintCustomEventNodeComma
 
 void FBlueprintNodeCommandRegistration::RegisterCreateNodeByActionNameCommand()
 {
-    TSharedPtr<FCreateNodeByActionNameCommand> Command = MakeShared<FCreateNodeByActionNameCommand>(FBlueprintNodeService::Get());
+    // Create a new instance of the Blueprint Action Service
+    TSharedPtr<IBlueprintActionService> ActionService = MakeShared<FBlueprintActionService>();
+    TSharedPtr<FCreateNodeByActionNameCommand> Command = MakeShared<FCreateNodeByActionNameCommand>(ActionService);
     RegisterAndTrackCommand(Command);
 }
 

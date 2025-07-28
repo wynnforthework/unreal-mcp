@@ -333,19 +333,13 @@
     - _Requirements: 2.4_
 
   - [x] 6.5 Test mcp_blueprintActionMCP_get_node_pin_info functionality
-
-
-
-
-
-
     - Test detailed pin information retrieval
     - Verify pin type, direction, and requirement information
     - Test pin description and expected type reporting
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 2.5_
 
-  - [ ] 6.6 Test mcp_blueprintActionMCP_create_node_by_action_name functionality
+  - [x] 6.6 Test mcp_blueprintActionMCP_create_node_by_action_name functionality
     - Test node creation from discovered action names
     - Verify function name and class name parameter handling
     - Test special node types (ForEach loops, Cast nodes, Custom events)

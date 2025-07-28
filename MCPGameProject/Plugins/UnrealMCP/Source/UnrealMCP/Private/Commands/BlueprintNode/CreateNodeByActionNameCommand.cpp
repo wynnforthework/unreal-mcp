@@ -1,65 +1,87 @@
 #include "Commands/BlueprintNode/CreateNodeByActionNameCommand.h"
 #include "Commands/UnrealMCPCommonUtils.h"
-#include "Commands/UnrealMCPBlueprintActionCommands.h"
+#include "Services/BlueprintActionService.h"
+#include "MCPErrorHandler.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Engine/Blueprint.h"
 
-FCreateNodeByActionNameCommand::FCreateNodeByActionNameCommand(IBlueprintNodeService& InBlueprintNodeService)
-    : BlueprintNodeService(InBlueprintNodeService)
+FCreateNodeByActionNameCommand::FCreateNodeByActionNameCommand(TSharedPtr<IBlueprintActionService> InBlueprintActionService)
+    : BlueprintActionService(InBlueprintActionService)
 {
 }
 
 FString FCreateNodeByActionNameCommand::Execute(const FString& Parameters)
 {
-    FString BlueprintName, FunctionName, ClassName, NodePosition, JsonParams;
-    FString ParseError;
+    UE_LOG(LogTemp, Warning, TEXT("=== NEW ARCHITECTURE PROOF ==="));
+    UE_LOG(LogTemp, Warning, TEXT("FCreateNodeByActionNameCommand::Execute: NEW ARCHITECTURE COMMAND CALLED!"));
+    UE_LOG(LogTemp, Warning, TEXT("Using service layer delegation instead of direct legacy calls"));
     
-    if (!ParseParameters(Parameters, BlueprintName, FunctionName, ClassName, NodePosition, JsonParams, ParseError))
+    if (!BlueprintActionService.IsValid())
     {
-        return CreateErrorResponse(ParseError);
+        UE_LOG(LogTemp, Error, TEXT("NEW ARCHITECTURE: BlueprintActionService is not valid!"));
+        FMCPError Error = FMCPErrorHandler::CreateInternalError(TEXT("Blueprint action service is not available"));
+        return FMCPErrorHandler::CreateStructuredErrorResponse(Error);
     }
     
+    UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: BlueprintActionService is valid, proceeding with service call"));
+
+    // Parse JSON parameters
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
+    
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(TEXT("Invalid JSON parameters"));
+        return FMCPErrorHandler::CreateStructuredErrorResponse(Error);
+    }
+
+    // Basic parameter validation
+    if (!JsonObject->HasField(TEXT("blueprint_name")) || JsonObject->GetStringField(TEXT("blueprint_name")).IsEmpty())
+    {
+        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(TEXT("Blueprint name is required"));
+        return FMCPErrorHandler::CreateStructuredErrorResponse(Error);
+    }
+    
+    if (!JsonObject->HasField(TEXT("function_name")) || JsonObject->GetStringField(TEXT("function_name")).IsEmpty())
+    {
+        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(TEXT("Function name is required"));
+        return FMCPErrorHandler::CreateStructuredErrorResponse(Error);
+    }
+
+    // Extract parameters
+    FString BlueprintName = JsonObject->GetStringField(TEXT("blueprint_name"));
+    FString FunctionName = JsonObject->GetStringField(TEXT("function_name"));
+    FString ClassName = JsonObject->GetStringField(TEXT("class_name"));
+    FString NodePosition = JsonObject->GetStringField(TEXT("node_position"));
+    FString TargetGraph = JsonObject->GetStringField(TEXT("target_graph"));
+    FString JsonParams = JsonObject->GetStringField(TEXT("json_params"));
+
     // Verify Blueprint exists
     UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
     if (!Blueprint)
     {
-        return CreateErrorResponse(FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
+        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(
+            FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName)
+        );
+        return FMCPErrorHandler::CreateStructuredErrorResponse(Error);
     }
     
-    // Use the Blueprint Action Commands to create the node
-    FString Result = UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(
+    UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: About to call BlueprintActionService->CreateNodeByActionName()"));
+    UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: Parameters - BlueprintName=%s, FunctionName=%s, ClassName=%s"), 
+           *BlueprintName, *FunctionName, *ClassName);
+
+    // Use the service layer to create the node - THIS IS THE NEW ARCHITECTURE!
+    FString Result = BlueprintActionService->CreateNodeByActionName(
         BlueprintName, FunctionName, ClassName, NodePosition, JsonParams
     );
     
-    // Parse the result to extract information and reformat if needed
-    TSharedPtr<FJsonObject> ResultObject;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Result);
+    UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: Service call completed, returning result"));
+    UE_LOG(LogTemp, Warning, TEXT("=== END NEW ARCHITECTURE PROOF ==="));
     
-    if (FJsonSerializer::Deserialize(Reader, ResultObject) && ResultObject.IsValid())
-    {
-        bool bSuccess = false;
-        if (ResultObject->TryGetBoolField(TEXT("success"), bSuccess) && bSuccess)
-        {
-            FString NodeId, NodeType, Message;
-            ResultObject->TryGetStringField(TEXT("node_id"), NodeId);
-            ResultObject->TryGetStringField(TEXT("node_type"), NodeType);
-            ResultObject->TryGetStringField(TEXT("message"), Message);
-            
-            return CreateSuccessResponse(NodeId, NodeType, Message);
-        }
-        else
-        {
-            FString ErrorMessage;
-            if (ResultObject->TryGetStringField(TEXT("message"), ErrorMessage))
-            {
-                return CreateErrorResponse(ErrorMessage);
-            }
-        }
-    }
-    
-    return CreateErrorResponse(TEXT("Failed to create node by action name"));
+    // The service already returns a properly formatted JSON response
+    return Result;
 }
 
 FString FCreateNodeByActionNameCommand::GetCommandName() const
@@ -69,68 +91,25 @@ FString FCreateNodeByActionNameCommand::GetCommandName() const
 
 bool FCreateNodeByActionNameCommand::ValidateParams(const FString& Parameters) const
 {
-    FString BlueprintName, FunctionName, ClassName, NodePosition, JsonParams;
-    FString ParseError;
-    
-    return ParseParameters(Parameters, BlueprintName, FunctionName, ClassName, NodePosition, JsonParams, ParseError);
-}
-
-bool FCreateNodeByActionNameCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutFunctionName, 
-                                                    FString& OutClassName, FString& OutNodePosition, FString& OutJsonParams, FString& OutError) const
-{
+    // Parse JSON parameters
     TSharedPtr<FJsonObject> JsonObject;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
     
     if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
     {
-        OutError = TEXT("Invalid JSON parameters");
         return false;
     }
-    
-    if (!JsonObject->TryGetStringField(TEXT("blueprint_name"), OutBlueprintName))
+
+    // Basic parameter validation
+    if (!JsonObject->HasField(TEXT("blueprint_name")) || JsonObject->GetStringField(TEXT("blueprint_name")).IsEmpty())
     {
-        OutError = TEXT("Missing required 'blueprint_name' parameter");
         return false;
     }
     
-    if (!JsonObject->TryGetStringField(TEXT("function_name"), OutFunctionName))
+    if (!JsonObject->HasField(TEXT("function_name")) || JsonObject->GetStringField(TEXT("function_name")).IsEmpty())
     {
-        OutError = TEXT("Missing required 'function_name' parameter");
         return false;
     }
-    
-    // Optional parameters
-    JsonObject->TryGetStringField(TEXT("class_name"), OutClassName);
-    JsonObject->TryGetStringField(TEXT("node_position"), OutNodePosition);
-    JsonObject->TryGetStringField(TEXT("kwargs"), OutJsonParams);
     
     return true;
-}
-
-FString FCreateNodeByActionNameCommand::CreateSuccessResponse(const FString& NodeId, const FString& NodeType, const FString& Message) const
-{
-    TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
-    ResponseObj->SetBoolField(TEXT("success"), true);
-    ResponseObj->SetStringField(TEXT("node_id"), NodeId);
-    ResponseObj->SetStringField(TEXT("node_type"), NodeType);
-    ResponseObj->SetStringField(TEXT("message"), Message);
-    
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
-    
-    return OutputString;
-}
-
-FString FCreateNodeByActionNameCommand::CreateErrorResponse(const FString& ErrorMessage) const
-{
-    TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
-    ResponseObj->SetBoolField(TEXT("success"), false);
-    ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
-    
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
-    
-    return OutputString;
 }
