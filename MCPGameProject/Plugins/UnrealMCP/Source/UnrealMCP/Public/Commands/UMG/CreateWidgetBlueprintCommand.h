@@ -2,24 +2,26 @@
 
 #include "CoreMinimal.h"
 #include "Commands/IUnrealMCPCommand.h"
-#include "Json.h"
+#include "Dom/JsonObject.h"
 
 // Forward declarations
 class IUMGService;
 class UWidgetBlueprint;
+struct FMCPError;
 
 /**
  * Command for creating new UMG Widget Blueprint assets
- * Implements the IUnrealMCPCommand interface for standardized command execution
+ * Implements the new command pattern architecture with service layer delegation
+ * while maintaining compatibility with the existing string-based interface
  */
 class UNREALMCP_API FCreateWidgetBlueprintCommand : public IUnrealMCPCommand
 {
 public:
     /**
      * Constructor
-     * @param InUMGService - Reference to the UMG service for operations
+     * @param InUMGService - Shared pointer to the UMG service for operations
      */
-    explicit FCreateWidgetBlueprintCommand(IUMGService& InUMGService);
+    explicit FCreateWidgetBlueprintCommand(TSharedPtr<IUMGService> InUMGService);
 
     // IUnrealMCPCommand interface
     virtual FString Execute(const FString& Parameters) override;
@@ -27,33 +29,37 @@ public:
     virtual bool ValidateParams(const FString& Parameters) const override;
 
 private:
-    /** Reference to the UMG service */
-    IUMGService& UMGService;
+    /** Shared pointer to the UMG service */
+    TSharedPtr<IUMGService> UMGService;
     
     /**
-     * Parse JSON parameters into widget blueprint creation parameters
-     * @param JsonString - JSON string containing parameters
-     * @param OutName - Parsed widget name
-     * @param OutParentClass - Parsed parent class name
-     * @param OutPath - Parsed creation path
-     * @param OutError - Error message if parsing fails
-     * @return true if parsing succeeded
+     * Internal execution with JSON objects (new architecture)
+     * @param Params - JSON parameters
+     * @return JSON response object
      */
-    bool ParseParameters(const FString& JsonString, FString& OutName, FString& OutParentClass, FString& OutPath, FString& OutError) const;
+    TSharedPtr<FJsonObject> ExecuteInternal(const TSharedPtr<FJsonObject>& Params);
     
     /**
-     * Create success response JSON
+     * Internal validation with JSON objects (new architecture)
+     * @param Params - JSON parameters
+     * @param OutError - Error message if validation fails
+     * @return true if validation passes
+     */
+    bool ValidateParamsInternal(const TSharedPtr<FJsonObject>& Params, FString& OutError) const;
+    
+    /**
+     * Create success response JSON object
      * @param WidgetBlueprint - Created widget blueprint
      * @param Path - Path where the blueprint was created
      * @param bAlreadyExists - Whether the blueprint already existed
-     * @return JSON response string
+     * @return JSON response object
      */
-    FString CreateSuccessResponse(UWidgetBlueprint* WidgetBlueprint, const FString& Path, bool bAlreadyExists = false) const;
+    TSharedPtr<FJsonObject> CreateSuccessResponse(UWidgetBlueprint* WidgetBlueprint, const FString& Path, bool bAlreadyExists = false) const;
     
     /**
-     * Create error response JSON
-     * @param ErrorMessage - Error message
-     * @return JSON response string
+     * Create error response JSON object from MCP error
+     * @param Error - MCP error to convert to response
+     * @return JSON response object
      */
-    FString CreateErrorResponse(const FString& ErrorMessage) const;
+    TSharedPtr<FJsonObject> CreateErrorResponse(const FMCPError& Error) const;
 };

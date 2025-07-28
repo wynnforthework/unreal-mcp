@@ -52,7 +52,9 @@ void FUMGCommandRegistration::UnregisterAllUMGCommands()
 
 void FUMGCommandRegistration::RegisterCreateWidgetBlueprintCommand()
 {
-    TSharedPtr<FCreateWidgetBlueprintCommand> Command = MakeShared<FCreateWidgetBlueprintCommand>(FUMGService::Get());
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FCreateWidgetBlueprintCommand> Command = MakeShared<FCreateWidgetBlueprintCommand>(UMGServicePtr);
     RegisterAndTrackCommand(Command);
 }
 
