@@ -217,12 +217,20 @@ bool FUMGService::BindWidgetEvent(const FString& BlueprintName, const FString& C
         return false;
     }
 
+    if (!WidgetBlueprint->WidgetTree)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Widget blueprint has no WidgetTree: %s"), *BlueprintName);
+        return false;
+    }
+
     UWidget* Widget = WidgetBlueprint->WidgetTree->FindWidget(FName(*ComponentName));
     if (!Widget)
     {
         UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to find widget component: %s"), *ComponentName);
         return false;
     }
+
+
 
     OutActualFunctionName = FunctionName.IsEmpty() ? (ComponentName + TEXT("_") + EventName) : FunctionName;
     

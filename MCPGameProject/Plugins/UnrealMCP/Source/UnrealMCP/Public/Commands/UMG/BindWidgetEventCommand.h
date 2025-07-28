@@ -2,23 +2,25 @@
 
 #include "CoreMinimal.h"
 #include "Commands/IUnrealMCPCommand.h"
-#include "Json.h"
+#include "Dom/JsonObject.h"
 
 // Forward declarations
 class IUMGService;
+struct FMCPError;
 
 /**
  * Command for binding events to UMG widget components
- * Implements the IUnrealMCPCommand interface for standardized command execution
+ * Implements the new command pattern architecture with service layer delegation
+ * while maintaining compatibility with the existing string-based interface
  */
 class UNREALMCP_API FBindWidgetEventCommand : public IUnrealMCPCommand
 {
 public:
     /**
      * Constructor
-     * @param InUMGService - Reference to the UMG service for operations
+     * @param InUMGService - Shared pointer to the UMG service for operations
      */
-    explicit FBindWidgetEventCommand(IUMGService& InUMGService);
+    explicit FBindWidgetEventCommand(TSharedPtr<IUMGService> InUMGService);
 
     // IUnrealMCPCommand interface
     virtual FString Execute(const FString& Parameters) override;
@@ -26,35 +28,37 @@ public:
     virtual bool ValidateParams(const FString& Parameters) const override;
 
 private:
-    /** Reference to the UMG service */
-    IUMGService& UMGService;
+    /** Shared pointer to the UMG service */
+    TSharedPtr<IUMGService> UMGService;
     
     /**
-     * Parse JSON parameters into widget event binding parameters
-     * @param JsonString - JSON string containing parameters
-     * @param OutBlueprintName - Parsed blueprint name
-     * @param OutComponentName - Parsed component name
-     * @param OutEventName - Parsed event name
-     * @param OutFunctionName - Parsed function name (optional)
-     * @param OutError - Error message if parsing fails
-     * @return true if parsing succeeded
+     * Internal execution with JSON objects (new architecture)
+     * @param Params - JSON parameters
+     * @return JSON response object
      */
-    bool ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutComponentName, 
-                        FString& OutEventName, FString& OutFunctionName, FString& OutError) const;
+    TSharedPtr<FJsonObject> ExecuteInternal(const TSharedPtr<FJsonObject>& Params);
     
     /**
-     * Create success response JSON
+     * Internal validation with JSON objects (new architecture)
+     * @param Params - JSON parameters
+     * @param OutError - Error message if validation fails
+     * @return true if validation passes
+     */
+    bool ValidateParamsInternal(const TSharedPtr<FJsonObject>& Params, FString& OutError) const;
+    
+    /**
+     * Create success response JSON object
      * @param ComponentName - Name of the component with bound event
      * @param EventName - Name of the bound event
      * @param FunctionName - Name of the created/bound function
-     * @return JSON response string
+     * @return JSON response object
      */
-    FString CreateSuccessResponse(const FString& ComponentName, const FString& EventName, const FString& FunctionName) const;
+    TSharedPtr<FJsonObject> CreateSuccessResponse(const FString& ComponentName, const FString& EventName, const FString& FunctionName) const;
     
     /**
-     * Create error response JSON
-     * @param ErrorMessage - Error message
-     * @return JSON response string
+     * Create error response JSON object from MCP error
+     * @param Error - MCP error to convert to response
+     * @return JSON response object
      */
-    FString CreateErrorResponse(const FString& ErrorMessage) const;
+    TSharedPtr<FJsonObject> CreateErrorResponse(const FMCPError& Error) const;
 };

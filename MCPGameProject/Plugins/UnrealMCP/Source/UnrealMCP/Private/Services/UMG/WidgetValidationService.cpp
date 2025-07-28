@@ -631,9 +631,34 @@ bool FWidgetValidationService::DoesWidgetBlueprintExist(const FString& Blueprint
 
 bool FWidgetValidationService::DoesWidgetComponentExist(const FString& BlueprintName, const FString& ComponentName) const
 {
-    // This would require loading the blueprint to check components
-    // For validation purposes, we'll assume the component doesn't exist if we can't verify
-    // In a real implementation, this would load the blueprint and check its widget tree
+    // Try common paths to find the widget blueprint
+    TArray<FString> SearchPaths = {
+        FString::Printf(TEXT("/Game/Widgets/%s"), *BlueprintName),
+        FString::Printf(TEXT("/Game/UI/%s"), *BlueprintName),
+        FString::Printf(TEXT("/Game/UMG/%s"), *BlueprintName),
+        FString::Printf(TEXT("/Game/Interface/%s"), *BlueprintName)
+    };
+
+    // Check if it's already a full path
+    if (BlueprintName.StartsWith(TEXT("/Game/")))
+    {
+        SearchPaths.Insert(BlueprintName, 0);
+    }
+
+    for (const FString& SearchPath : SearchPaths)
+    {
+        if (UEditorAssetLibrary::DoesAssetExist(SearchPath))
+        {
+            UObject* Asset = UEditorAssetLibrary::LoadAsset(SearchPath);
+            UWidgetBlueprint* WidgetBlueprint = Cast<UWidgetBlueprint>(Asset);
+            if (WidgetBlueprint && WidgetBlueprint->WidgetTree)
+            {
+                UWidget* Widget = WidgetBlueprint->WidgetTree->FindWidget(FName(*ComponentName));
+                return Widget != nullptr;
+            }
+        }
+    }
+
     return false;
 }
 

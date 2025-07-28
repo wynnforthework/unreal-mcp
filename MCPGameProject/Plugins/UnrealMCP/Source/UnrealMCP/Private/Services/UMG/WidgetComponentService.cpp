@@ -22,9 +22,12 @@
 #include "Components/GridPanel.h"
 #include "Components/SizeBox.h"
 #include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/ComboBoxString.h"
 #include "Components/EditableText.h"
 #include "Components/EditableTextBox.h"
+#include "Kismet2/KismetEditorUtilities.h"
+#include "EditorAssetLibrary.h"
 #include "Components/CircularThrobber.h"
 #include "Components/SpinBox.h"
 #include "Components/WrapBox.h"
@@ -256,8 +259,27 @@ UWidget* FWidgetComponentService::CreateWidgetComponent(
     else
     {
         UE_LOG(LogTemp, Error, TEXT("Unsupported component type: %s"), *ComponentType);
+        return nullptr;
     }
     
+    // If widget creation failed, return nullptr
+    if (!CreatedWidget)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to create widget component: %s"), *ComponentName);
+        return nullptr;
+    }
+    
+    // Add the widget to the widget tree
+    if (!AddWidgetToTree(WidgetBlueprint, CreatedWidget, Position, Size))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to add widget to tree: %s"), *ComponentName);
+        return nullptr;
+    }
+    
+    // Save the blueprint
+    SaveWidgetBlueprint(WidgetBlueprint);
+    
+    UE_LOG(LogTemp, Log, TEXT("Successfully created and added widget component: %s"), *ComponentName);
     return CreatedWidget;
 }
 
@@ -1414,4 +1436,77 @@ UWidget* FWidgetComponentService::CreateUniformGridPanel(UWidgetBlueprint* Widge
     UniformGrid->SetMinDesiredSlotHeight(MinDesiredSlotHeight);
     
     return UniformGrid;
-} 
+}
+
+bool FWidgetComponentService::AddWidgetToTree(UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FVector2D& Position, const FVector2D& Size)
+{
+    if (!WidgetBlueprint || !Widget)
+    {
+        return false;
+    }
+
+    if (!WidgetBlueprint->WidgetTree)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Widget blueprint has no WidgetTree"));
+        return false;
+    }
+
+    // Get the root widget (should be a CanvasPanel)
+    UWidget* RootWidget = WidgetBlueprint->WidgetTree->RootWidget;
+    if (!RootWidget)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Widget blueprint has no root widget"));
+        return false;
+    }
+
+    // Try to cast to CanvasPanel (most common case)
+    if (UCanvasPanel* CanvasPanel = Cast<UCanvasPanel>(RootWidget))
+    {
+        // Add the widget as a child of the canvas panel
+        UCanvasPanelSlot* Slot = CanvasPanel->AddChildToCanvas(Widget);
+        if (Slot)
+        {
+            // Set position and size
+            Slot->SetPosition(Position);
+            Slot->SetSize(Size);
+            Slot->SetAlignment(FVector2D(0.0f, 0.0f)); // Top-left alignment
+            
+            UE_LOG(LogTemp, Log, TEXT("Added widget '%s' to canvas panel at position [%f, %f] with size [%f, %f]"), 
+                *Widget->GetName(), Position.X, Position.Y, Size.X, Size.Y);
+            return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to add widget to canvas panel"));
+            return false;
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Root widget is not a CanvasPanel, cannot set position/size. Root widget type: %s"), 
+            *RootWidget->GetClass()->GetName());
+        
+        // For non-canvas panels, we can still try to add the widget but without position/size control
+        // This would require different logic based on the panel type
+        return false;
+    }
+}
+
+void FWidgetComponentService::SaveWidgetBlueprint(UWidgetBlueprint* WidgetBlueprint)
+{
+    if (!WidgetBlueprint)
+    {
+        return;
+    }
+
+    // Mark the blueprint as dirty
+    WidgetBlueprint->MarkPackageDirty();
+    
+    // Compile the blueprint
+    FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+    
+    // Save the asset
+    UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
+    
+    UE_LOG(LogTemp, Log, TEXT("Saved widget blueprint: %s"), *WidgetBlueprint->GetName());
+}

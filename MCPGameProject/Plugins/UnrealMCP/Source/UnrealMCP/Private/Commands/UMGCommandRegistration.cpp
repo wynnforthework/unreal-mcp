@@ -60,7 +60,9 @@ void FUMGCommandRegistration::RegisterCreateWidgetBlueprintCommand()
 
 void FUMGCommandRegistration::RegisterBindWidgetEventCommand()
 {
-    TSharedPtr<FBindWidgetEventCommand> Command = MakeShared<FBindWidgetEventCommand>(FUMGService::Get());
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FBindWidgetEventCommand> Command = MakeShared<FBindWidgetEventCommand>(UMGServicePtr);
     RegisterAndTrackCommand(Command);
 }
 
