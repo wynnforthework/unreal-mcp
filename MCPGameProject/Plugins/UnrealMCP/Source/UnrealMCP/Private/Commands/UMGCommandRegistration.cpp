@@ -2,6 +2,7 @@
 #include "Commands/UnrealMCPCommandRegistry.h"
 #include "Commands/UMG/CreateWidgetBlueprintCommand.h"
 #include "Commands/UMG/BindWidgetEventCommand.h"
+#include "Commands/UMG/SetTextBlockBindingCommand.h"
 #include "Commands/UMG/AddWidgetComponentCommand.h"
 #include "Commands/UMG/SetWidgetPropertyCommand.h"
 #include "Services/UMG/UMGService.h"
@@ -19,6 +20,7 @@ void FUMGCommandRegistration::RegisterAllUMGCommands()
     // Register existing implemented commands
     RegisterCreateWidgetBlueprintCommand();
     RegisterBindWidgetEventCommand();
+    RegisterSetTextBlockBindingCommand();
     RegisterAddWidgetComponentCommand();
     RegisterSetWidgetPropertyCommand();
     
@@ -78,11 +80,12 @@ void FUMGCommandRegistration::RegisterSetWidgetPropertyCommand()
     RegisterAndTrackCommand(Command);
 }
 
-// Placeholder implementations for remaining commands - these will need actual command classes
 void FUMGCommandRegistration::RegisterSetTextBlockBindingCommand()
 {
-    // TODO: Implement FSetTextBlockBindingCommand class
-    UE_LOG(LogTemp, Warning, TEXT("FUMGCommandRegistration::RegisterSetTextBlockBindingCommand: Command class not yet implemented"));
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FSetTextBlockBindingCommand> Command = MakeShared<FSetTextBlockBindingCommand>(UMGServicePtr);
+    RegisterAndTrackCommand(Command);
 }
 
 void FUMGCommandRegistration::RegisterCheckWidgetComponentExistsCommand()

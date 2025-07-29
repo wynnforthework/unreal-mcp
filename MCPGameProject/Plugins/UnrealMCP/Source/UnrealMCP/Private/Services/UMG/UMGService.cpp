@@ -283,7 +283,7 @@ bool FUMGService::SetTextBlockBinding(const FString& BlueprintName, const FStrin
         }
         else if (VariableType == TEXT("Float"))
         {
-            PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Real, NAME_None, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
+            PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Real, UEdGraphSchema_K2::PC_Float, nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
         }
         else if (VariableType == TEXT("Boolean") || VariableType == TEXT("Bool"))
         {
@@ -724,6 +724,7 @@ bool FUMGService::CreateTextBlockBindingFunction(UWidgetBlueprint* WidgetBluepri
     else if (VariableType == TEXT("Float"))
     {
         ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+        ReturnPinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
     }
     else if (VariableType == TEXT("Boolean") || VariableType == TEXT("Bool"))
     {
