@@ -114,4 +114,40 @@ public:
      */
     virtual bool GetWidgetContainerDimensions(const FString& BlueprintName, const FString& ContainerName, 
                                              FVector2D& OutDimensions) = 0;
+
+    /**
+     * Add a widget component as a child to another component
+     * @param BlueprintName - Name of the target widget blueprint
+     * @param ParentComponentName - Name of the parent component
+     * @param ChildComponentName - Name of the child component to add to the parent
+     * @param bCreateParentIfMissing - Whether to create the parent component if it doesn't exist
+     * @param ParentComponentType - Type of parent component to create if needed
+     * @param ParentPosition - Position of the parent component if created
+     * @param ParentSize - Size of the parent component if created
+     * @return true if the child was added successfully
+     */
+    virtual bool AddChildWidgetComponentToParent(const FString& BlueprintName, const FString& ParentComponentName,
+                                               const FString& ChildComponentName, bool bCreateParentIfMissing = false,
+                                               const FString& ParentComponentType = TEXT("Border"),
+                                               const FVector2D& ParentPosition = FVector2D(0.0f, 0.0f),
+                                               const FVector2D& ParentSize = FVector2D(300.0f, 200.0f)) = 0;
+
+    /**
+     * Create a new parent widget component with a new child component
+     * @param BlueprintName - Name of the target widget blueprint
+     * @param ParentComponentName - Name for the new parent component
+     * @param ChildComponentName - Name for the new child component
+     * @param ParentComponentType - Type of parent component to create
+     * @param ChildComponentType - Type of child component to create
+     * @param ParentPosition - Position of the parent component
+     * @param ParentSize - Size of the parent component
+     * @param ChildAttributes - Additional attributes for the child component
+     * @return true if both components were created successfully
+     */
+    virtual bool CreateParentAndChildWidgetComponents(const FString& BlueprintName, const FString& ParentComponentName,
+                                                    const FString& ChildComponentName, const FString& ParentComponentType = TEXT("Border"),
+                                                    const FString& ChildComponentType = TEXT("TextBlock"),
+                                                    const FVector2D& ParentPosition = FVector2D(0.0f, 0.0f),
+                                                    const FVector2D& ParentSize = FVector2D(300.0f, 200.0f),
+                                                    const TSharedPtr<FJsonObject>& ChildAttributes = nullptr) = 0;
 };

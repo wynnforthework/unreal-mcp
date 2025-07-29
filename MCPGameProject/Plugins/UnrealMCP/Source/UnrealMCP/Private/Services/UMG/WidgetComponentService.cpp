@@ -56,9 +56,12 @@ UWidget* FWidgetComponentService::CreateWidgetComponent(
     const TSharedPtr<FJsonObject>& KwargsObject)
 {
     // Log the received KwargsObject
-    FString JsonString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-    FJsonSerializer::Serialize(KwargsObject.ToSharedRef(), Writer);
+    FString JsonString = TEXT("null");
+    if (KwargsObject.IsValid())
+    {
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+        FJsonSerializer::Serialize(KwargsObject.ToSharedRef(), Writer);
+    }
     UE_LOG(LogTemp, Log, TEXT("FWidgetComponentService::CreateWidgetComponent Received Kwargs for %s (%s): %s"), *ComponentName, *ComponentType, *JsonString);
     
     // Create the appropriate widget based on component type

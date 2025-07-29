@@ -9,6 +9,8 @@
 #include "Components/TextBlock.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/PanelWidget.h"
+#include "Components/PanelSlot.h"
 #include "EditorAssetLibrary.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Kismet2/KismetEditorUtilities.h"
@@ -375,6 +377,116 @@ bool FUMGService::GetWidgetContainerDimensions(const FString& BlueprintName, con
 
     // For other widget types, return default dimensions
     OutDimensions = FVector2D(800.0f, 600.0f);
+    return true;
+}
+
+bool FUMGService::AddChildWidgetComponentToParent(const FString& BlueprintName, const FString& ParentComponentName,
+                                                const FString& ChildComponentName, bool bCreateParentIfMissing,
+                                                const FString& ParentComponentType, const FVector2D& ParentPosition,
+                                                const FVector2D& ParentSize)
+{
+    UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
+    if (!WidgetBlueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to find widget blueprint: %s"), *BlueprintName);
+        return false;
+    }
+
+    if (!WidgetBlueprint->WidgetTree)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Widget blueprint has no WidgetTree: %s"), *BlueprintName);
+        return false;
+    }
+
+    // Find the child component
+    UWidget* ChildWidget = WidgetBlueprint->WidgetTree->FindWidget(FName(*ChildComponentName));
+    if (!ChildWidget)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to find child widget component: %s"), *ChildComponentName);
+        return false;
+    }
+
+    // Find or create the parent component
+    UWidget* ParentWidget = WidgetBlueprint->WidgetTree->FindWidget(FName(*ParentComponentName));
+    if (!ParentWidget && bCreateParentIfMissing)
+    {
+        // Create the parent component
+        TSharedPtr<FJsonObject> EmptyKwargs = MakeShared<FJsonObject>();
+        ParentWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ParentComponentName, ParentComponentType, ParentPosition, ParentSize, EmptyKwargs);
+        if (!ParentWidget)
+        {
+            UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create parent widget component: %s"), *ParentComponentName);
+            return false;
+        }
+    }
+    else if (!ParentWidget)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to find parent widget component: %s"), *ParentComponentName);
+        return false;
+    }
+
+    // Add child to parent
+    if (!AddWidgetToParent(ChildWidget, ParentWidget))
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to add child widget to parent"));
+        return false;
+    }
+
+    // Save the blueprint
+    WidgetBlueprint->MarkPackageDirty();
+    FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+    UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
+
+    return true;
+}
+
+bool FUMGService::CreateParentAndChildWidgetComponents(const FString& BlueprintName, const FString& ParentComponentName,
+                                                     const FString& ChildComponentName, const FString& ParentComponentType,
+                                                     const FString& ChildComponentType, const FVector2D& ParentPosition,
+                                                     const FVector2D& ParentSize, const TSharedPtr<FJsonObject>& ChildAttributes)
+{
+    UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
+    if (!WidgetBlueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to find widget blueprint: %s"), *BlueprintName);
+        return false;
+    }
+
+    if (!WidgetBlueprint->WidgetTree)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Widget blueprint has no WidgetTree: %s"), *BlueprintName);
+        return false;
+    }
+
+    // Create the parent component
+    TSharedPtr<FJsonObject> EmptyKwargs = MakeShared<FJsonObject>();
+    UWidget* ParentWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ParentComponentName, ParentComponentType, ParentPosition, ParentSize, EmptyKwargs);
+    if (!ParentWidget)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create parent widget component: %s"), *ParentComponentName);
+        return false;
+    }
+
+    // Create the child component
+    UWidget* ChildWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ChildComponentName, ChildComponentType, FVector2D(0.0f, 0.0f), FVector2D(100.0f, 50.0f), ChildAttributes);
+    if (!ChildWidget)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create child widget component: %s"), *ChildComponentName);
+        return false;
+    }
+
+    // Add child to parent
+    if (!AddWidgetToParent(ChildWidget, ParentWidget))
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to add child widget to parent"));
+        return false;
+    }
+
+    // Save the blueprint
+    WidgetBlueprint->MarkPackageDirty();
+    FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+    UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
+
     return true;
 }
 
@@ -782,6 +894,43 @@ bool FUMGService::SetCanvasSlotPlacement(UWidget* Widget, const FVector2D* Posit
     if (Alignment)
     {
         CanvasSlot->SetAlignment(*Alignment);
+    }
+
+    return true;
+}
+
+bool FUMGService::AddWidgetToParent(UWidget* ChildWidget, UWidget* ParentWidget) const
+{
+    if (!ChildWidget || !ParentWidget)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Invalid child or parent widget"));
+        return false;
+    }
+
+    // Check if parent is a panel widget that can contain children
+    UPanelWidget* ParentPanel = Cast<UPanelWidget>(ParentWidget);
+    if (!ParentPanel)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Parent widget is not a panel widget"));
+        return false;
+    }
+
+    // Remove child from its current parent if it has one
+    if (ChildWidget->GetParent())
+    {
+        UPanelWidget* CurrentParent = Cast<UPanelWidget>(ChildWidget->GetParent());
+        if (CurrentParent)
+        {
+            CurrentParent->RemoveChild(ChildWidget);
+        }
+    }
+
+    // Add child to new parent
+    UPanelSlot* NewSlot = ParentPanel->AddChild(ChildWidget);
+    if (!NewSlot)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to add child to parent panel"));
+        return false;
     }
 
     return true;

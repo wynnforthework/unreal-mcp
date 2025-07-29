@@ -46,6 +46,19 @@ public:
     virtual bool GetWidgetContainerDimensions(const FString& BlueprintName, const FString& ContainerName, 
                                              FVector2D& OutDimensions) override;
 
+    virtual bool AddChildWidgetComponentToParent(const FString& BlueprintName, const FString& ParentComponentName,
+                                               const FString& ChildComponentName, bool bCreateParentIfMissing = false,
+                                               const FString& ParentComponentType = TEXT("Border"),
+                                               const FVector2D& ParentPosition = FVector2D(0.0f, 0.0f),
+                                               const FVector2D& ParentSize = FVector2D(300.0f, 200.0f)) override;
+
+    virtual bool CreateParentAndChildWidgetComponents(const FString& BlueprintName, const FString& ParentComponentName,
+                                                    const FString& ChildComponentName, const FString& ParentComponentType = TEXT("Border"),
+                                                    const FString& ChildComponentType = TEXT("TextBlock"),
+                                                    const FVector2D& ParentPosition = FVector2D(0.0f, 0.0f),
+                                                    const FVector2D& ParentSize = FVector2D(300.0f, 200.0f),
+                                                    const TSharedPtr<FJsonObject>& ChildAttributes = nullptr) override;
+
 private:
     /** Private constructor for singleton pattern */
     FUMGService();
@@ -116,4 +129,12 @@ private:
      * @return true if placement was set successfully
      */
     bool SetCanvasSlotPlacement(UWidget* Widget, const FVector2D* Position, const FVector2D* Size, const FVector2D* Alignment) const;
+
+    /**
+     * Add a widget as a child to another widget (parent must be a panel widget)
+     * @param ChildWidget - Widget to add as child
+     * @param ParentWidget - Parent widget (must be a panel widget)
+     * @return true if the child was added successfully
+     */
+    bool AddWidgetToParent(UWidget* ChildWidget, UWidget* ParentWidget) const;
 };

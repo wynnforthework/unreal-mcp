@@ -5,6 +5,8 @@
 #include "Commands/UMG/SetTextBlockBindingCommand.h"
 #include "Commands/UMG/AddWidgetComponentCommand.h"
 #include "Commands/UMG/SetWidgetPropertyCommand.h"
+#include "Commands/UMG/AddChildWidgetCommand.h"
+#include "Commands/UMG/CreateParentChildWidgetCommand.h"
 #include "Services/UMG/UMGService.h"
 
 // Static member definition
@@ -23,6 +25,8 @@ void FUMGCommandRegistration::RegisterAllUMGCommands()
     RegisterSetTextBlockBindingCommand();
     RegisterAddWidgetComponentCommand();
     RegisterSetWidgetPropertyCommand();
+    RegisterAddChildWidgetCommand();
+    RegisterCreateParentChildWidgetCommand();
     
     // TODO: Register remaining 24 UMG commands when their classes are implemented
     // For now, we'll register the core commands that exist
@@ -217,14 +221,18 @@ void FUMGCommandRegistration::RegisterAddSpacerCommand()
 
 void FUMGCommandRegistration::RegisterAddChildWidgetCommand()
 {
-    // TODO: Implement FAddChildWidgetCommand class
-    UE_LOG(LogTemp, Warning, TEXT("FUMGCommandRegistration::RegisterAddChildWidgetCommand: Command class not yet implemented"));
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FAddChildWidgetCommand> Command = MakeShared<FAddChildWidgetCommand>(UMGServicePtr);
+    RegisterAndTrackCommand(Command);
 }
 
 void FUMGCommandRegistration::RegisterCreateParentChildWidgetCommand()
 {
-    // TODO: Implement FCreateParentChildWidgetCommand class
-    UE_LOG(LogTemp, Warning, TEXT("FUMGCommandRegistration::RegisterCreateParentChildWidgetCommand: Command class not yet implemented"));
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FCreateParentChildWidgetCommand> Command = MakeShared<FCreateParentChildWidgetCommand>(UMGServicePtr);
+    RegisterAndTrackCommand(Command);
 }
 
 void FUMGCommandRegistration::RegisterAndTrackCommand(TSharedPtr<IUnrealMCPCommand> Command)
