@@ -1,112 +1,135 @@
 #include "Commands/UMG/CreateParentChildWidgetCommand.h"
 #include "Services/UMG/IUMGService.h"
-#include "MCPErrorHandler.h"
-#include "MCPError.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 
-FCreateParentChildWidgetCommand::FCreateParentChildWidgetCommand(TSharedPtr<IUMGService> InUMGService)
+FCreateParentChildWidgetCommand::FCreateParentChildWidgetCommand(IUMGService& InUMGService)
     : UMGService(InUMGService)
 {
 }
 
 FString FCreateParentChildWidgetCommand::Execute(const FString& Parameters)
 {
-    UE_LOG(LogTemp, Warning, TEXT("=== NEW ARCHITECTURE PROOF ==="));
-    UE_LOG(LogTemp, Warning, TEXT("FCreateParentChildWidgetCommand::Execute: NEW ARCHITECTURE COMMAND CALLED!"));
-    UE_LOG(LogTemp, Warning, TEXT("Using service layer delegation instead of direct legacy calls"));
-    
-    // Parse JSON parameters
-    TSharedPtr<FJsonObject> JsonObject;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
-    
-    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
-    {
-        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(TEXT("Invalid JSON parameters"));
-        TSharedPtr<FJsonObject> ErrorResponse = CreateErrorResponse(Error);
-        
-        FString OutputString;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-        FJsonSerializer::Serialize(ErrorResponse.ToSharedRef(), Writer);
-        return OutputString;
-    }
-
-    // Use internal execution with JSON objects
-    TSharedPtr<FJsonObject> Response = ExecuteInternal(JsonObject);
-    
-    // Convert response back to string
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(Response.ToSharedRef(), Writer);
-    return OutputString;
-}
-
-TSharedPtr<FJsonObject> FCreateParentChildWidgetCommand::ExecuteInternal(const TSharedPtr<FJsonObject>& Params)
-{
-    if (!UMGService.IsValid())
-    {
-        UE_LOG(LogTemp, Error, TEXT("NEW ARCHITECTURE: UMGService is not valid!"));
-        FMCPError Error = FMCPErrorHandler::CreateInternalError(TEXT("UMG Service is not available"));
-        return CreateErrorResponse(Error);
-    }
-
-    // Validate parameters using new architecture
-    FString ValidationError;
-    if (!ValidateParamsInternal(Params, ValidationError))
-    {
-        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(ValidationError);
-        return CreateErrorResponse(Error);
-    }
-
-    // Extract parameters
-    FString BlueprintName = Params->GetStringField(TEXT("blueprint_name"));
-    FString ParentComponentName = Params->GetStringField(TEXT("parent_component_name"));
-    FString ChildComponentName = Params->GetStringField(TEXT("child_component_name"));
-    FString ParentComponentType = Params->GetStringField(TEXT("parent_component_type"));
-    FString ChildComponentType = Params->GetStringField(TEXT("child_component_type"));
-    
-    FVector2D ParentPosition(0.0f, 0.0f);
-    const TArray<TSharedPtr<FJsonValue>>* PositionArray;
-    if (Params->TryGetArrayField(TEXT("parent_position"), PositionArray) && PositionArray->Num() >= 2)
-    {
-        ParentPosition.X = (*PositionArray)[0]->AsNumber();
-        ParentPosition.Y = (*PositionArray)[1]->AsNumber();
-    }
-    
-    FVector2D ParentSize(300.0f, 200.0f);
-    const TArray<TSharedPtr<FJsonValue>>* SizeArray;
-    if (Params->TryGetArrayField(TEXT("parent_size"), SizeArray) && SizeArray->Num() >= 2)
-    {
-        ParentSize.X = (*SizeArray)[0]->AsNumber();
-        ParentSize.Y = (*SizeArray)[1]->AsNumber();
-    }
-
+    FString BlueprintName, ParentComponentName, ChildComponentName, ParentComponentType, ChildComponentType, Error;
+    FVector2D ParentPosition, ParentSize;
     TSharedPtr<FJsonObject> ChildAttributes;
-    const TSharedPtr<FJsonObject>* ChildAttributesObject;
-    if (Params->TryGetObjectField(TEXT("child_attributes"), ChildAttributesObject))
+    
+    if (!ParseParameters(Parameters, BlueprintName, ParentComponentName, ChildComponentName, 
+                        ParentComponentType, ChildComponentType, ParentPosition, ParentSize, ChildAttributes, Error))
     {
-        ChildAttributes = *ChildAttributesObject;
-    }
-    else
-    {
-        ChildAttributes = MakeShared<FJsonObject>();
+        return CreateErrorResponse(Error);
     }
 
     // Use the UMG service to create parent and child widget components
-    bool bSuccess = UMGService->CreateParentAndChildWidgetComponents(BlueprintName, ParentComponentName, ChildComponentName,
-                                                                    ParentComponentType, ChildComponentType, 
-                                                                    ParentPosition, ParentSize, ChildAttributes);
+    bool bSuccess = UMGService.CreateParentAndChildWidgetComponents(BlueprintName, ParentComponentName, ChildComponentName,
+                                                                   ParentComponentType, ChildComponentType, 
+                                                                   ParentPosition, ParentSize, ChildAttributes);
     if (!bSuccess)
     {
-        FString ErrorMessage = FString::Printf(TEXT("Failed to create parent '%s' and child '%s' widget components"), 
-                                             *ParentComponentName, *ChildComponentName);
-        FMCPError Error = FMCPErrorHandler::CreateExecutionFailedError(ErrorMessage);
-        return CreateErrorResponse(Error);
+        return CreateErrorResponse(FString::Printf(TEXT("Failed to create parent '%s' and child '%s' widget components"), 
+                                                 *ParentComponentName, *ChildComponentName));
     }
 
     return CreateSuccessResponse(BlueprintName, ParentComponentName, ChildComponentName);
+}
+
+bool FCreateParentChildWidgetCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutParentComponentName,
+                                                                   FString& OutChildComponentName, FString& OutParentComponentType, FString& OutChildComponentType,
+                                                                   FVector2D& OutParentPosition, FVector2D& OutParentSize, TSharedPtr<FJsonObject>& OutChildAttributes,
+                                                                   FString& OutError) const
+{
+    UE_LOG(LogTemp, Warning, TEXT("FCreateParentChildWidgetCommand::ParseParameters: Parsing JSON: %s"), *JsonString);
+    
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
+    
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        OutError = TEXT("Invalid JSON format");
+        UE_LOG(LogTemp, Error, TEXT("FCreateParentChildWidgetCommand::ParseParameters: Invalid JSON format"));
+        return false;
+    }
+
+    // Required parameters - try both widget_name and blueprint_name for compatibility
+    if (!JsonObject->TryGetStringField(TEXT("widget_name"), OutBlueprintName) && 
+        !JsonObject->TryGetStringField(TEXT("blueprint_name"), OutBlueprintName))
+    {
+        OutError = TEXT("Missing 'widget_name' or 'blueprint_name' parameter");
+        UE_LOG(LogTemp, Error, TEXT("FCreateParentChildWidgetCommand::ParseParameters: Missing widget_name/blueprint_name parameter"));
+        return false;
+    }
+    
+    if (OutBlueprintName.IsEmpty())
+    {
+        OutError = TEXT("Empty 'widget_name' or 'blueprint_name' parameter");
+        UE_LOG(LogTemp, Error, TEXT("FCreateParentChildWidgetCommand::ParseParameters: Empty widget_name/blueprint_name parameter"));
+        return false;
+    }
+
+    if (!JsonObject->TryGetStringField(TEXT("parent_component_name"), OutParentComponentName) || OutParentComponentName.IsEmpty())
+    {
+        OutError = TEXT("Missing or empty 'parent_component_name' parameter");
+        UE_LOG(LogTemp, Error, TEXT("FCreateParentChildWidgetCommand::ParseParameters: Missing parent_component_name parameter"));
+        return false;
+    }
+
+    if (!JsonObject->TryGetStringField(TEXT("child_component_name"), OutChildComponentName) || OutChildComponentName.IsEmpty())
+    {
+        OutError = TEXT("Missing or empty 'child_component_name' parameter");
+        UE_LOG(LogTemp, Error, TEXT("FCreateParentChildWidgetCommand::ParseParameters: Missing child_component_name parameter"));
+        return false;
+    }
+
+    // Optional parameters with defaults
+    if (!JsonObject->TryGetStringField(TEXT("parent_component_type"), OutParentComponentType) || OutParentComponentType.IsEmpty())
+    {
+        OutParentComponentType = TEXT("Border");
+    }
+
+    if (!JsonObject->TryGetStringField(TEXT("child_component_type"), OutChildComponentType) || OutChildComponentType.IsEmpty())
+    {
+        OutChildComponentType = TEXT("TextBlock");
+    }
+
+    // Optional position parameter
+    const TArray<TSharedPtr<FJsonValue>>* PositionArray;
+    if (JsonObject->TryGetArrayField(TEXT("parent_position"), PositionArray) && PositionArray->Num() >= 2)
+    {
+        OutParentPosition.X = (*PositionArray)[0]->AsNumber();
+        OutParentPosition.Y = (*PositionArray)[1]->AsNumber();
+    }
+    else
+    {
+        OutParentPosition = FVector2D(0.0f, 0.0f);
+    }
+
+    // Optional size parameter
+    const TArray<TSharedPtr<FJsonValue>>* SizeArray;
+    if (JsonObject->TryGetArrayField(TEXT("parent_size"), SizeArray) && SizeArray->Num() >= 2)
+    {
+        OutParentSize.X = (*SizeArray)[0]->AsNumber();
+        OutParentSize.Y = (*SizeArray)[1]->AsNumber();
+    }
+    else
+    {
+        OutParentSize = FVector2D(300.0f, 200.0f);
+    }
+
+    // Optional child attributes parameter
+    const TSharedPtr<FJsonObject>* ChildAttributesObject;
+    if (JsonObject->TryGetObjectField(TEXT("child_attributes"), ChildAttributesObject))
+    {
+        OutChildAttributes = *ChildAttributesObject;
+    }
+    else
+    {
+        OutChildAttributes = MakeShared<FJsonObject>();
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("FCreateParentChildWidgetCommand::ParseParameters: Successfully parsed parameters"));
+    return true;
 }
 
 FString FCreateParentChildWidgetCommand::GetCommandName() const
@@ -116,58 +139,14 @@ FString FCreateParentChildWidgetCommand::GetCommandName() const
 
 bool FCreateParentChildWidgetCommand::ValidateParams(const FString& Parameters) const
 {
-    // Parse JSON parameters
-    TSharedPtr<FJsonObject> JsonObject;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
-    
-    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
-    {
-        return false;
-    }
-
-    FString ValidationError;
-    return ValidateParamsInternal(JsonObject, ValidationError);
+    FString BlueprintName, ParentComponentName, ChildComponentName, ParentComponentType, ChildComponentType, Error;
+    FVector2D ParentPosition, ParentSize;
+    TSharedPtr<FJsonObject> ChildAttributes;
+    return ParseParameters(Parameters, BlueprintName, ParentComponentName, ChildComponentName, 
+                          ParentComponentType, ChildComponentType, ParentPosition, ParentSize, ChildAttributes, Error);
 }
 
-bool FCreateParentChildWidgetCommand::ValidateParamsInternal(const TSharedPtr<FJsonObject>& Params, FString& OutError) const
-{
-    // Required parameters
-    FString BlueprintName;
-    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName) || BlueprintName.IsEmpty())
-    {
-        OutError = TEXT("Missing or empty 'blueprint_name' parameter");
-        return false;
-    }
-
-    FString ParentComponentName;
-    if (!Params->TryGetStringField(TEXT("parent_component_name"), ParentComponentName) || ParentComponentName.IsEmpty())
-    {
-        OutError = TEXT("Missing or empty 'parent_component_name' parameter");
-        return false;
-    }
-
-    FString ChildComponentName;
-    if (!Params->TryGetStringField(TEXT("child_component_name"), ChildComponentName) || ChildComponentName.IsEmpty())
-    {
-        OutError = TEXT("Missing or empty 'child_component_name' parameter");
-        return false;
-    }
-
-    // Optional parameters - set defaults if not provided
-    if (!Params->HasField(TEXT("parent_component_type")))
-    {
-        Params->SetStringField(TEXT("parent_component_type"), TEXT("Border"));
-    }
-
-    if (!Params->HasField(TEXT("child_component_type")))
-    {
-        Params->SetStringField(TEXT("child_component_type"), TEXT("TextBlock"));
-    }
-
-    return true;
-}
-
-TSharedPtr<FJsonObject> FCreateParentChildWidgetCommand::CreateSuccessResponse(const FString& BlueprintName, const FString& ParentComponentName, const FString& ChildComponentName) const
+FString FCreateParentChildWidgetCommand::CreateSuccessResponse(const FString& BlueprintName, const FString& ParentComponentName, const FString& ChildComponentName) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
@@ -176,16 +155,20 @@ TSharedPtr<FJsonObject> FCreateParentChildWidgetCommand::CreateSuccessResponse(c
     ResponseObj->SetStringField(TEXT("child_component_name"), ChildComponentName);
     ResponseObj->SetStringField(TEXT("message"), TEXT("Parent and child widget components created successfully"));
 
-    return ResponseObj;
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
+    return OutputString;
 }
 
-TSharedPtr<FJsonObject> FCreateParentChildWidgetCommand::CreateErrorResponse(const FMCPError& Error) const
+FString FCreateParentChildWidgetCommand::CreateErrorResponse(const FString& ErrorMessage) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), false);
-    ResponseObj->SetStringField(TEXT("error"), Error.ErrorMessage);
-    ResponseObj->SetStringField(TEXT("error_details"), Error.ErrorDetails);
-    ResponseObj->SetNumberField(TEXT("error_code"), Error.ErrorCode);
+    ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
 
-    return ResponseObj;
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
+    return OutputString;
 }

@@ -229,9 +229,7 @@ void FUMGCommandRegistration::RegisterAddChildWidgetCommand()
 
 void FUMGCommandRegistration::RegisterCreateParentChildWidgetCommand()
 {
-    // Create shared pointer to the UMG service singleton for the new architecture
-    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
-    TSharedPtr<FCreateParentChildWidgetCommand> Command = MakeShared<FCreateParentChildWidgetCommand>(UMGServicePtr);
+    TSharedPtr<FCreateParentChildWidgetCommand> Command = MakeShared<FCreateParentChildWidgetCommand>(FUMGService::Get());
     RegisterAndTrackCommand(Command);
 }
 

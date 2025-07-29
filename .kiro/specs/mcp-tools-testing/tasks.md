@@ -356,12 +356,6 @@
     - _Requirements: 5.1_
 
   - [x] 7.2 Test mcp_umgMCP_bind_widget_component_event functionality
-
-
-
-
-
-
     - Test event binding for widget components (buttons, etc.)
     - Verify function creation and event connection
     - Test custom function naming and event handling
@@ -376,15 +370,13 @@
     - _Requirements: 5.3_
 
   - [x] 7.4 Test mcp_umgMCP_add_child_widget_component_to_parent functionality
-
-
     - Test parent-child component relationship creation
     - Verify parent component creation when missing
     - Test component hierarchy establishment and management
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 5.4_
 
-  - [ ] 7.5 Test mcp_umgMCP_create_parent_and_child_widget_components functionality
+  - [x] 7.5 Test mcp_umgMCP_create_parent_and_child_widget_components functionality
     - Test simultaneous parent and child component creation
     - Verify component type handling and attribute setting
     - Test nested component hierarchy creation

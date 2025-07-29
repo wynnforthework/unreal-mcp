@@ -2,25 +2,24 @@
 
 #include "CoreMinimal.h"
 #include "Commands/IUnrealMCPCommand.h"
-#include "Dom/JsonObject.h"
+#include "Json.h"
 
 // Forward declarations
 class IUMGService;
-struct FMCPError;
 
 /**
  * Command for creating parent and child widget components in UMG Widget Blueprints
  * Implements the new command pattern architecture with service layer delegation
- * while maintaining compatibility with the existing string-based interface
+ * Follows the standardized architecture pattern for consistent command handling
  */
 class UNREALMCP_API FCreateParentChildWidgetCommand : public IUnrealMCPCommand
 {
 public:
     /**
      * Constructor
-     * @param InUMGService - Shared pointer to the UMG service for operations
+     * @param InUMGService - Reference to the UMG service for operations
      */
-    explicit FCreateParentChildWidgetCommand(TSharedPtr<IUMGService> InUMGService);
+    explicit FCreateParentChildWidgetCommand(IUMGService& InUMGService);
 
     // IUnrealMCPCommand interface
     virtual FString Execute(const FString& Parameters) override;
@@ -28,37 +27,41 @@ public:
     virtual bool ValidateParams(const FString& Parameters) const override;
 
 private:
-    /** Shared pointer to the UMG service */
-    TSharedPtr<IUMGService> UMGService;
+    /** Reference to the UMG service */
+    IUMGService& UMGService;
     
     /**
-     * Internal execution with JSON objects (new architecture)
-     * @param Params - JSON parameters
-     * @return JSON response object
+     * Parse JSON parameters into component creation parameters
+     * @param JsonString - JSON string containing parameters
+     * @param OutBlueprintName - Parsed blueprint name
+     * @param OutParentComponentName - Parsed parent component name
+     * @param OutChildComponentName - Parsed child component name
+     * @param OutParentComponentType - Parsed parent component type
+     * @param OutChildComponentType - Parsed child component type
+     * @param OutParentPosition - Parsed parent position
+     * @param OutParentSize - Parsed parent size
+     * @param OutChildAttributes - Parsed child attributes
+     * @param OutError - Error message if parsing fails
+     * @return true if parsing succeeded
      */
-    TSharedPtr<FJsonObject> ExecuteInternal(const TSharedPtr<FJsonObject>& Params);
+    bool ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutParentComponentName,
+                        FString& OutChildComponentName, FString& OutParentComponentType, FString& OutChildComponentType,
+                        FVector2D& OutParentPosition, FVector2D& OutParentSize, TSharedPtr<FJsonObject>& OutChildAttributes,
+                        FString& OutError) const;
     
     /**
-     * Internal validation with JSON objects (new architecture)
-     * @param Params - JSON parameters
-     * @param OutError - Error message if validation fails
-     * @return true if validation passes
-     */
-    bool ValidateParamsInternal(const TSharedPtr<FJsonObject>& Params, FString& OutError) const;
-    
-    /**
-     * Create success response JSON object
+     * Create success response JSON
      * @param BlueprintName - Name of the blueprint
      * @param ParentComponentName - Name of the parent component
      * @param ChildComponentName - Name of the child component
-     * @return JSON response object
+     * @return JSON response string
      */
-    TSharedPtr<FJsonObject> CreateSuccessResponse(const FString& BlueprintName, const FString& ParentComponentName, const FString& ChildComponentName) const;
+    FString CreateSuccessResponse(const FString& BlueprintName, const FString& ParentComponentName, const FString& ChildComponentName) const;
     
     /**
-     * Create error response JSON object from MCP error
-     * @param Error - MCP error to convert to response
-     * @return JSON response object
+     * Create error response JSON
+     * @param ErrorMessage - Error message
+     * @return JSON response string
      */
-    TSharedPtr<FJsonObject> CreateErrorResponse(const FMCPError& Error) const;
+    FString CreateErrorResponse(const FString& ErrorMessage) const;
 };
