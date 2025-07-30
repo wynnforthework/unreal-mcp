@@ -7,6 +7,7 @@
 #include "Commands/UMG/SetWidgetPropertyCommand.h"
 #include "Commands/UMG/AddChildWidgetCommand.h"
 #include "Commands/UMG/CreateParentChildWidgetCommand.h"
+#include "Commands/UMG/CheckWidgetComponentExistsCommand.h"
 #include "Services/UMG/UMGService.h"
 
 // Static member definition
@@ -27,6 +28,7 @@ void FUMGCommandRegistration::RegisterAllUMGCommands()
     RegisterSetWidgetPropertyCommand();
     RegisterAddChildWidgetCommand();
     RegisterCreateParentChildWidgetCommand();
+    RegisterCheckWidgetComponentExistsCommand();
     
     // TODO: Register remaining 24 UMG commands when their classes are implemented
     // For now, we'll register the core commands that exist
@@ -94,8 +96,10 @@ void FUMGCommandRegistration::RegisterSetTextBlockBindingCommand()
 
 void FUMGCommandRegistration::RegisterCheckWidgetComponentExistsCommand()
 {
-    // TODO: Implement FCheckWidgetComponentExistsCommand class
-    UE_LOG(LogTemp, Warning, TEXT("FUMGCommandRegistration::RegisterCheckWidgetComponentExistsCommand: Command class not yet implemented"));
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FCheckWidgetComponentExistsCommand> Command = MakeShared<FCheckWidgetComponentExistsCommand>(UMGServicePtr);
+    RegisterAndTrackCommand(Command);
 }
 
 void FUMGCommandRegistration::RegisterSetWidgetPlacementCommand()
