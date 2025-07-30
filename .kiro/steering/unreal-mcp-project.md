@@ -33,3 +33,4 @@ This is an experimental Model Context Protocol (MCP) integration for Unreal Engi
 - When CPP files are changed - you must call ./RebuildProject.bat to compile it and then ./LaunchProject.bat to run it, after that changed/created MCP tool should be tested by calling in with launched UE project
 - The best way to use UE API - is to google how things are done, official documentation or ue developers forums might help, but you better do it with using google and do not use inexisting URLs
 - UE log file to check for UE runtime errors `MCPGameProject\Saved\Logs\MCPGameProject.log`
+- Live Coding is active compilation error message means tha UE is running at the moment and you need to kill its process.
