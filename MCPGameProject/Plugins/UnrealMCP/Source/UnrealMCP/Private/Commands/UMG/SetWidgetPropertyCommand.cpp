@@ -1,35 +1,45 @@
 #include "Commands/UMG/SetWidgetPropertyCommand.h"
 #include "Services/UMG/IUMGService.h"
+#include "MCPErrorHandler.h"
+#include "MCPError.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 
-FSetWidgetPropertyCommand::FSetWidgetPropertyCommand(IUMGService& InUMGService)
+DEFINE_LOG_CATEGORY_STATIC(LogSetWidgetPropertyCommand, Log, All);
+
+FSetWidgetPropertyCommand::FSetWidgetPropertyCommand(TSharedPtr<IUMGService> InUMGService)
     : UMGService(InUMGService)
 {
 }
 
 FString FSetWidgetPropertyCommand::Execute(const FString& Parameters)
 {
-    FString BlueprintName, ComponentName, Error;
-    TSharedPtr<FJsonObject> Properties;
+    UE_LOG(LogSetWidgetPropertyCommand, Log, TEXT("SetWidgetPropertyCommand::Execute - Command execution started"));
+    UE_LOG(LogSetWidgetPropertyCommand, Verbose, TEXT("Parameters: %s"), *Parameters);
     
-    if (!ParseParameters(Parameters, BlueprintName, ComponentName, Properties, Error))
+    // Parse JSON parameters using centralized JSON utilities
+    TSharedPtr<FJsonObject> JsonObject = ParseJsonParameters(Parameters);
+    if (!JsonObject.IsValid())
     {
-        return CreateErrorResponse(Error);
+        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(TEXT("Invalid JSON parameters"));
+        return SerializeErrorResponse(Error);
     }
 
-    // Use the UMG service to set widget properties
-    TArray<FString> SuccessProperties, FailedProperties;
-    bool bResult = UMGService.SetWidgetProperties(BlueprintName, ComponentName, Properties, SuccessProperties, FailedProperties);
-    
-    if (!bResult && SuccessProperties.Num() == 0)
+    // Validate parameters using structured validation
+    FString ValidationError;
+    if (!ValidateParamsInternal(JsonObject, ValidationError))
     {
-        return CreateErrorResponse(FString::Printf(TEXT("Failed to set any properties on widget component: %s"), *ComponentName));
+        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(ValidationError);
+        return SerializeErrorResponse(Error);
     }
 
-    return CreateSuccessResponse(ComponentName, SuccessProperties, FailedProperties);
+    // Execute command using service layer delegation
+    TSharedPtr<FJsonObject> Response = ExecuteInternal(JsonObject);
+    
+    // Serialize response using centralized JSON utilities
+    return SerializeJsonResponse(Response);
 }
 
 FString FSetWidgetPropertyCommand::GetCommandName() const
@@ -39,62 +49,234 @@ FString FSetWidgetPropertyCommand::GetCommandName() const
 
 bool FSetWidgetPropertyCommand::ValidateParams(const FString& Parameters) const
 {
-    FString BlueprintName, ComponentName, Error;
-    TSharedPtr<FJsonObject> Properties;
-    return ParseParameters(Parameters, BlueprintName, ComponentName, Properties, Error);
-}
-
-bool FSetWidgetPropertyCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutComponentName, 
-                                              TSharedPtr<FJsonObject>& OutProperties, FString& OutError) const
-{
+    // Parse JSON for validation
     TSharedPtr<FJsonObject> JsonObject;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
     
     if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
     {
-        OutError = TEXT("Invalid JSON format");
         return false;
     }
 
-    // Required parameters
-    if (!JsonObject->TryGetStringField(TEXT("widget_name"), OutBlueprintName) || OutBlueprintName.IsEmpty())
+    FString ValidationError;
+    return ValidateParamsInternal(JsonObject, ValidationError);
+}
+
+TSharedPtr<FJsonObject> FSetWidgetPropertyCommand::ExecuteInternal(const TSharedPtr<FJsonObject>& Params)
+{
+    // Validate service availability using dependency injection pattern
+    if (!UMGService.IsValid())
     {
-        OutError = TEXT("Missing or empty 'widget_name' parameter");
+        UE_LOG(LogSetWidgetPropertyCommand, Error, TEXT("UMG service is not available - dependency injection failed"));
+        FMCPError Error = FMCPErrorHandler::CreateInternalError(TEXT("UMG service is not available"));
+        return CreateErrorResponse(Error);
+    }
+
+    // Extract and validate parameters using structured parameter extraction
+    FWidgetPropertyParams PropertyParams;
+    if (!ExtractWidgetPropertyParameters(Params, PropertyParams))
+    {
+        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(TEXT("Failed to extract widget property parameters"));
+        return CreateErrorResponse(Error);
+    }
+
+    UE_LOG(LogSetWidgetPropertyCommand, Log, TEXT("Setting properties on component '%s' in widget '%s'"), 
+           *PropertyParams.ComponentName, *PropertyParams.WidgetName);
+
+    // Delegate to service layer following single responsibility principle
+    TArray<FString> SuccessProperties, FailedProperties;
+    bool bResult = UMGService->SetWidgetProperties(
+        PropertyParams.WidgetName, 
+        PropertyParams.ComponentName, 
+        PropertyParams.Properties, 
+        SuccessProperties, 
+        FailedProperties
+    );
+    
+    if (!bResult && SuccessProperties.Num() == 0)
+    {
+        UE_LOG(LogSetWidgetPropertyCommand, Warning, TEXT("Service layer failed to set any properties on widget component"));
+        FMCPError Error = FMCPErrorHandler::CreateExecutionFailedError(
+            FString::Printf(TEXT("Failed to set any properties on widget component: %s"), *PropertyParams.ComponentName));
+        return CreateErrorResponse(Error);
+    }
+    
+    UE_LOG(LogSetWidgetPropertyCommand, Log, TEXT("Widget properties set successfully: %d succeeded, %d failed"), 
+           SuccessProperties.Num(), FailedProperties.Num());
+    return CreateSuccessResponse(PropertyParams, SuccessProperties, FailedProperties);
+}
+
+bool FSetWidgetPropertyCommand::ValidateParamsInternal(const TSharedPtr<FJsonObject>& Params, FString& OutError) const
+{
+    if (!Params.IsValid())
+    {
+        OutError = TEXT("Invalid JSON parameters");
         return false;
     }
 
-    if (!JsonObject->TryGetStringField(TEXT("component_name"), OutComponentName) || OutComponentName.IsEmpty())
+    // Check for widget_name (required)
+    if (!Params->HasField(TEXT("widget_name")))
     {
-        OutError = TEXT("Missing or empty 'component_name' parameter");
+        OutError = TEXT("Missing required parameter: widget_name");
         return false;
     }
 
-    // Parse kwargs parameter which contains the properties to set
-    FString KwargsString;
-    if (JsonObject->TryGetStringField(TEXT("kwargs"), KwargsString))
+    FString WidgetName = Params->GetStringField(TEXT("widget_name"));
+    if (WidgetName.IsEmpty())
     {
-        TSharedRef<TJsonReader<>> KwargsReader = TJsonReaderFactory<>::Create(KwargsString);
-        if (!FJsonSerializer::Deserialize(KwargsReader, OutProperties) || !OutProperties.IsValid())
+        OutError = TEXT("widget_name cannot be empty");
+        return false;
+    }
+
+    // Check for component_name (required)
+    if (!Params->HasField(TEXT("component_name")))
+    {
+        OutError = TEXT("Missing required parameter: component_name");
+        return false;
+    }
+
+    FString ComponentName = Params->GetStringField(TEXT("component_name"));
+    if (ComponentName.IsEmpty())
+    {
+        OutError = TEXT("component_name cannot be empty");
+        return false;
+    }
+
+    // Check for kwargs (required)
+    if (!Params->HasField(TEXT("kwargs")))
+    {
+        OutError = TEXT("Missing required parameter: kwargs");
+        return false;
+    }
+
+    // Validate kwargs format (can be object or string)
+    const TSharedPtr<FJsonObject>* KwargsObject;
+    if (Params->TryGetObjectField(TEXT("kwargs"), KwargsObject))
+    {
+        if (!KwargsObject->IsValid() || (*KwargsObject)->Values.Num() == 0)
         {
-            OutError = TEXT("Invalid kwargs JSON format");
+            OutError = TEXT("kwargs object is empty or invalid");
             return false;
         }
     }
     else
     {
-        OutError = TEXT("Missing 'kwargs' parameter with properties to set");
-        return false;
+        FString KwargsString;
+        if (Params->TryGetStringField(TEXT("kwargs"), KwargsString))
+        {
+            if (KwargsString.IsEmpty())
+            {
+                OutError = TEXT("kwargs string cannot be empty");
+                return false;
+            }
+        }
+        else
+        {
+            OutError = TEXT("kwargs must be either an object or a string");
+            return false;
+        }
     }
 
     return true;
 }
 
-FString FSetWidgetPropertyCommand::CreateSuccessResponse(const FString& ComponentName, const TArray<FString>& SuccessProperties, 
-                                                       const TArray<FString>& FailedProperties) const
+// JSON Utility Methods (following centralized JSON utilities pattern)
+TSharedPtr<FJsonObject> FSetWidgetPropertyCommand::ParseJsonParameters(const FString& Parameters) const
 {
-    TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
+    if (Parameters.IsEmpty())
+    {
+        UE_LOG(LogSetWidgetPropertyCommand, Warning, TEXT("Empty parameters provided"));
+        return nullptr;
+    }
+
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
+    
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        UE_LOG(LogSetWidgetPropertyCommand, Error, TEXT("Failed to parse JSON parameters: %s"), *Parameters);
+        return nullptr;
+    }
+
+    return JsonObject;
+}
+
+FString FSetWidgetPropertyCommand::SerializeJsonResponse(const TSharedPtr<FJsonObject>& Response) const
+{
+    if (!Response.IsValid())
+    {
+        UE_LOG(LogSetWidgetPropertyCommand, Error, TEXT("Invalid response object for serialization"));
+        return TEXT("{}");
+    }
+
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(Response.ToSharedRef(), Writer);
+    return OutputString;
+}
+
+FString FSetWidgetPropertyCommand::SerializeErrorResponse(const FMCPError& Error) const
+{
+    TSharedPtr<FJsonObject> ErrorResponse = CreateErrorResponse(Error);
+    return SerializeJsonResponse(ErrorResponse);
+}
+
+// Parameter Extraction (following structured parameter extraction pattern)
+bool FSetWidgetPropertyCommand::ExtractWidgetPropertyParameters(const TSharedPtr<FJsonObject>& Params, FWidgetPropertyParams& OutParams) const
+{
+    // Extract widget name (required)
+    if (!Params->HasField(TEXT("widget_name")))
+    {
+        UE_LOG(LogSetWidgetPropertyCommand, Error, TEXT("Missing widget_name parameter"));
+        return false;
+    }
+    OutParams.WidgetName = Params->GetStringField(TEXT("widget_name"));
+
+    // Extract component name (required)
+    if (!Params->HasField(TEXT("component_name")))
+    {
+        UE_LOG(LogSetWidgetPropertyCommand, Error, TEXT("Missing component_name parameter"));
+        return false;
+    }
+    OutParams.ComponentName = Params->GetStringField(TEXT("component_name"));
+
+    // Extract kwargs (required) - try object first, then string for backward compatibility
+    const TSharedPtr<FJsonObject>* KwargsObject;
+    if (Params->TryGetObjectField(TEXT("kwargs"), KwargsObject) && KwargsObject->IsValid())
+    {
+        OutParams.Properties = *KwargsObject;
+    }
+    else
+    {
+        // Fallback to string format for backward compatibility
+        FString KwargsString;
+        if (Params->TryGetStringField(TEXT("kwargs"), KwargsString))
+        {
+            TSharedRef<TJsonReader<>> KwargsReader = TJsonReaderFactory<>::Create(KwargsString);
+            if (!FJsonSerializer::Deserialize(KwargsReader, OutParams.Properties) || !OutParams.Properties.IsValid())
+            {
+                UE_LOG(LogSetWidgetPropertyCommand, Error, TEXT("Invalid kwargs JSON format"));
+                return false;
+            }
+        }
+        else
+        {
+            UE_LOG(LogSetWidgetPropertyCommand, Error, TEXT("Missing or invalid kwargs parameter"));
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Response Creation (following structured error handling pattern)
+TSharedPtr<FJsonObject> FSetWidgetPropertyCommand::CreateSuccessResponse(const FWidgetPropertyParams& Params, 
+                                                                        const TArray<FString>& SuccessProperties, 
+                                                                        const TArray<FString>& FailedProperties) const
+{
+    TSharedPtr<FJsonObject> ResponseObj = MakeShareable(new FJsonObject);
     ResponseObj->SetBoolField(TEXT("success"), true);
-    ResponseObj->SetStringField(TEXT("component_name"), ComponentName);
+    ResponseObj->SetStringField(TEXT("component_name"), Params.ComponentName);
     
     // Add success properties array
     TArray<TSharedPtr<FJsonValue>> SuccessArray;
@@ -111,21 +293,20 @@ FString FSetWidgetPropertyCommand::CreateSuccessResponse(const FString& Componen
         FailedArray.Add(MakeShared<FJsonValueString>(Property));
     }
     ResponseObj->SetArrayField(TEXT("failed_properties"), FailedArray);
+    
+    ResponseObj->SetStringField(TEXT("message"), 
+        FString::Printf(TEXT("Successfully set %d properties on component '%s' in widget '%s' (%d failed)"), 
+                       SuccessProperties.Num(), *Params.ComponentName, *Params.WidgetName, FailedProperties.Num()));
 
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
-    return OutputString;
+    return ResponseObj;
 }
 
-FString FSetWidgetPropertyCommand::CreateErrorResponse(const FString& ErrorMessage) const
+TSharedPtr<FJsonObject> FSetWidgetPropertyCommand::CreateErrorResponse(const FMCPError& Error) const
 {
-    TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
+    TSharedPtr<FJsonObject> ResponseObj = MakeShareable(new FJsonObject);
     ResponseObj->SetBoolField(TEXT("success"), false);
-    ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
+    ResponseObj->SetStringField(TEXT("error"), Error.ErrorMessage);
+    ResponseObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Failed to set widget properties: %s"), *Error.ErrorMessage));
 
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
-    return OutputString;
+    return ResponseObj;
 }

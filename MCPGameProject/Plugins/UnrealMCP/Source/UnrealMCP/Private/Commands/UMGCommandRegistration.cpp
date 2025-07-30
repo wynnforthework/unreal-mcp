@@ -86,7 +86,9 @@ void FUMGCommandRegistration::RegisterAddWidgetComponentCommand()
 
 void FUMGCommandRegistration::RegisterSetWidgetPropertyCommand()
 {
-    TSharedPtr<FSetWidgetPropertyCommand> Command = MakeShared<FSetWidgetPropertyCommand>(FUMGService::Get());
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FSetWidgetPropertyCommand> Command = MakeShared<FSetWidgetPropertyCommand>(UMGServicePtr);
     RegisterAndTrackCommand(Command);
 }
 
