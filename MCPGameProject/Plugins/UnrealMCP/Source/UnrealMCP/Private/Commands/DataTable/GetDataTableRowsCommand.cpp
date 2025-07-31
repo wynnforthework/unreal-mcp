@@ -3,6 +3,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Engine/DataTable.h"
+#include "MCPErrorHandler.h"
 
 FGetDataTableRowsCommand::FGetDataTableRowsCommand(IDataTableService& InDataTableService)
     : DataTableService(InDataTableService)
@@ -11,28 +12,55 @@ FGetDataTableRowsCommand::FGetDataTableRowsCommand(IDataTableService& InDataTabl
 
 FString FGetDataTableRowsCommand::Execute(const FString& Parameters)
 {
+    // First validate parameters using the validation framework
+    if (!ValidateParams(Parameters))
+    {
+        FMCPError ValidationError = FMCPErrorHandler::CreateValidationFailedError(
+            TEXT("Parameter validation failed for get_datatable_rows command")
+        );
+        FMCPErrorHandler::LogError(ValidationError);
+        return FMCPErrorHandler::CreateStructuredErrorResponse(ValidationError);
+    }
+    
+    // Parse parameters
     FString DataTableName;
     TArray<FString> RowNames;
     FString ParseError;
     
     if (!ParseParameters(Parameters, DataTableName, RowNames, ParseError))
     {
-        return CreateErrorResponse(ParseError);
+        FMCPError ParseErrorObj = FMCPErrorHandler::CreateInvalidParametersError(
+            FString::Printf(TEXT("Failed to parse parameters: %s"), *ParseError)
+        );
+        FMCPErrorHandler::LogError(ParseErrorObj);
+        return FMCPErrorHandler::CreateStructuredErrorResponse(ParseErrorObj);
     }
     
     // Find the DataTable
     UDataTable* DataTable = DataTableService.FindDataTable(DataTableName);
     if (!DataTable)
     {
-        return CreateErrorResponse(FString::Printf(TEXT("DataTable not found: %s"), *DataTableName));
+        FMCPError NotFoundError = FMCPErrorHandler::CreateExecutionFailedError(
+            FString::Printf(TEXT("DataTable not found: %s"), *DataTableName)
+        );
+        FMCPErrorHandler::LogError(NotFoundError);
+        return FMCPErrorHandler::CreateStructuredErrorResponse(NotFoundError);
     }
     
     // Get rows using the service
     TSharedPtr<FJsonObject> RowsData = DataTableService.GetDataTableRows(DataTable, RowNames);
     if (!RowsData.IsValid())
     {
-        return CreateErrorResponse(TEXT("Failed to get DataTable rows"));
+        FMCPError ExecutionError = FMCPErrorHandler::CreateExecutionFailedError(
+            TEXT("Failed to get DataTable rows from service")
+        );
+        FMCPErrorHandler::LogError(ExecutionError);
+        return FMCPErrorHandler::CreateStructuredErrorResponse(ExecutionError);
     }
+    
+    // Log successful operation
+    UE_LOG(LogTemp, Log, TEXT("MCP DataTable: Successfully retrieved %d rows from DataTable '%s'"), 
+           RowsData->GetArrayField(TEXT("rows")).Num(), *DataTableName);
     
     return CreateSuccessResponse(RowsData);
 }
@@ -44,11 +72,42 @@ FString FGetDataTableRowsCommand::GetCommandName() const
 
 bool FGetDataTableRowsCommand::ValidateParams(const FString& Parameters) const
 {
-    FString DataTableName;
-    TArray<FString> RowNames;
-    FString ParseError;
+    // Parse JSON parameters
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
     
-    return ParseParameters(Parameters, DataTableName, RowNames, ParseError);
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        return false;
+    }
+    
+    // Basic parameter validation
+    FString DataTableName;
+    if (!JsonObject->TryGetStringField(TEXT("datatable_name"), DataTableName) || DataTableName.IsEmpty())
+    {
+        return false;
+    }
+    
+    // Additional validation - row_names is optional, but if provided must be valid array
+    if (JsonObject->HasField(TEXT("row_names")))
+    {
+        const TArray<TSharedPtr<FJsonValue>>* RowNamesArray;
+        if (!JsonObject->TryGetArrayField(TEXT("row_names"), RowNamesArray))
+        {
+            return false;
+        }
+        
+        // Validate that all row names are strings
+        for (const TSharedPtr<FJsonValue>& RowNameValue : *RowNamesArray)
+        {
+            if (!RowNameValue.IsValid() || RowNameValue->Type != EJson::String)
+            {
+                return false;
+            }
+        }
+    }
+    
+    return true;
 }
 
 bool FGetDataTableRowsCommand::ParseParameters(const FString& JsonString, FString& OutDataTableName, TArray<FString>& OutRowNames, FString& OutError) const
@@ -85,23 +144,31 @@ bool FGetDataTableRowsCommand::ParseParameters(const FString& JsonString, FStrin
 
 FString FGetDataTableRowsCommand::CreateSuccessResponse(const TSharedPtr<FJsonObject>& RowsData) const
 {
-    // The service already returns a properly formatted JSON object with rows array
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(RowsData.ToSharedRef(), Writer);
-    
-    return OutputString;
-}
-
-FString FGetDataTableRowsCommand::CreateErrorResponse(const FString& ErrorMessage) const
-{
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
-    ResponseObj->SetBoolField(TEXT("success"), false);
-    ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
+    ResponseObj->SetBoolField(TEXT("success"), true);
+    ResponseObj->SetStringField(TEXT("command"), GetCommandName());
+    
+    // Add the rows data from the service
+    ResponseObj->SetArrayField(TEXT("rows"), RowsData->GetArrayField(TEXT("rows")));
+    
+    // Add metadata
+    TSharedPtr<FJsonObject> Metadata = MakeShared<FJsonObject>();
+    Metadata->SetStringField(TEXT("timestamp"), FDateTime::UtcNow().ToIso8601());
+    Metadata->SetStringField(TEXT("operation"), TEXT("get_rows"));
+    Metadata->SetNumberField(TEXT("row_count"), RowsData->GetArrayField(TEXT("rows")).Num());
+    ResponseObj->SetObjectField(TEXT("metadata"), Metadata);
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
     FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
     
     return OutputString;
+}
+
+FString FGetDataTableRowsCommand::CreateErrorResponse(const FString& ErrorMessage) const
+{
+    // This method is deprecated in favor of using FMCPErrorHandler::CreateStructuredErrorResponse
+    // Keeping for backward compatibility but should not be used in new code
+    FMCPError Error = FMCPErrorHandler::CreateExecutionFailedError(ErrorMessage);
+    return FMCPErrorHandler::CreateStructuredErrorResponse(Error);
 }

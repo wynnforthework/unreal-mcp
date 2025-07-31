@@ -434,6 +434,10 @@
     - _Requirements: 6.1_
 
   - [ ] 8.2 Test mcp_datatableMCP_get_datatable_rows functionality
+
+
+
+
     - Test complete row data retrieval
     - Verify specific row querying and data accuracy
     - Test row data formatting and field mapping

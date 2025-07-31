@@ -44,7 +44,7 @@ private:
     FString CreateSuccessResponse(const TSharedPtr<FJsonObject>& RowsData) const;
     
     /**
-     * Create error response JSON
+     * Create error response JSON (deprecated - use FMCPErrorHandler instead)
      * @param ErrorMessage - Error message
      * @return JSON response string
      */
