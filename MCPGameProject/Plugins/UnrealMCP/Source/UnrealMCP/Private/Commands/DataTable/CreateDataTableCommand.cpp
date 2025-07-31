@@ -3,6 +3,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Engine/DataTable.h"
+#include "MCPErrorHandler.h"
 
 FCreateDataTableCommand::FCreateDataTableCommand(IDataTableService& InDataTableService)
     : DataTableService(InDataTableService)
@@ -11,27 +12,53 @@ FCreateDataTableCommand::FCreateDataTableCommand(IDataTableService& InDataTableS
 
 FString FCreateDataTableCommand::Execute(const FString& Parameters)
 {
-    FDataTableCreationParams Params;
-    FString ParseError;
-    
-    if (!ParseParameters(Parameters, Params, ParseError))
+    // First validate parameters using the validation framework
+    if (!ValidateParams(Parameters))
     {
-        return CreateErrorResponse(ParseError);
+        FMCPError ValidationError = FMCPErrorHandler::CreateValidationFailedError(
+            TEXT("Parameter validation failed for create_datatable command")
+        );
+        FMCPErrorHandler::LogError(ValidationError);
+        return FMCPErrorHandler::CreateStructuredErrorResponse(ValidationError);
     }
     
-    // Validate parameters
+    // Parse parameters
+    FDataTableCreationParams Params;
+    FString ParseError;
+    if (!ParseParameters(Parameters, Params, ParseError))
+    {
+        FMCPError ParseErrorObj = FMCPErrorHandler::CreateInvalidParametersError(
+            FString::Printf(TEXT("Failed to parse parameters: %s"), *ParseError)
+        );
+        FMCPErrorHandler::LogError(ParseErrorObj);
+        return FMCPErrorHandler::CreateStructuredErrorResponse(ParseErrorObj);
+    }
+    
+    // Additional business logic validation
     FString ValidationError;
     if (!Params.IsValid(ValidationError))
     {
-        return CreateErrorResponse(ValidationError);
+        FMCPError BusinessValidationError = FMCPErrorHandler::CreateValidationFailedError(
+            FString::Printf(TEXT("Business validation failed: %s"), *ValidationError)
+        );
+        FMCPErrorHandler::LogError(BusinessValidationError);
+        return FMCPErrorHandler::CreateStructuredErrorResponse(BusinessValidationError);
     }
     
     // Create the DataTable using the service
     UDataTable* CreatedDataTable = DataTableService.CreateDataTable(Params);
     if (!CreatedDataTable)
     {
-        return CreateErrorResponse(TEXT("Failed to create DataTable"));
+        FMCPError ExecutionError = FMCPErrorHandler::CreateExecutionFailedError(
+            FString::Printf(TEXT("Failed to create DataTable '%s' with struct '%s'"), *Params.Name, *Params.RowStructName)
+        );
+        FMCPErrorHandler::LogError(ExecutionError);
+        return FMCPErrorHandler::CreateStructuredErrorResponse(ExecutionError);
     }
+    
+    // Log successful creation
+    UE_LOG(LogTemp, Log, TEXT("MCP DataTable: Successfully created DataTable '%s' at path '%s'"), 
+           *CreatedDataTable->GetName(), *CreatedDataTable->GetPathName());
     
     return CreateSuccessResponse(CreatedDataTable);
 }
@@ -43,16 +70,38 @@ FString FCreateDataTableCommand::GetCommandName() const
 
 bool FCreateDataTableCommand::ValidateParams(const FString& Parameters) const
 {
+    // Parse JSON parameters
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
+    
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        return false;
+    }
+    
+    // Basic parameter validation
+    FString DataTableName;
+    if (!JsonObject->TryGetStringField(TEXT("datatable_name"), DataTableName) || DataTableName.IsEmpty())
+    {
+        return false;
+    }
+    
+    FString RowStructName;
+    if (!JsonObject->TryGetStringField(TEXT("row_struct_name"), RowStructName) || RowStructName.IsEmpty())
+    {
+        return false;
+    }
+    
+    // Additional business logic validation
     FDataTableCreationParams Params;
     FString ParseError;
-    
     if (!ParseParameters(Parameters, Params, ParseError))
     {
         return false;
     }
     
-    FString ValidationError;
-    return Params.IsValid(ValidationError);
+    FString BusinessValidationError;
+    return Params.IsValid(BusinessValidationError);
 }
 
 bool FCreateDataTableCommand::ParseParameters(const FString& JsonString, FDataTableCreationParams& OutParams, FString& OutError) const
@@ -93,7 +142,31 @@ FString FCreateDataTableCommand::CreateSuccessResponse(UDataTable* DataTable) co
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
-    ResponseObj->SetStringField(TEXT("path"), FString::Printf(TEXT("%s/%s"), *DataTable->GetOutermost()->GetName(), *DataTable->GetName()));
+    ResponseObj->SetStringField(TEXT("command"), GetCommandName());
+    
+    // DataTable information
+    TSharedPtr<FJsonObject> DataTableInfo = MakeShared<FJsonObject>();
+    DataTableInfo->SetStringField(TEXT("name"), DataTable->GetName());
+    DataTableInfo->SetStringField(TEXT("path"), DataTable->GetPathName());
+    DataTableInfo->SetStringField(TEXT("package"), DataTable->GetOutermost()->GetName());
+    
+    // Struct information
+    if (const UScriptStruct* RowStruct = DataTable->GetRowStruct())
+    {
+        DataTableInfo->SetStringField(TEXT("row_struct"), RowStruct->GetName());
+        DataTableInfo->SetStringField(TEXT("row_struct_path"), RowStruct->GetPathName());
+    }
+    
+    // Row count (should be 0 for newly created table)
+    DataTableInfo->SetNumberField(TEXT("row_count"), DataTable->GetRowNames().Num());
+    
+    ResponseObj->SetObjectField(TEXT("datatable"), DataTableInfo);
+    
+    // Add metadata
+    TSharedPtr<FJsonObject> Metadata = MakeShared<FJsonObject>();
+    Metadata->SetStringField(TEXT("timestamp"), FDateTime::UtcNow().ToIso8601());
+    Metadata->SetStringField(TEXT("operation"), TEXT("create"));
+    ResponseObj->SetObjectField(TEXT("metadata"), Metadata);
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
@@ -114,3 +187,4 @@ FString FCreateDataTableCommand::CreateErrorResponse(const FString& ErrorMessage
     
     return OutputString;
 }
+
