@@ -7,6 +7,7 @@
 #include "Commands/DataTable/AddRowsToDataTableCommand.h"
 #include "Commands/DataTable/GetDataTableRowsCommand.h"
 #include "Commands/DataTable/UpdateRowsInDataTableCommand.h"
+#include "Commands/DataTable/DeleteDataTableRowCommand.h"
 #include "Commands/DataTable/DeleteDataTableRowsCommand.h"
 #include "Commands/DataTable/GetDataTableRowNamesCommand.h"
 #include "Commands/DataTable/GetDataTablePropertyMapCommand.h"
@@ -25,6 +26,7 @@ void FDataTableCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FAddRowsToDataTableCommand>(DataTableService));
     RegisterAndTrackCommand(MakeShared<FGetDataTableRowsCommand>(DataTableService));
     RegisterAndTrackCommand(MakeShared<FUpdateRowsInDataTableCommand>(DataTableService));
+    RegisterAndTrackCommand(MakeShared<FDeleteDataTableRowCommand>(DataTableService));
     RegisterAndTrackCommand(MakeShared<FDeleteDataTableRowsCommand>(DataTableService));
     RegisterAndTrackCommand(MakeShared<FGetDataTableRowNamesCommand>(DataTableService));
     RegisterAndTrackCommand(MakeShared<FGetDataTablePropertyMapCommand>(DataTableService));

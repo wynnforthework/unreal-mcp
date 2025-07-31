@@ -433,18 +433,20 @@
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 6.1_
 
-  - [ ] 8.2 Test mcp_datatableMCP_get_datatable_rows functionality
-
-
-
-
+  - [x] 8.2 Test mcp_datatableMCP_get_datatable_rows functionality
     - Test complete row data retrieval
     - Verify specific row querying and data accuracy
     - Test row data formatting and field mapping
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 6.2_
 
-  - [ ] 8.3 Test mcp_datatableMCP_delete_datatable_row functionality
+  - [x] 8.3 Test mcp_datatableMCP_delete_datatable_row functionality
+
+
+
+
+
+
     - Test single row deletion by name
     - Verify row removal and table state consistency
     - Test error handling for non-existent rows
