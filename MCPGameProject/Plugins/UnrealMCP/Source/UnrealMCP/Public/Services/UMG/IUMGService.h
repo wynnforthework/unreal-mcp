@@ -150,4 +150,12 @@ public:
                                                     const FVector2D& ParentPosition = FVector2D(0.0f, 0.0f),
                                                     const FVector2D& ParentSize = FVector2D(300.0f, 200.0f),
                                                     const TSharedPtr<FJsonObject>& ChildAttributes = nullptr) = 0;
+
+    /**
+     * Get hierarchical layout information for all components within a UMG Widget Blueprint
+     * @param BlueprintName - Name of the target widget blueprint
+     * @param OutLayoutInfo - Output JSON object containing hierarchical component layout information
+     * @return true if layout information was retrieved successfully
+     */
+    virtual bool GetWidgetComponentLayout(const FString& BlueprintName, TSharedPtr<FJsonObject>& OutLayoutInfo) = 0;
 };

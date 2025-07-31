@@ -59,6 +59,8 @@ public:
                                                     const FVector2D& ParentSize = FVector2D(300.0f, 200.0f),
                                                     const TSharedPtr<FJsonObject>& ChildAttributes = nullptr) override;
 
+    virtual bool GetWidgetComponentLayout(const FString& BlueprintName, TSharedPtr<FJsonObject>& OutLayoutInfo) override;
+
 private:
     /** Private constructor for singleton pattern */
     FUMGService();
@@ -137,4 +139,11 @@ private:
      * @return true if the child was added successfully
      */
     bool AddWidgetToParent(UWidget* ChildWidget, UWidget* ParentWidget) const;
+
+    /**
+     * Build hierarchical widget information recursively
+     * @param Widget - Widget to build hierarchy for
+     * @return JSON object containing widget hierarchy information
+     */
+    TSharedPtr<FJsonObject> BuildWidgetHierarchy(UWidget* Widget) const;
 };

@@ -542,6 +542,13 @@ UWidgetBlueprint* FUMGService::FindWidgetBlueprint(const FString& BlueprintNameO
 
 UWidgetBlueprint* FUMGService::CreateWidgetBlueprintInternal(const FString& Name, UClass* ParentClass, const FString& Path) const
 {
+    // Ensure ParentClass is not null
+    if (!ParentClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: ParentClass is null, using default UserWidget"));
+        ParentClass = UUserWidget::StaticClass();
+    }
+    
     FString FullPath = Path + TEXT("/") + Name;
     
     // Create package for the new asset
@@ -934,4 +941,126 @@ bool FUMGService::AddWidgetToParent(UWidget* ChildWidget, UWidget* ParentWidget)
     }
 
     return true;
+}
+
+bool FUMGService::GetWidgetComponentLayout(const FString& BlueprintName, TSharedPtr<FJsonObject>& OutLayoutInfo)
+{
+    UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
+    if (!WidgetBlueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Widget blueprint '%s' not found"), *BlueprintName);
+        return false;
+    }
+
+    if (!WidgetBlueprint->WidgetTree)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Widget blueprint '%s' has no widget tree"), *BlueprintName);
+        return false;
+    }
+
+    OutLayoutInfo = MakeShareable(new FJsonObject);
+    
+    // Get the root widget
+    UWidget* RootWidget = WidgetBlueprint->WidgetTree->RootWidget;
+    if (!RootWidget)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Widget blueprint '%s' has no root widget"), *BlueprintName);
+        OutLayoutInfo->SetBoolField(TEXT("success"), true);
+        OutLayoutInfo->SetStringField(TEXT("message"), TEXT("Widget has no root widget"));
+        return true;
+    }
+
+    // Build hierarchical layout information
+    TSharedPtr<FJsonObject> HierarchyInfo = BuildWidgetHierarchy(RootWidget);
+    if (HierarchyInfo.IsValid())
+    {
+        OutLayoutInfo->SetObjectField(TEXT("hierarchy"), HierarchyInfo);
+        OutLayoutInfo->SetBoolField(TEXT("success"), true);
+        OutLayoutInfo->SetStringField(TEXT("message"), TEXT("Successfully retrieved widget component layout"));
+        return true;
+    }
+
+    UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to build widget hierarchy for '%s'"), *BlueprintName);
+    return false;
+}
+
+TSharedPtr<FJsonObject> FUMGService::BuildWidgetHierarchy(UWidget* Widget) const
+{
+    if (!Widget)
+    {
+        return nullptr;
+    }
+
+    TSharedPtr<FJsonObject> WidgetInfo = MakeShareable(new FJsonObject);
+    
+    // Basic widget information
+    WidgetInfo->SetStringField(TEXT("name"), Widget->GetName());
+    WidgetInfo->SetStringField(TEXT("type"), Widget->GetClass()->GetName());
+    
+    // Get slot properties based on slot type
+    TSharedPtr<FJsonObject> SlotProperties = MakeShareable(new FJsonObject);
+    if (Widget->Slot)
+    {
+        FString SlotTypeName = Widget->Slot->GetClass()->GetName();
+        SlotProperties->SetStringField(TEXT("slot_type"), SlotTypeName);
+        
+        // Handle different slot types
+        if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Widget->Slot))
+        {
+            // Canvas panel slot properties
+            FVector2D Position = CanvasSlot->GetPosition();
+            FVector2D Size = CanvasSlot->GetSize();
+            
+            TArray<TSharedPtr<FJsonValue>> PositionArray;
+            PositionArray.Add(MakeShareable(new FJsonValueNumber(Position.X)));
+            PositionArray.Add(MakeShareable(new FJsonValueNumber(Position.Y)));
+            SlotProperties->SetArrayField(TEXT("position"), PositionArray);
+            
+            TArray<TSharedPtr<FJsonValue>> SizeArray;
+            SizeArray.Add(MakeShareable(new FJsonValueNumber(Size.X)));
+            SizeArray.Add(MakeShareable(new FJsonValueNumber(Size.Y)));
+            SlotProperties->SetArrayField(TEXT("size"), SizeArray);
+            
+            SlotProperties->SetNumberField(TEXT("z_order"), CanvasSlot->GetZOrder());
+        }
+        else if (Widget->Slot->IsA<UPanelSlot>())
+        {
+            // Generic panel slot - try to get common properties
+            UPanelSlot* PanelSlot = Cast<UPanelSlot>(Widget->Slot);
+            if (PanelSlot)
+            {
+                // Try to get padding if available
+                if (PanelSlot->GetClass()->FindPropertyByName(TEXT("Padding")))
+                {
+                    // This is a simplified approach - in a full implementation,
+                    // you'd need to handle specific slot types individually
+                    SlotProperties->SetStringField(TEXT("note"), TEXT("Panel slot properties available but not fully implemented"));
+                }
+            }
+        }
+    }
+    
+    WidgetInfo->SetObjectField(TEXT("slot_properties"), SlotProperties);
+    
+    // Handle child widgets for panel widgets
+    TArray<TSharedPtr<FJsonValue>> ChildrenArray;
+    if (UPanelWidget* PanelWidget = Cast<UPanelWidget>(Widget))
+    {
+        for (int32 i = 0; i < PanelWidget->GetChildrenCount(); ++i)
+        {
+            UWidget* ChildWidget = PanelWidget->GetChildAt(i);
+            if (ChildWidget)
+            {
+                TSharedPtr<FJsonObject> ChildInfo = BuildWidgetHierarchy(ChildWidget);
+                if (ChildInfo.IsValid())
+                {
+                    ChildrenArray.Add(MakeShareable(new FJsonValueObject(ChildInfo)));
+                }
+            }
+        }
+    }
+    
+    WidgetInfo->SetArrayField(TEXT("children"), ChildrenArray);
+    
+    return WidgetInfo;
 }

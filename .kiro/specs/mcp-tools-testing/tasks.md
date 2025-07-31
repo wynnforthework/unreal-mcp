@@ -412,18 +412,13 @@
     - _Requirements: 5.9_
 
   - [x] 7.10 Test mcp_umgMCP_set_widget_component_property functionality
-
-
-
-
-
     - Test widget component property modification
     - Verify property value setting and type handling
     - Test complex property structures and nested properties
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 5.10_
 
-  - [ ] 7.11 Test mcp_umgMCP_get_widget_component_layout functionality
+  - [x] 7.11 Test mcp_umgMCP_get_widget_component_layout functionality
     - Test hierarchical layout information retrieval
     - Verify component structure and relationship reporting
     - Test slot property information and layout details

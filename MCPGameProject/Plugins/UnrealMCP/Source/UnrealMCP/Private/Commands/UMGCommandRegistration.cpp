@@ -10,6 +10,7 @@
 #include "Commands/UMG/CheckWidgetComponentExistsCommand.h"
 #include "Commands/UMG/SetWidgetPlacementCommand.h"
 #include "Commands/UMG/GetWidgetContainerDimensionsCommand.h"
+#include "Commands/UMG/GetWidgetComponentLayoutCommand.h"
 #include "Services/UMG/UMGService.h"
 
 // Static member definition
@@ -33,6 +34,7 @@ void FUMGCommandRegistration::RegisterAllUMGCommands()
     RegisterCheckWidgetComponentExistsCommand();
     RegisterSetWidgetPlacementCommand();
     RegisterGetWidgetContainerDimensionsCommand();
+    RegisterGetWidgetComponentLayoutCommand();
     
     // TODO: Register remaining 22 UMG commands when their classes are implemented
     // For now, we'll register the core commands that exist
@@ -126,8 +128,10 @@ void FUMGCommandRegistration::RegisterGetWidgetContainerDimensionsCommand()
 
 void FUMGCommandRegistration::RegisterGetWidgetComponentLayoutCommand()
 {
-    // TODO: Implement FGetWidgetComponentLayoutCommand class
-    UE_LOG(LogTemp, Warning, TEXT("FUMGCommandRegistration::RegisterGetWidgetComponentLayoutCommand: Command class not yet implemented"));
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FGetWidgetComponentLayoutCommand> Command = MakeShared<FGetWidgetComponentLayoutCommand>(UMGServicePtr);
+    RegisterAndTrackCommand(Command);
 }
 
 // Widget-specific add commands - placeholders
