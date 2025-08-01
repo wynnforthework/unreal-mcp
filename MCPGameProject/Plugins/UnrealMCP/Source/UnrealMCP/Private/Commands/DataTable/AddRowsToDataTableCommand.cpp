@@ -3,6 +3,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Engine/DataTable.h"
+#include "MCPErrorHandler.h"
 
 FAddRowsToDataTableCommand::FAddRowsToDataTableCommand(IDataTableService& InDataTableService)
     : DataTableService(InDataTableService)
@@ -11,12 +12,27 @@ FAddRowsToDataTableCommand::FAddRowsToDataTableCommand(IDataTableService& InData
 
 FString FAddRowsToDataTableCommand::Execute(const FString& Parameters)
 {
+    // First validate parameters using the validation framework
+    if (!ValidateParams(Parameters))
+    {
+        FMCPError ValidationError = FMCPErrorHandler::CreateValidationFailedError(
+            TEXT("Parameter validation failed for add_rows_to_datatable command")
+        );
+        FMCPErrorHandler::LogError(ValidationError);
+        return CreateErrorResponse(TEXT("Invalid parameters for command 'add_rows_to_datatable'"));
+    }
+    
+    // Parse parameters
     FString DataTableName;
     TArray<FDataTableRowParams> Rows;
     FString ParseError;
     
     if (!ParseParameters(Parameters, DataTableName, Rows, ParseError))
     {
+        FMCPError ParseErrorObj = FMCPErrorHandler::CreateInvalidParametersError(
+            FString::Printf(TEXT("Failed to parse parameters: %s"), *ParseError)
+        );
+        FMCPErrorHandler::LogError(ParseErrorObj);
         return CreateErrorResponse(ParseError);
     }
     
@@ -24,6 +40,10 @@ FString FAddRowsToDataTableCommand::Execute(const FString& Parameters)
     UDataTable* DataTable = DataTableService.FindDataTable(DataTableName);
     if (!DataTable)
     {
+        FMCPError NotFoundError = FMCPErrorHandler::CreateExecutionFailedError(
+            FString::Printf(TEXT("DataTable not found: %s"), *DataTableName)
+        );
+        FMCPErrorHandler::LogError(NotFoundError);
         return CreateErrorResponse(FString::Printf(TEXT("DataTable not found: %s"), *DataTableName));
     }
     
@@ -34,10 +54,18 @@ FString FAddRowsToDataTableCommand::Execute(const FString& Parameters)
     
     if (!bSuccess && AddedRows.Num() == 0)
     {
+        FMCPError ExecutionError = FMCPErrorHandler::CreateExecutionFailedError(
+            TEXT("Failed to add any rows to DataTable")
+        );
+        FMCPErrorHandler::LogError(ExecutionError);
         return CreateErrorResponse(TEXT("Failed to add any rows"));
     }
     
-    return CreateSuccessResponse(AddedRows);
+    // Log successful operation
+    UE_LOG(LogTemp, Log, TEXT("MCP DataTable: Successfully added %d rows to DataTable '%s'"), 
+           AddedRows.Num(), *DataTableName);
+    
+    return CreateSuccessResponse(AddedRows, FailedRows);
 }
 
 FString FAddRowsToDataTableCommand::GetCommandName() const
@@ -47,11 +75,59 @@ FString FAddRowsToDataTableCommand::GetCommandName() const
 
 bool FAddRowsToDataTableCommand::ValidateParams(const FString& Parameters) const
 {
-    FString DataTableName;
-    TArray<FDataTableRowParams> Rows;
-    FString ParseError;
+    // Parse JSON parameters
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
     
-    return ParseParameters(Parameters, DataTableName, Rows, ParseError);
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        return false;
+    }
+    
+    // Basic parameter validation - datatable_name is required
+    FString DataTableName;
+    if (!JsonObject->TryGetStringField(TEXT("datatable_name"), DataTableName) || DataTableName.IsEmpty())
+    {
+        return false;
+    }
+    
+    // Rows parameter is required and must be an array
+    const TArray<TSharedPtr<FJsonValue>>* RowsArray;
+    if (!JsonObject->TryGetArrayField(TEXT("rows"), RowsArray))
+    {
+        return false;
+    }
+    
+    // Validate each row object structure
+    for (const TSharedPtr<FJsonValue>& RowValue : *RowsArray)
+    {
+        TSharedPtr<FJsonObject> RowObj = RowValue->AsObject();
+        if (!RowObj.IsValid())
+        {
+            return false;
+        }
+        
+        // Validate row_name field
+        FString RowName;
+        if (!RowObj->TryGetStringField(TEXT("row_name"), RowName) || RowName.IsEmpty())
+        {
+            return false;
+        }
+        
+        // Validate row_data field
+        if (!RowObj->HasField(TEXT("row_data")))
+        {
+            return false;
+        }
+        
+        TSharedPtr<FJsonObject> RowData = RowObj->GetObjectField(TEXT("row_data"));
+        if (!RowData.IsValid())
+        {
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 bool FAddRowsToDataTableCommand::ParseParameters(const FString& JsonString, FString& OutDataTableName, TArray<FDataTableRowParams>& OutRows, FString& OutError) const
@@ -120,17 +196,38 @@ bool FAddRowsToDataTableCommand::ParseParameters(const FString& JsonString, FStr
     return true;
 }
 
-FString FAddRowsToDataTableCommand::CreateSuccessResponse(const TArray<FString>& AddedRows) const
+FString FAddRowsToDataTableCommand::CreateSuccessResponse(const TArray<FString>& AddedRows, const TArray<FString>& FailedRows) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
+    ResponseObj->SetStringField(TEXT("command"), GetCommandName());
     
+    // Add successfully added rows
     TArray<TSharedPtr<FJsonValue>> AddedRowsJson;
     for (const FString& RowName : AddedRows)
     {
         AddedRowsJson.Add(MakeShared<FJsonValueString>(RowName));
     }
     ResponseObj->SetArrayField(TEXT("added_rows"), AddedRowsJson);
+    
+    // Add failed rows if any
+    if (FailedRows.Num() > 0)
+    {
+        TArray<TSharedPtr<FJsonValue>> FailedRowsJson;
+        for (const FString& FailedRow : FailedRows)
+        {
+            FailedRowsJson.Add(MakeShared<FJsonValueString>(FailedRow));
+        }
+        ResponseObj->SetArrayField(TEXT("failed_rows"), FailedRowsJson);
+    }
+    
+    // Add metadata
+    TSharedPtr<FJsonObject> Metadata = MakeShared<FJsonObject>();
+    Metadata->SetStringField(TEXT("timestamp"), FDateTime::UtcNow().ToIso8601());
+    Metadata->SetStringField(TEXT("operation"), TEXT("add_rows"));
+    Metadata->SetNumberField(TEXT("added_count"), AddedRows.Num());
+    Metadata->SetNumberField(TEXT("failed_count"), FailedRows.Num());
+    ResponseObj->SetObjectField(TEXT("metadata"), Metadata);
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);

@@ -39,9 +39,10 @@ private:
     /**
      * Create success response JSON
      * @param AddedRows - Names of successfully added rows
+     * @param FailedRows - Names of rows that failed to add
      * @return JSON response string
      */
-    FString CreateSuccessResponse(const TArray<FString>& AddedRows) const;
+    FString CreateSuccessResponse(const TArray<FString>& AddedRows, const TArray<FString>& FailedRows) const;
     
     /**
      * Create error response JSON
