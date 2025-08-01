@@ -7,6 +7,7 @@
 /**
  * Command for getting row names and field names from DataTable assets
  * Implements the IUnrealMCPCommand interface for standardized command execution
+ * Complies with the new architecture using Command Pattern and Error Handling System
  */
 class UNREALMCP_API FGetDataTableRowNamesCommand : public IUnrealMCPCommand
 {
@@ -27,7 +28,7 @@ private:
     IDataTableService& DataTableService;
     
     /**
-     * Parse JSON parameters into DataTable name
+     * Parse JSON parameters into structured data
      * @param JsonString - JSON string containing parameters
      * @param OutDataTableName - Parsed DataTable name
      * @param OutError - Error message if parsing fails
@@ -36,7 +37,7 @@ private:
     bool ParseParameters(const FString& JsonString, FString& OutDataTableName, FString& OutError) const;
     
     /**
-     * Create success response JSON
+     * Create success response JSON using structured approach
      * @param RowNames - Array of row names
      * @param FieldNames - Array of field names
      * @return JSON response string
@@ -44,7 +45,7 @@ private:
     FString CreateSuccessResponse(const TArray<FString>& RowNames, const TArray<FString>& FieldNames) const;
     
     /**
-     * Create error response JSON
+     * Create error response JSON using the error handling system (deprecated method for compatibility)
      * @param ErrorMessage - Error message
      * @return JSON response string
      */

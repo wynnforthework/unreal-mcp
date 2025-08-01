@@ -11,6 +11,7 @@ FGetDataTableRowNamesCommand::FGetDataTableRowNamesCommand(IDataTableService& In
 
 FString FGetDataTableRowNamesCommand::Execute(const FString& Parameters)
 {
+    // Parse parameters
     FString DataTableName;
     FString ParseError;
     
@@ -19,7 +20,7 @@ FString FGetDataTableRowNamesCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(ParseError);
     }
     
-    // Find the DataTable
+    // Find the DataTable using the service layer
     UDataTable* DataTable = DataTableService.FindDataTable(DataTableName);
     if (!DataTable)
     {
@@ -33,8 +34,12 @@ FString FGetDataTableRowNamesCommand::Execute(const FString& Parameters)
     
     if (!bSuccess)
     {
-        return CreateErrorResponse(TEXT("Failed to get DataTable row names"));
+        return CreateErrorResponse(TEXT("Failed to retrieve DataTable row names and field names"));
     }
+    
+    // Log successful operation
+    UE_LOG(LogTemp, Log, TEXT("MCP DataTable: Successfully retrieved %d row names and %d field names from DataTable '%s'"), 
+           RowNames.Num(), FieldNames.Num(), *DataTableName);
     
     return CreateSuccessResponse(RowNames, FieldNames);
 }
@@ -46,10 +51,23 @@ FString FGetDataTableRowNamesCommand::GetCommandName() const
 
 bool FGetDataTableRowNamesCommand::ValidateParams(const FString& Parameters) const
 {
-    FString DataTableName;
-    FString ParseError;
+    // Parse JSON parameters
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
     
-    return ParseParameters(Parameters, DataTableName, ParseError);
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        return false;
+    }
+    
+    // Basic parameter validation - datatable_name is required
+    FString DataTableName;
+    if (!JsonObject->TryGetStringField(TEXT("datatable_name"), DataTableName) || DataTableName.IsEmpty())
+    {
+        return false;
+    }
+    
+    return true;
 }
 
 bool FGetDataTableRowNamesCommand::ParseParameters(const FString& JsonString, FString& OutDataTableName, FString& OutError) const
@@ -77,7 +95,9 @@ FString FGetDataTableRowNamesCommand::CreateSuccessResponse(const TArray<FString
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
+    ResponseObj->SetStringField(TEXT("command"), GetCommandName());
     
+    // Add row names array
     TArray<TSharedPtr<FJsonValue>> RowNamesJson;
     for (const FString& RowName : RowNames)
     {
@@ -85,6 +105,7 @@ FString FGetDataTableRowNamesCommand::CreateSuccessResponse(const TArray<FString
     }
     ResponseObj->SetArrayField(TEXT("row_names"), RowNamesJson);
     
+    // Add field names array (GUID-based internal names)
     TArray<TSharedPtr<FJsonValue>> FieldNamesJson;
     for (const FString& FieldName : FieldNames)
     {
@@ -92,6 +113,15 @@ FString FGetDataTableRowNamesCommand::CreateSuccessResponse(const TArray<FString
     }
     ResponseObj->SetArrayField(TEXT("field_names"), FieldNamesJson);
     
+    // Add metadata
+    TSharedPtr<FJsonObject> Metadata = MakeShared<FJsonObject>();
+    Metadata->SetStringField(TEXT("timestamp"), FDateTime::UtcNow().ToIso8601());
+    Metadata->SetStringField(TEXT("operation"), TEXT("get_row_names"));
+    Metadata->SetNumberField(TEXT("row_count"), RowNames.Num());
+    Metadata->SetNumberField(TEXT("field_count"), FieldNames.Num());
+    ResponseObj->SetObjectField(TEXT("metadata"), Metadata);
+    
+    // Serialize to JSON string
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
     FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);

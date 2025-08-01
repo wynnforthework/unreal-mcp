@@ -441,19 +441,13 @@
     - _Requirements: 6.2_
 
   - [x] 8.3 Test mcp_datatableMCP_delete_datatable_row functionality
-
-
-
-
-
-
     - Test single row deletion by name
     - Verify row removal and table state consistency
     - Test error handling for non-existent rows
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 6.3_
 
-  - [ ] 8.4 Test mcp_datatableMCP_get_datatable_row_names functionality
+  - [x] 8.4 Test mcp_datatableMCP_get_datatable_row_names functionality
     - Test row name and field name retrieval
     - Verify GUID-based field name reporting
     - Test table structure information accuracy
@@ -461,6 +455,9 @@
     - _Requirements: 6.4_
 
   - [ ] 8.5 Test mcp_datatableMCP_add_rows_to_datatable functionality
+
+
+
     - Test single and multiple row addition
     - Verify GUID-based field name usage and data mapping
     - Test row data validation and insertion accuracy
