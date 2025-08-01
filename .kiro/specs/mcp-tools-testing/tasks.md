@@ -454,25 +454,21 @@
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 6.4_
 
-  - [ ] 8.5 Test mcp_datatableMCP_add_rows_to_datatable functionality
-
-
-
-
+  - [x] 8.5 Test mcp_datatableMCP_add_rows_to_datatable functionality
     - Test single and multiple row addition
     - Verify GUID-based field name usage and data mapping
     - Test row data validation and insertion accuracy
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 6.5_
 
-  - [ ] 8.6 Test mcp_datatableMCP_update_rows_in_datatable functionality
+  - [x] 8.6 Test mcp_datatableMCP_update_rows_in_datatable functionality
     - Test existing row modification
     - Verify field mapping and data update accuracy
     - Test partial row updates and validation
     - If command not found, create missing command by copying existing implementation
     - _Requirements: 6.6_
 
-  - [ ] 8.7 Test mcp_datatableMCP_delete_datatable_rows functionality
+  - [x] 8.7 Test mcp_datatableMCP_delete_datatable_rows functionality
     - Test bulk row deletion operations
     - Verify multiple row removal and table consistency
     - Test batch operation error handling

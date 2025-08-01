@@ -2,20 +2,25 @@
 
 #include "CoreMinimal.h"
 #include "Commands/IUnrealMCPCommand.h"
-#include "Services/IDataTableService.h"
+#include "Dom/JsonObject.h"
+
+// Forward declarations
+class IDataTableService;
+struct FMCPError;
 
 /**
  * Command for deleting rows from DataTable assets
- * Implements the IUnrealMCPCommand interface for standardized command execution
+ * Implements the new command pattern architecture with service layer delegation
+ * while maintaining compatibility with the existing string-based interface
  */
 class UNREALMCP_API FDeleteDataTableRowsCommand : public IUnrealMCPCommand
 {
 public:
     /**
      * Constructor
-     * @param InDataTableService - Reference to the DataTable service for operations
+     * @param InDataTableService - Shared pointer to the DataTable service for operations
      */
-    explicit FDeleteDataTableRowsCommand(IDataTableService& InDataTableService);
+    explicit FDeleteDataTableRowsCommand(TSharedPtr<IDataTableService> InDataTableService);
 
     // IUnrealMCPCommand interface
     virtual FString Execute(const FString& Parameters) override;
@@ -23,31 +28,36 @@ public:
     virtual bool ValidateParams(const FString& Parameters) const override;
 
 private:
-    /** Reference to the DataTable service */
-    IDataTableService& DataTableService;
+    /** Shared pointer to the DataTable service */
+    TSharedPtr<IDataTableService> DataTableService;
     
     /**
-     * Parse JSON parameters into DataTable name and row names
-     * @param JsonString - JSON string containing parameters
-     * @param OutDataTableName - Parsed DataTable name
-     * @param OutRowNames - Parsed row names to delete
-     * @param OutError - Error message if parsing fails
-     * @return true if parsing succeeded
+     * Internal execution with JSON objects (new architecture)
+     * @param Params - JSON parameters
+     * @return JSON response object
      */
-    bool ParseParameters(const FString& JsonString, FString& OutDataTableName, TArray<FString>& OutRowNames, FString& OutError) const;
+    TSharedPtr<FJsonObject> ExecuteInternal(const TSharedPtr<FJsonObject>& Params);
     
     /**
-     * Create success response JSON
+     * Internal validation with JSON objects (new architecture)
+     * @param Params - JSON parameters
+     * @param OutError - Error message if validation fails
+     * @return true if validation passes
+     */
+    bool ValidateParamsInternal(const TSharedPtr<FJsonObject>& Params, FString& OutError) const;
+    
+    /**
+     * Create success response JSON object
      * @param DeletedRows - Names of successfully deleted rows
      * @param FailedRows - Names of rows that failed to delete
-     * @return JSON response string
+     * @return JSON response object
      */
-    FString CreateSuccessResponse(const TArray<FString>& DeletedRows, const TArray<FString>& FailedRows) const;
+    TSharedPtr<FJsonObject> CreateSuccessResponse(const TArray<FString>& DeletedRows, const TArray<FString>& FailedRows) const;
     
     /**
-     * Create error response JSON
-     * @param ErrorMessage - Error message
-     * @return JSON response string
+     * Create error response JSON object from MCP error
+     * @param Error - MCP error to convert to response
+     * @return JSON response object
      */
-    FString CreateErrorResponse(const FString& ErrorMessage) const;
+    TSharedPtr<FJsonObject> CreateErrorResponse(const FMCPError& Error) const;
 };

@@ -18,18 +18,21 @@ void FDataTableCommandRegistration::RegisterAllCommands()
 {
     UE_LOG(LogTemp, Log, TEXT("Registering DataTable commands..."));
     
-    // Get the DataTable service instance
-    static FDataTableService DataTableService;
+    // Create shared pointer to the DataTable service for the new architecture
+    TSharedPtr<IDataTableService> DataTableServicePtr = MakeShared<FDataTableService>();
     
-    // Register DataTable manipulation commands
-    RegisterAndTrackCommand(MakeShared<FCreateDataTableCommand>(DataTableService));
-    RegisterAndTrackCommand(MakeShared<FAddRowsToDataTableCommand>(DataTableService));
-    RegisterAndTrackCommand(MakeShared<FGetDataTableRowsCommand>(DataTableService));
-    RegisterAndTrackCommand(MakeShared<FUpdateRowsInDataTableCommand>(DataTableService));
-    RegisterAndTrackCommand(MakeShared<FDeleteDataTableRowCommand>(DataTableService));
-    RegisterAndTrackCommand(MakeShared<FDeleteDataTableRowsCommand>(DataTableService));
-    RegisterAndTrackCommand(MakeShared<FGetDataTableRowNamesCommand>(DataTableService));
-    RegisterAndTrackCommand(MakeShared<FGetDataTablePropertyMapCommand>(DataTableService));
+    // Get reference to the service for old architecture commands
+    IDataTableService& DataTableServiceRef = *DataTableServicePtr;
+    
+    // Register DataTable manipulation commands (mixed old/new architecture)
+    RegisterAndTrackCommand(MakeShared<FCreateDataTableCommand>(DataTableServiceRef));
+    RegisterAndTrackCommand(MakeShared<FAddRowsToDataTableCommand>(DataTableServiceRef));
+    RegisterAndTrackCommand(MakeShared<FGetDataTableRowsCommand>(DataTableServiceRef));
+    RegisterAndTrackCommand(MakeShared<FUpdateRowsInDataTableCommand>(DataTableServiceRef));
+    RegisterAndTrackCommand(MakeShared<FDeleteDataTableRowCommand>(DataTableServiceRef));
+    RegisterAndTrackCommand(MakeShared<FDeleteDataTableRowsCommand>(DataTableServicePtr)); // NEW ARCHITECTURE
+    RegisterAndTrackCommand(MakeShared<FGetDataTableRowNamesCommand>(DataTableServiceRef));
+    RegisterAndTrackCommand(MakeShared<FGetDataTablePropertyMapCommand>(DataTableServiceRef));
     
     UE_LOG(LogTemp, Log, TEXT("Registered %d DataTable commands"), RegisteredCommands.Num());
 }
