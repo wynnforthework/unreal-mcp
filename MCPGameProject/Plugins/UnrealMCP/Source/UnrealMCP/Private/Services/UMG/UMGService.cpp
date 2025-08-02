@@ -60,16 +60,25 @@ UWidgetBlueprint* FUMGService::CreateWidgetBlueprint(const FString& Name, const 
         }
     }
 
-    // Check if blueprint already exists
-    FString FullPath = Path + TEXT("/") + Name;
-    if (UEditorAssetLibrary::DoesAssetExist(FullPath))
+    // Check if blueprint already exists and is functional
+    if (DoesWidgetBlueprintExist(Name, Path))
     {
+        FString FullPath = Path + TEXT("/") + Name;
         UObject* ExistingAsset = UEditorAssetLibrary::LoadAsset(FullPath);
         UWidgetBlueprint* ExistingWidgetBP = Cast<UWidgetBlueprint>(ExistingAsset);
         if (ExistingWidgetBP)
         {
+            UE_LOG(LogTemp, Display, TEXT("UMGService: Using existing functional widget blueprint: %s"), *FullPath);
             return ExistingWidgetBP;
         }
+    }
+    
+    // If asset exists but is not functional, delete it first
+    FString FullPath = Path + TEXT("/") + Name;
+    if (UEditorAssetLibrary::DoesAssetExist(FullPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Deleting non-functional widget blueprint: %s"), *FullPath);
+        UEditorAssetLibrary::DeleteAsset(FullPath);
     }
 
     // Find parent class
@@ -86,7 +95,31 @@ UWidgetBlueprint* FUMGService::CreateWidgetBlueprint(const FString& Name, const 
 bool FUMGService::DoesWidgetBlueprintExist(const FString& Name, const FString& Path)
 {
     FString FullPath = Path + TEXT("/") + Name;
-    return UEditorAssetLibrary::DoesAssetExist(FullPath);
+    
+    // First check if asset exists in the asset system
+    if (!UEditorAssetLibrary::DoesAssetExist(FullPath))
+    {
+        return false;
+    }
+    
+    // Then check if it's actually a functional widget blueprint
+    UObject* ExistingAsset = UEditorAssetLibrary::LoadAsset(FullPath);
+    UWidgetBlueprint* ExistingWidgetBP = Cast<UWidgetBlueprint>(ExistingAsset);
+    
+    if (!ExistingWidgetBP)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Asset exists but is not a UWidgetBlueprint: %s"), *FullPath);
+        return false;
+    }
+    
+    // Check if it has a proper WidgetTree
+    if (!ExistingWidgetBP->WidgetTree)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Widget Blueprint exists but has no WidgetTree: %s"), *FullPath);
+        return false;
+    }
+    
+    return true;
 }
 
 UWidget* FUMGService::AddWidgetComponent(const FString& BlueprintName, const FString& ComponentName, 
@@ -580,17 +613,30 @@ UWidgetBlueprint* FUMGService::CreateWidgetBlueprintInternal(const FString& Name
     // Ensure the WidgetTree exists and add default Canvas Panel
     if (!WidgetBlueprint->WidgetTree)
     {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: Widget Blueprint has no WidgetTree"));
-        UEditorAssetLibrary::DeleteAsset(FullPath);
-        return nullptr;
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Widget Blueprint has no WidgetTree, creating one"));
+        WidgetBlueprint->WidgetTree = NewObject<UWidgetTree>(WidgetBlueprint);
+        if (!WidgetBlueprint->WidgetTree)
+        {
+            UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create WidgetTree"));
+            UEditorAssetLibrary::DeleteAsset(FullPath);
+            return nullptr;
+        }
     }
 
     if (!WidgetBlueprint->WidgetTree->RootWidget)
     {
+        UE_LOG(LogTemp, Display, TEXT("UMGService: Creating root canvas panel for widget: %s"), *Name);
         UCanvasPanel* RootCanvas = WidgetBlueprint->WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
         if (RootCanvas)
         {
             WidgetBlueprint->WidgetTree->RootWidget = RootCanvas;
+            UE_LOG(LogTemp, Display, TEXT("UMGService: Successfully created root canvas panel"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create root canvas panel"));
+            UEditorAssetLibrary::DeleteAsset(FullPath);
+            return nullptr;
         }
     }
 

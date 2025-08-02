@@ -1,5 +1,6 @@
 #include "Commands/AddBlueprintVariableCommand.h"
 #include "Commands/UnrealMCPCommonUtils.h"
+#include "Services/AssetDiscoveryService.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -11,6 +12,12 @@
 #include "UObject/Package.h"
 #include "Components/Widget.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/PanelWidget.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/GameModeBase.h"
 
 FAddBlueprintVariableCommand::FAddBlueprintVariableCommand(IBlueprintService& InBlueprintService)
     : BlueprintService(InBlueprintService)
@@ -173,43 +180,36 @@ FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
             FString InnerType = TypeStr.Mid(6, TypeStr.Len() - 7); // Remove "Class<" and ">"
             InnerType.TrimStartAndEndInline();
 
-            UClass* TargetClass = nullptr;
-            if (InnerType.Equals(TEXT("UserWidget"), ESearchCase::IgnoreCase)) {
-                TargetClass = UUserWidget::StaticClass();
-            } else if (InnerType.Equals(TEXT("Actor"), ESearchCase::IgnoreCase)) {
-                TargetClass = AActor::StaticClass();
-            } else if (InnerType.Equals(TEXT("Pawn"), ESearchCase::IgnoreCase)) {
-                TargetClass = APawn::StaticClass();
-            } else {
-                UClass* FoundClass = FUnrealMCPCommonUtils::FindWidgetClass(InnerType);
-                if (FoundClass) {
-                    TargetClass = FoundClass;
-                }
+            UClass* TargetClass = FAssetDiscoveryService::Get().ResolveObjectClass(InnerType);
+            
+            if (!TargetClass) {
+                // Try widget class finding for widget blueprints
+                TargetClass = FAssetDiscoveryService::Get().FindWidgetClass(InnerType);
             }
 
             if (TargetClass) {
                 SetPinTypeForCategory(UEdGraphSchema_K2::PC_Class, TargetClass);
             }
         } else {
-            // Try struct
-            UScriptStruct* FoundStruct = FUnrealMCPCommonUtils::FindStructType(TypeStr);
+            // Try struct first using the asset discovery service
+            UScriptStruct* FoundStruct = FAssetDiscoveryService::Get().FindStructType(TypeStr);
             if (FoundStruct) {
                 SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, FoundStruct);
+                UE_LOG(LogTemp, Display, TEXT("Successfully resolved struct type: %s -> %s"), *TypeStr, *FoundStruct->GetName());
             } else {
-                // Try object/class
-                UClass* FoundClass = nullptr;
-                
-                // Try direct loading
-                FoundClass = LoadObject<UClass>(nullptr, *TypeStr);
+                // Try object/class resolution using the asset discovery service
+                UClass* FoundClass = FAssetDiscoveryService::Get().ResolveObjectClass(TypeStr);
                 
                 if (!FoundClass) {
-                    // Try with /Game/ prefix
-                    FString GamePath = FString::Printf(TEXT("/Game/%s"), *TypeStr);
-                    FoundClass = LoadObject<UClass>(nullptr, *GamePath);
+                    // Try widget class finding for widget blueprints
+                    FoundClass = FAssetDiscoveryService::Get().FindWidgetClass(TypeStr);
                 }
 
                 if (FoundClass) {
                     SetPinTypeForCategory(UEdGraphSchema_K2::PC_Object, FoundClass);
+                    UE_LOG(LogTemp, Display, TEXT("Successfully resolved object type: %s -> %s"), *TypeStr, *FoundClass->GetName());
+                } else {
+                    UE_LOG(LogTemp, Warning, TEXT("Could not resolve object type: %s"), *TypeStr);
                 }
             }
         }
