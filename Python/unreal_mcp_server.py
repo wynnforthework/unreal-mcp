@@ -169,11 +169,31 @@ class UnrealConnection:
                 # This format uses {"success": false, "error": "message"} or {"success": false, "message": "message"}
                 error_message = response.get("error") or response.get("message", "Unknown Unreal error")
                 logger.error(f"Unreal error (success=false): {error_message}")
-                # Convert to the standard format expected by higher layers
-                response = {
-                    "status": "error",
-                    "error": error_message
-                }
+                logger.info(f"DEBUG: Response keys: {list(response.keys())}")
+                logger.info(f"DEBUG: Error field: {response.get('error')}")
+                logger.info(f"DEBUG: Message field: {response.get('message')}")
+                logger.info(f"DEBUG: Extracted error_message: {error_message}")
+                
+                # Check if this is a rich error response with additional information
+                # (like available_pins, available_nodes, etc.)
+                has_additional_info = any(key in response for key in [
+                    "available_pins", "available_nodes", "node_name", "pin_name", "pin_info"
+                ])
+                logger.info(f"DEBUG: Has additional info: {has_additional_info}")
+                
+                if has_additional_info:
+                    # Preserve the full response but ensure it has the right status
+                    response["status"] = "error"
+                    if "error" not in response:
+                        response["error"] = error_message
+                    logger.info(f"Preserving rich error response with additional info: {list(response.keys())}")
+                    logger.info(f"DEBUG: Final response after preservation: {response}")
+                else:
+                    # Convert to the standard format for simple errors
+                    response = {
+                        "status": "error",
+                        "error": error_message
+                    }
             
             # Always close the connection after command is complete
             # since Unreal will close it on its side anyway
