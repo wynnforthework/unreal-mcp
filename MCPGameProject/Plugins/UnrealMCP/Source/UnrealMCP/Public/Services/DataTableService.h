@@ -66,4 +66,20 @@ private:
      * @param DataTable - DataTable to save
      */
     void SaveAndSyncDataTable(UDataTable* DataTable);
+    
+    /**
+     * Check if an asset already exists at the given path
+     * @param AssetPath - Full path to check for asset existence
+     * @return true if asset exists, false otherwise
+     */
+    bool DoesAssetExist(const FString& AssetPath);
+    
+    /**
+     * Generate a unique asset name by appending incremental numbers
+     * @param BaseName - Base name for the asset
+     * @param AssetPath - Path where the asset will be created
+     * @param MaxRetries - Maximum number of retry attempts (default: 100)
+     * @return Unique asset name that doesn't conflict with existing assets
+     */
+    FString GenerateUniqueAssetName(const FString& BaseName, const FString& AssetPath, int32 MaxRetries = 100);
 };

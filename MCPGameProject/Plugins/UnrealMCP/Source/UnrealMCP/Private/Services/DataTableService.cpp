@@ -74,16 +74,31 @@ UDataTable* FDataTableService::CreateDataTable(const FDataTableCreationParams& P
         return nullptr;
     }
     
+    // Asset verification and retry logic
+    FString FinalName = Params.Name;
+    FString FullPath = FString::Printf(TEXT("%s/%s"), *Params.Path, *FinalName);
+    
+    // Check if asset already exists
+    if (DoesAssetExist(FullPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Asset already exists at path: '%s'"), *FullPath);
+        
+        // Generate unique name with retry logic
+        FinalName = GenerateUniqueAssetName(Params.Name, Params.Path);
+        FullPath = FString::Printf(TEXT("%s/%s"), *Params.Path, *FinalName);
+        
+        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Using unique name '%s' to avoid conflicts"), *FinalName);
+    }
+    
     // Create the DataTable using factory
     UDataTableFactory* Factory = NewObject<UDataTableFactory>();
     Factory->Struct = FoundStruct;
     
     // Create the asset using IAssetTools
     FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-    FString FullPath = FString::Printf(TEXT("%s/%s"), *Params.Path, *Params.Name);
     UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Attempting to create asset at path: '%s'"), *FullPath);
     
-    UDataTable* NewDataTable = Cast<UDataTable>(AssetToolsModule.Get().CreateAsset(Params.Name, Params.Path, UDataTable::StaticClass(), Factory));
+    UDataTable* NewDataTable = Cast<UDataTable>(AssetToolsModule.Get().CreateAsset(FinalName, Params.Path, UDataTable::StaticClass(), Factory));
     
     if (!NewDataTable)
     {
@@ -599,4 +614,55 @@ void FDataTableService::SaveAndSyncDataTable(UDataTable* DataTable)
         
         UEditorAssetLibrary::SyncBrowserToObjects({ DataTable->GetPathName() });
     }
+}
+
+bool FDataTableService::DoesAssetExist(const FString& AssetPath)
+{
+    // Check if asset exists using EditorAssetLibrary
+    bool bExists = UEditorAssetLibrary::DoesAssetExist(AssetPath);
+    
+    if (bExists)
+    {
+        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Asset verification - Asset exists at path: '%s'"), *AssetPath);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Asset verification - No asset found at path: '%s'"), *AssetPath);
+    }
+    
+    return bExists;
+}
+
+FString FDataTableService::GenerateUniqueAssetName(const FString& BaseName, const FString& AssetPath, int32 MaxRetries)
+{
+    FString UniqueName = BaseName;
+    FString TestPath;
+    
+    // First try the base name
+    TestPath = FString::Printf(TEXT("%s/%s"), *AssetPath, *UniqueName);
+    if (!DoesAssetExist(TestPath))
+    {
+        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Base name '%s' is available"), *UniqueName);
+        return UniqueName;
+    }
+    
+    // If base name exists, try with incremental suffixes
+    for (int32 i = 1; i <= MaxRetries; ++i)
+    {
+        UniqueName = FString::Printf(TEXT("%s_%03d"), *BaseName, i);
+        TestPath = FString::Printf(TEXT("%s/%s"), *AssetPath, *UniqueName);
+        
+        if (!DoesAssetExist(TestPath))
+        {
+            UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Generated unique name '%s' after %d attempts"), *UniqueName, i);
+            return UniqueName;
+        }
+    }
+    
+    // If we couldn't find a unique name after MaxRetries, use timestamp-based approach
+    FDateTime Now = FDateTime::Now();
+    UniqueName = FString::Printf(TEXT("%s_%s"), *BaseName, *Now.ToString(TEXT("%Y%m%d_%H%M%S")));
+    
+    UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Could not find unique name after %d retries, using timestamp-based name: '%s'"), MaxRetries, *UniqueName);
+    return UniqueName;
 }
