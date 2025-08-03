@@ -80,6 +80,9 @@ TSharedPtr<FJsonObject> FCreateWidgetBlueprintCommand::ExecuteInternal(const TSh
 
     UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: Creating widget blueprint with Name=%s, ParentClass=%s, Path=%s"), *Name, *ParentClass, *Path);
 
+    // Check if it already exists BEFORE creating it
+    bool bAlreadyExists = UMGService->DoesWidgetBlueprintExist(Name, Path);
+
     // Use the UMG service to create the widget blueprint
     UWidgetBlueprint* CreatedBlueprint = UMGService->CreateWidgetBlueprint(Name, ParentClass, Path);
     if (!CreatedBlueprint)
@@ -87,9 +90,6 @@ TSharedPtr<FJsonObject> FCreateWidgetBlueprintCommand::ExecuteInternal(const TSh
         FMCPError Error = FMCPErrorHandler::CreateExecutionFailedError(FString::Printf(TEXT("Failed to create widget blueprint: %s"), *Name));
         return CreateErrorResponse(Error);
     }
-
-    // Check if it already existed
-    bool bAlreadyExists = UMGService->DoesWidgetBlueprintExist(Name, Path);
     
     UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: Widget blueprint created successfully, returning success response"));
     return CreateSuccessResponse(CreatedBlueprint, Path, bAlreadyExists);

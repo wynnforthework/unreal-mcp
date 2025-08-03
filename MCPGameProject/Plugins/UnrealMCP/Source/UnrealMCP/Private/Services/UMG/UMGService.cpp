@@ -343,8 +343,50 @@ bool FUMGService::DoesWidgetComponentExist(const FString& BlueprintName, const F
         return false;
     }
 
+    if (!WidgetBlueprint->WidgetTree)
+    {
+        return false;
+    }
+
+    // Special case: For common root canvas names, check root widget first
+    // This ensures predictable behavior when users expect to find the root canvas
+    bool bIsCommonRootCanvasName = (
+        ComponentName.Equals(TEXT("CanvasPanel_0"), ESearchCase::IgnoreCase) ||
+        ComponentName.Equals(TEXT("RootCanvas"), ESearchCase::IgnoreCase) ||
+        ComponentName.Equals(TEXT("Root Canvas"), ESearchCase::IgnoreCase) ||
+        ComponentName.Equals(TEXT("Canvas Panel"), ESearchCase::IgnoreCase)
+    );
+
+    if (bIsCommonRootCanvasName)
+    {
+        // Check if the root widget is a canvas panel
+        if (WidgetBlueprint->WidgetTree->RootWidget && 
+            WidgetBlueprint->WidgetTree->RootWidget->IsA<UCanvasPanel>())
+        {
+            UE_LOG(LogTemp, Display, TEXT("UMGService: Found root canvas panel for common root name: %s"), *ComponentName);
+            return true;
+        }
+    }
+
+    // Try to find the widget by exact name (this handles both named widgets and the root "CanvasPanel")
     UWidget* Widget = WidgetBlueprint->WidgetTree->FindWidget(FName(*ComponentName));
-    return Widget != nullptr;
+    if (Widget)
+    {
+        return true;
+    }
+
+    // Final fallback: If searching for "CanvasPanel" and no exact match found, check root widget
+    if (ComponentName.Equals(TEXT("CanvasPanel"), ESearchCase::IgnoreCase))
+    {
+        if (WidgetBlueprint->WidgetTree->RootWidget && 
+            WidgetBlueprint->WidgetTree->RootWidget->IsA<UCanvasPanel>())
+        {
+            UE_LOG(LogTemp, Display, TEXT("UMGService: Found root canvas panel as fallback for: %s"), *ComponentName);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool FUMGService::SetWidgetPlacement(const FString& BlueprintName, const FString& ComponentName, 
@@ -626,11 +668,11 @@ UWidgetBlueprint* FUMGService::CreateWidgetBlueprintInternal(const FString& Name
     if (!WidgetBlueprint->WidgetTree->RootWidget)
     {
         UE_LOG(LogTemp, Display, TEXT("UMGService: Creating root canvas panel for widget: %s"), *Name);
-        UCanvasPanel* RootCanvas = WidgetBlueprint->WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
+        UCanvasPanel* RootCanvas = WidgetBlueprint->WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("CanvasPanel"));
         if (RootCanvas)
         {
             WidgetBlueprint->WidgetTree->RootWidget = RootCanvas;
-            UE_LOG(LogTemp, Display, TEXT("UMGService: Successfully created root canvas panel"));
+            UE_LOG(LogTemp, Display, TEXT("UMGService: Successfully created root canvas panel with name 'CanvasPanel'"));
         }
         else
         {

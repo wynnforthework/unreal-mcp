@@ -100,7 +100,14 @@ bool FProjectService::CreateFolder(const FString& FolderPath, bool& bOutAlreadyE
     else
     {
         // For non-content folders, use platform file system
-        FString FullPath = FPaths::Combine(ProjectPath, FolderPath);
+        // Clean up the folder path to avoid double slashes
+        FString CleanFolderPath = FolderPath;
+        if (CleanFolderPath.StartsWith(TEXT("/")))
+        {
+            CleanFolderPath = CleanFolderPath.RightChop(1);
+        }
+        
+        FString FullPath = FPaths::Combine(ProjectPath, CleanFolderPath);
         
         // Check if directory already exists
         if (FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*FullPath))
@@ -125,7 +132,7 @@ TArray<FString> FProjectService::ListFolderContents(const FString& FolderPath, b
     bOutSuccess = false;
     
     // Check if this is a content folder request
-    bool bIsContentFolder = FolderPath.StartsWith(TEXT("/Game/")) || FolderPath.StartsWith(TEXT("/Content/")) || FolderPath.StartsWith(TEXT("Content/"));
+    bool bIsContentFolder = FolderPath.StartsWith(TEXT("/Game")) || FolderPath.StartsWith(TEXT("/Content/")) || FolderPath.StartsWith(TEXT("Content/"));
     
     if (bIsContentFolder)
     {
@@ -146,21 +153,38 @@ TArray<FString> FProjectService::ListFolderContents(const FString& FolderPath, b
             return Contents;
         }
         
+        // Get subdirectories using AssetRegistry
+        FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+        IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+        
+        TArray<FString> SubPaths;
+        AssetRegistry.GetSubPaths(AssetPath, SubPaths, false);
+        
+        for (const FString& SubPath : SubPaths)
+        {
+            Contents.Add(FString::Printf(TEXT("FOLDER: %s"), *SubPath));
+        }
+        
         // Get assets (UE 5.6 compatible)
         TArray<FString> Assets = UEditorAssetLibrary::ListAssets(AssetPath, false, false);
         for (const FString& Asset : Assets)
         {
             Contents.Add(FString::Printf(TEXT("ASSET: %s"), *Asset));
         }
-        
-        // Note: ListAssetPaths is not available in UE 5.6, so we can't list subdirectories easily
-        // This is a limitation that would need to be addressed with alternative approaches
     }
     else
     {
         // For non-content folders, use platform file system
         FString ProjectPath = FPaths::ProjectDir();
-        FString FullPath = FPaths::Combine(ProjectPath, FolderPath);
+        
+        // Clean up the folder path to avoid double slashes
+        FString CleanFolderPath = FolderPath;
+        if (CleanFolderPath.StartsWith(TEXT("/")))
+        {
+            CleanFolderPath = CleanFolderPath.RightChop(1);
+        }
+        
+        FString FullPath = FPaths::Combine(ProjectPath, CleanFolderPath);
         
         if (!FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*FullPath))
         {
