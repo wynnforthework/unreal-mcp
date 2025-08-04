@@ -329,7 +329,30 @@ UWidget* FWidgetComponentService::CreateTextBlock(UWidgetBlueprint* WidgetBluepr
                                                const FString& ComponentName, 
                                                const TSharedPtr<FJsonObject>& KwargsObject)
 {
+    UE_LOG(LogTemp, Warning, TEXT("CreateTextBlock: Starting creation of TextBlock '%s'"), *ComponentName);
+    
+    if (!WidgetBlueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateTextBlock: WidgetBlueprint is null"));
+        return nullptr;
+    }
+    
+    if (!WidgetBlueprint->WidgetTree)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateTextBlock: WidgetTree is null"));
+        return nullptr;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("CreateTextBlock: About to call ConstructWidget"));
     UTextBlock* TextBlock = WidgetBlueprint->WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), *ComponentName);
+    
+    if (!TextBlock)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateTextBlock: ConstructWidget returned null for '%s'"), *ComponentName);
+        return nullptr;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("CreateTextBlock: Successfully created TextBlock '%s'"), *ComponentName);
     
     // Get the proper kwargs object (direct or nested)
     TSharedPtr<FJsonObject> KwargsToUse = GetKwargsToUse(KwargsObject, ComponentName, TEXT("TextBlock"));
@@ -396,6 +419,7 @@ UWidget* FWidgetComponentService::CreateTextBlock(UWidgetBlueprint* WidgetBluepr
         TextBlock->SetColorAndOpacity(TextColor);
     }
     
+    UE_LOG(LogTemp, Warning, TEXT("CreateTextBlock: Returning TextBlock '%s' successfully"), *ComponentName);
     return TextBlock;
 }
 

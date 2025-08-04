@@ -604,6 +604,12 @@ FWidgetValidationResult FWidgetValidationService::ValidateSize(const FVector2D& 
 
 bool FWidgetValidationService::DoesWidgetBlueprintExist(const FString& BlueprintName) const
 {
+    // Check if it's already a full path
+    if (BlueprintName.StartsWith(TEXT("/Game/")))
+    {
+        return UEditorAssetLibrary::DoesAssetExist(BlueprintName);
+    }
+
     // Try common paths
     TArray<FString> SearchPaths = {
         FString::Printf(TEXT("/Game/Widgets/%s"), *BlueprintName),
@@ -620,10 +626,23 @@ bool FWidgetValidationService::DoesWidgetBlueprintExist(const FString& Blueprint
         }
     }
 
-    // Check if it's already a full path
-    if (BlueprintName.StartsWith(TEXT("/Game/")))
+    // Use asset registry to search everywhere (same fix as in UMGService)
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    TArray<FAssetData> AssetData;
+
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
+    Filter.PackagePaths.Add(FName(TEXT("/Game")));
+    Filter.bRecursivePaths = true;
+    AssetRegistryModule.Get().GetAssets(Filter, AssetData);
+
+    for (const FAssetData& Asset : AssetData)
     {
-        return UEditorAssetLibrary::DoesAssetExist(BlueprintName);
+        FString AssetName = Asset.AssetName.ToString();
+        if (AssetName.Equals(BlueprintName, ESearchCase::IgnoreCase))
+        {
+            return true;
+        }
     }
 
     return false;

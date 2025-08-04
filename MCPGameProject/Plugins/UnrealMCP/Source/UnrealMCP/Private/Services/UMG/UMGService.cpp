@@ -598,7 +598,8 @@ UWidgetBlueprint* FUMGService::FindWidgetBlueprint(const FString& BlueprintNameO
 
     FARFilter Filter;
     Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
-    Filter.PackageNames.Add(FName(*FString::Printf(TEXT("/Game"))));
+    Filter.PackagePaths.Add(FName(TEXT("/Game")));
+    Filter.bRecursivePaths = true;
     AssetRegistryModule.Get().GetAssets(Filter, AssetData);
 
     for (const FAssetData& Asset : AssetData)
