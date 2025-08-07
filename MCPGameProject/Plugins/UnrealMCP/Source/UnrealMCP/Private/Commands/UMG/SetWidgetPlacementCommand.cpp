@@ -376,3 +376,4 @@ TSharedPtr<FJsonObject> FSetWidgetPlacementCommand::CreateSuccessResponse(const 
 
     return ResponseObj;
 }
+

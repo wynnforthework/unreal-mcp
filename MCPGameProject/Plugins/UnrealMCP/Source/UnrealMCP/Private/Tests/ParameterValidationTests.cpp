@@ -1,7 +1,7 @@
 #include "CoreMinimal.h"
 #include "Engine/Engine.h"
 #include "Services/IBlueprintService.h"
-#include "Commands/ComponentCreationParams.h"
+#include "Commands/Blueprint/ComponentCreationParams.h"
 
 /**
  * Test suite for Blueprint Creation Parameters validation

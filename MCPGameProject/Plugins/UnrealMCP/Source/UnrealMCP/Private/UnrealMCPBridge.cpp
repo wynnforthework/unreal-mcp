@@ -51,14 +51,14 @@
 #include "EditorSubsystem.h"
 #include "Subsystems/EditorActorSubsystem.h"
 // Include our new command handler classes
-#include "Commands/UnrealMCPEditorCommands.h"
-#include "Commands/UnrealMCPBlueprintCommands.h"
-#include "Commands/UnrealMCPBlueprintNodeCommands.h"
-#include "Commands/UnrealMCPProjectCommands.h"
-#include "Commands/UnrealMCPCommonUtils.h"
-#include "Commands/UnrealMCPUMGCommands.h"
+#include "Commands/Editor/UnrealMCPEditorCommands.h"
+#include "Commands/Blueprint/UnrealMCPBlueprintCommands.h"
+#include "Commands/BlueprintNode/UnrealMCPBlueprintNodeCommands.h"
+#include "Commands/Project/UnrealMCPProjectCommands.h"
+#include "Utils/UnrealMCPCommonUtils.h"
+#include "Commands/UMG/UnrealMCPUMGCommands.h"
 
-#include "Commands/UnrealMCPBlueprintActionCommandsHandler.h"
+#include "Commands/BlueprintAction/UnrealMCPBlueprintActionCommandsHandler.h"
 #include "Commands/EditorCommandRegistration.h"
 #include "Commands/DataTableCommandRegistration.h"
 

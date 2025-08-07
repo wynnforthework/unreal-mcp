@@ -1,5 +1,5 @@
 #include "Commands/Project/ShowStructVariablesCommand.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -98,3 +98,4 @@ FString FShowStructVariablesCommand::Execute(const FString& Parameters)
     FJsonSerializer::Serialize(ResponseData.ToSharedRef(), Writer);
     return OutputString;
 }
+

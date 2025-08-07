@@ -310,3 +310,4 @@ TSharedPtr<FJsonObject> FSetWidgetPropertyCommand::CreateErrorResponse(const FMC
 
     return ResponseObj;
 }
+

@@ -4,8 +4,8 @@
 #include "Commands/UnrealMCPCommandRegistry.h"
 #include "Commands/UnrealMCPMainDispatcher.h"
 #include "Services/ComponentService.h"
-#include "Services/ComponentFactory.h"
-#include "Services/WidgetFactory.h"
+#include "Factories/ComponentFactory.h"
+#include "Factories/WidgetFactory.h"
 
 // Forward declarations of test functions
 void TestRefactoredSystemIntegration();

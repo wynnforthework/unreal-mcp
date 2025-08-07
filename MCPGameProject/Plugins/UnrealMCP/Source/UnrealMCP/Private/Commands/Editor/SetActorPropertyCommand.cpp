@@ -1,5 +1,5 @@
 #include "Commands/Editor/SetActorPropertyCommand.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -119,3 +119,4 @@ FString FSetActorPropertyCommand::CreateErrorResponse(const FString& ErrorMessag
     
     return OutputString;
 }
+

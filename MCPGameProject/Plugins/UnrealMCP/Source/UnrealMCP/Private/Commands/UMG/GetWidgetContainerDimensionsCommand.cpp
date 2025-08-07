@@ -237,3 +237,4 @@ TSharedPtr<FJsonObject> FGetWidgetContainerDimensionsCommand::CreateErrorRespons
 
     return ResponseObj;
 }
+

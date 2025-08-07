@@ -82,4 +82,24 @@ private:
      * @return Unique asset name that doesn't conflict with existing assets
      */
     FString GenerateUniqueAssetName(const FString& BaseName, const FString& AssetPath, int32 MaxRetries = 100);
+    
+    /**
+     * Get detailed error message from the last failed operation
+     * @return Last error message with details
+     */
+    virtual FString GetLastErrorMessage() const override { return LastErrorMessage; }
+    
+    /**
+     * Get list of paths that were tried when searching for a struct
+     * @param StructName - Original struct name that was searched
+     * @return Formatted string of all tried paths
+     */
+    FString GetTriedStructPaths(const FString& StructName) const;
+
+private:
+    /** Last error message from failed operations */
+    FString LastErrorMessage;
+    
+    /** Paths that were tried during the last struct search */
+    TArray<FString> TriedStructPaths;
 };

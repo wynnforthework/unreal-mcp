@@ -91,18 +91,23 @@ bool FGetDataTableRowsCommand::ValidateParams(const FString& Parameters) const
     // Additional validation - row_names is optional, but if provided must be valid array
     if (JsonObject->HasField(TEXT("row_names")))
     {
-        const TArray<TSharedPtr<FJsonValue>>* RowNamesArray;
-        if (!JsonObject->TryGetArrayField(TEXT("row_names"), RowNamesArray))
+        // Check if the field is null (which is valid)
+        TSharedPtr<FJsonValue> RowNamesValue = JsonObject->TryGetField(TEXT("row_names"));
+        if (RowNamesValue.IsValid() && RowNamesValue->Type != EJson::Null)
         {
-            return false;
-        }
-        
-        // Validate that all row names are strings
-        for (const TSharedPtr<FJsonValue>& RowNameValue : *RowNamesArray)
-        {
-            if (!RowNameValue.IsValid() || RowNameValue->Type != EJson::String)
+            const TArray<TSharedPtr<FJsonValue>>* RowNamesArray;
+            if (!JsonObject->TryGetArrayField(TEXT("row_names"), RowNamesArray))
             {
                 return false;
+            }
+            
+            // Validate that all row names are strings
+            for (const TSharedPtr<FJsonValue>& RowNameValue : *RowNamesArray)
+            {
+                if (!RowNameValue.IsValid() || RowNameValue->Type != EJson::String)
+                {
+                    return false;
+                }
             }
         }
     }
@@ -132,11 +137,17 @@ bool FGetDataTableRowsCommand::ParseParameters(const FString& JsonString, FStrin
     OutRowNames.Empty();
     if (JsonObject->HasField(TEXT("row_names")))
     {
-        TArray<TSharedPtr<FJsonValue>> RowNamesArray = JsonObject->GetArrayField(TEXT("row_names"));
-        for (const TSharedPtr<FJsonValue>& RowNameValue : RowNamesArray)
+        // Check if the field is null (which means get all rows)
+        TSharedPtr<FJsonValue> RowNamesValue = JsonObject->TryGetField(TEXT("row_names"));
+        if (RowNamesValue.IsValid() && RowNamesValue->Type != EJson::Null)
         {
-            OutRowNames.Add(RowNameValue->AsString());
+            TArray<TSharedPtr<FJsonValue>> RowNamesArray = JsonObject->GetArrayField(TEXT("row_names"));
+            for (const TSharedPtr<FJsonValue>& RowNameValue : RowNamesArray)
+            {
+                OutRowNames.Add(RowNameValue->AsString());
+            }
         }
+        // If row_names is null, OutRowNames remains empty, which means get all rows
     }
     
     return true;
@@ -172,3 +183,4 @@ FString FGetDataTableRowsCommand::CreateErrorResponse(const FString& ErrorMessag
     FMCPError Error = FMCPErrorHandler::CreateExecutionFailedError(ErrorMessage);
     return FMCPErrorHandler::CreateStructuredErrorResponse(Error);
 }
+

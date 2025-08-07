@@ -1,5 +1,5 @@
 #include "Commands/Project/CreateStructCommand.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 
 FCreateStructCommand::FCreateStructCommand(TSharedPtr<IProjectService> InProjectService)
     : ProjectService(InProjectService)
@@ -106,3 +106,4 @@ FString FCreateStructCommand::Execute(const FString& Parameters)
     FJsonSerializer::Serialize(ResponseData.ToSharedRef(), Writer);
     return OutputString;
 }
+

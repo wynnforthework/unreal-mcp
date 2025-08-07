@@ -1,4 +1,4 @@
-#include "Services/ComponentFactory.h"
+#include "Factories/ComponentFactory.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SphereComponent.h"

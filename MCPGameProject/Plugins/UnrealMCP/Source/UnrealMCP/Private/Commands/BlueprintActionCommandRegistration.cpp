@@ -2,8 +2,8 @@
 #include "Commands/UnrealMCPCommandRegistry.h"
 #include "Commands/BlueprintAction/GetActionsForClassCommand.h"
 #include "Commands/BlueprintAction/GetActionsForClassHierarchyCommand.h"
-#include "Commands/GetActionsForPinCommand.h"
-#include "Commands/SearchBlueprintActionsCommand.h"
+#include "Commands/BlueprintAction/GetActionsForPinCommand.h"
+#include "Commands/BlueprintAction/SearchBlueprintActionsCommand.h"
 #include "Commands/BlueprintAction/GetNodePinInfoCommand.h"
 #include "Services/IBlueprintActionService.h"
 

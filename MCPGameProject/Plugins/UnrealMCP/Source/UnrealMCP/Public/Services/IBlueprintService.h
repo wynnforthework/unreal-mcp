@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/Blueprint.h"
 #include "Dom/JsonObject.h"
-#include "Commands/ComponentCreationParams.h"
+#include "Commands/Blueprint/ComponentCreationParams.h"
 
 /**
  * Parameters for Blueprint creation operations

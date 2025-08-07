@@ -159,3 +159,5 @@ TSharedPtr<FJsonObject> FSetTextBlockBindingCommand::CreateErrorResponse(const F
     return ResponseObj;
 }
 
+
+

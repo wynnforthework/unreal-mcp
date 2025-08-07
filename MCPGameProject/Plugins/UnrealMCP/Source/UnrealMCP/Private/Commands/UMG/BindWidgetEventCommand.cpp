@@ -157,3 +157,4 @@ TSharedPtr<FJsonObject> FBindWidgetEventCommand::CreateErrorResponse(const FMCPE
 
     return ResponseObj;
 }
+

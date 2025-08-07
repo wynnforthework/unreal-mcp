@@ -1,5 +1,5 @@
 #include "Commands/Editor/SetLightPropertyCommand.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -77,7 +77,7 @@ bool FSetLightPropertyCommand::ParseParameters(const FString& JsonString, FStrin
         return false;
     }
     
-    // Get property value as string (will be converted by EditorService)
+    // Get property value - can be string, number, or array
     if (!JsonObject->TryGetStringField(TEXT("property_value"), OutPropertyValue))
     {
         // Try to get as number and convert to string
@@ -88,8 +88,32 @@ bool FSetLightPropertyCommand::ParseParameters(const FString& JsonString, FStrin
         }
         else
         {
-            OutError = TEXT("Missing or invalid 'property_value' parameter");
-            return false;
+            // Try to get as array (for colors, vectors, etc.)
+            const TArray<TSharedPtr<FJsonValue>>* ArrayValue;
+            if (JsonObject->TryGetArrayField(TEXT("property_value"), ArrayValue))
+            {
+                TArray<FString> StringValues;
+                for (const TSharedPtr<FJsonValue>& Value : *ArrayValue)
+                {
+                    if (Value.IsValid())
+                    {
+                        if (Value->Type == EJson::Number)
+                        {
+                            StringValues.Add(FString::Printf(TEXT("%.6f"), Value->AsNumber()));
+                        }
+                        else if (Value->Type == EJson::String)
+                        {
+                            StringValues.Add(Value->AsString());
+                        }
+                    }
+                }
+                OutPropertyValue = FString::Join(StringValues, TEXT(","));
+            }
+            else
+            {
+                OutError = TEXT("Missing or invalid 'property_value' parameter - must be string, number, or array");
+                return false;
+            }
         }
     }
     
@@ -127,3 +151,4 @@ FString FSetLightPropertyCommand::CreateErrorResponse(const FString& ErrorMessag
     
     return OutputString;
 }
+

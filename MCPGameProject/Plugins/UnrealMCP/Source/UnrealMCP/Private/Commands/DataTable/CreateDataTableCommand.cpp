@@ -49,11 +49,16 @@ FString FCreateDataTableCommand::Execute(const FString& Parameters)
     UDataTable* CreatedDataTable = DataTableService.CreateDataTable(Params);
     if (!CreatedDataTable)
     {
-        FMCPError ExecutionError = FMCPErrorHandler::CreateExecutionFailedError(
-            FString::Printf(TEXT("Failed to create DataTable '%s' with struct '%s'"), *Params.Name, *Params.RowStructName)
-        );
+        // Get detailed error message from the service
+        FString DetailedError = DataTableService.GetLastErrorMessage();
+        if (DetailedError.IsEmpty())
+        {
+            DetailedError = FString::Printf(TEXT("Failed to create DataTable '%s' with struct '%s'"), *Params.Name, *Params.RowStructName);
+        }
+        
+        FMCPError ExecutionError = FMCPErrorHandler::CreateExecutionFailedError(DetailedError);
         FMCPErrorHandler::LogError(ExecutionError);
-        return FMCPErrorHandler::CreateStructuredErrorResponse(ExecutionError);
+        return CreateErrorResponse(DetailedError);
     }
     
     // Log successful creation
@@ -187,4 +192,6 @@ FString FCreateDataTableCommand::CreateErrorResponse(const FString& ErrorMessage
     
     return OutputString;
 }
+
+
 

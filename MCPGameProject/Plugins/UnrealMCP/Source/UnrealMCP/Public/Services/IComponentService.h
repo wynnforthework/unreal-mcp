@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/Blueprint.h"
-#include "Commands/ComponentCreationParams.h"
+#include "Commands/Blueprint/ComponentCreationParams.h"
 
 /**
  * Interface for component-related operations

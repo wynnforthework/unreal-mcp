@@ -31,7 +31,7 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
 #include "K2Node_ComponentBoundEvent.h"
-#include "Commands/UnrealMCPCommonUtils.h" // For utility blueprint finder
+#include "Utils/UnrealMCPCommonUtils.h" // For utility blueprint finder
 
 // Forward declaration of native property helper
 static bool TryCreateNativePropertyNode(const FString& VarName, bool bIsGetter, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType);

@@ -1,5 +1,5 @@
 #include "Commands/Project/ListFolderContentsCommand.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -95,3 +95,4 @@ FString FListFolderContentsCommand::Execute(const FString& Parameters)
     FJsonSerializer::Serialize(ResponseData.ToSharedRef(), Writer);
     return OutputString;
 }
+

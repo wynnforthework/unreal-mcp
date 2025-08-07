@@ -140,4 +140,10 @@ public:
      * @return true if validation succeeds
      */
     virtual bool ValidateRowData(const UDataTable* DataTable, const TSharedPtr<FJsonObject>& RowData, FString& OutError) = 0;
+    
+    /**
+     * Get detailed error message from the last failed operation
+     * @return Last error message with details
+     */
+    virtual FString GetLastErrorMessage() const = 0;
 };

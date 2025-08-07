@@ -1,5 +1,5 @@
 #include "Commands/Editor/FindActorsByNameCommand.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -89,3 +89,4 @@ FString FFindActorsByNameCommand::CreateErrorResponse(const FString& ErrorMessag
     
     return OutputString;
 }
+

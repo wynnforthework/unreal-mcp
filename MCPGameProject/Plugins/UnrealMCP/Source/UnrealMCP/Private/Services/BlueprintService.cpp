@@ -1,7 +1,7 @@
 #include "Services/BlueprintService.h"
 #include "Services/ComponentService.h"
 #include "Services/PropertyService.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/SimpleConstructionScript.h"
@@ -18,6 +18,8 @@
 #include "Components/SceneComponent.h"
 #include "Components/ActorComponent.h"
 #include "K2Node_FunctionEntry.h"
+#include "EdGraph/EdGraph.h"
+#include "EdGraph/EdGraphNode.h"
 #include "K2Node_FunctionResult.h"
 #include "Engine/UserDefinedStruct.h"
 #include "EdGraphSchema_K2.h"
@@ -354,27 +356,73 @@ bool FBlueprintService::CompileBlueprint(UBlueprint* Blueprint, FString& OutErro
     
     UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CompileBlueprint: Compiling blueprint '%s'"), *Blueprint->GetName());
     
-    // Clear any existing compilation errors
+    // Store pre-compilation status for comparison
+    EBlueprintStatus PreCompileStatus = Blueprint->Status;
+    
+    // Clear any existing compilation errors and reset status
     Blueprint->Status = BS_Unknown;
+    
+    // Clear any existing compilation state
+    Blueprint->bIsRegeneratingOnLoad = false;
     
     // Compile the blueprint
     FKismetEditorUtilities::CompileBlueprint(Blueprint);
     
-    // Check compilation result
+    // Log the compilation status for debugging
+    FString StatusName;
+    switch (Blueprint->Status)
+    {
+        case BS_Unknown: StatusName = TEXT("BS_Unknown"); break;
+        case BS_Dirty: StatusName = TEXT("BS_Dirty"); break;
+        case BS_Error: StatusName = TEXT("BS_Error"); break;
+        case BS_UpToDate: StatusName = TEXT("BS_UpToDate"); break;
+        case BS_BeingCreated: StatusName = TEXT("BS_BeingCreated"); break;
+        case BS_UpToDateWithWarnings: StatusName = TEXT("BS_UpToDateWithWarnings"); break;
+        default: StatusName = FString::Printf(TEXT("Unknown(%d)"), (int32)Blueprint->Status); break;
+    }
+    UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::CompileBlueprint: Post-compilation status: %s (%d)"), *StatusName, (int32)Blueprint->Status);
+    
+    // Check compilation result and provide detailed error information
     if (Blueprint->Status == BS_Error)
     {
-        OutError = TEXT("Blueprint compilation failed with errors");
-        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CompileBlueprint: Compilation failed for blueprint '%s'"), *Blueprint->GetName());
+        TArray<FString> DetailedErrors;
         
-        // CompileLog is not available in UE 5.6, using basic error reporting
+        // Add basic error information
+        DetailedErrors.Add(FString::Printf(TEXT("Blueprint '%s' failed to compile"), *Blueprint->GetName()));
+        
+        // Check for common issues
+        if (!Blueprint->ParentClass)
+        {
+            DetailedErrors.Add(TEXT("Missing parent class"));
+        }
+        
+        if (Blueprint->UbergraphPages.Num() == 0 && Blueprint->FunctionGraphs.Num() == 0)
+        {
+            DetailedErrors.Add(TEXT("Blueprint has no graphs"));
+        }
+        
+        // Create comprehensive error message
+        if (DetailedErrors.Num() > 0)
+        {
+            OutError = FString::Printf(TEXT("Blueprint compilation failed with %d error(s):\n%s"), 
+                DetailedErrors.Num(), 
+                *FString::Join(DetailedErrors, TEXT("\n")));
+        }
+        else
+        {
+            OutError = TEXT("Blueprint compilation failed with unknown errors");
+        }
+        
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CompileBlueprint: Compilation failed for blueprint '%s' - %s"), 
+            *Blueprint->GetName(), *OutError);
         
         return false;
     }
     else if (Blueprint->Status == BS_UpToDateWithWarnings)
     {
-        UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::CompileBlueprint: Blueprint '%s' compiled with warnings"), *Blueprint->GetName());
+        OutError = FString::Printf(TEXT("Blueprint '%s' compiled with warnings"), *Blueprint->GetName());
         
-        // CompileLog is not available in UE 5.6, using basic warning reporting
+        UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::CompileBlueprint: Blueprint '%s' compiled with warnings"), *Blueprint->GetName());
     }
     
     // Invalidate cache since blueprint was modified

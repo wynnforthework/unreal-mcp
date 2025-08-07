@@ -1,5 +1,5 @@
 #include "Commands/Project/CreateInputMappingCommand.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 
 FCreateInputMappingCommand::FCreateInputMappingCommand(TSharedPtr<IProjectService> InProjectService)
     : ProjectService(InProjectService)
@@ -101,3 +101,4 @@ FString FCreateInputMappingCommand::Execute(const FString& Parameters)
     FJsonSerializer::Serialize(ResponseData.ToSharedRef(), Writer);
     return OutputString;
 }
+

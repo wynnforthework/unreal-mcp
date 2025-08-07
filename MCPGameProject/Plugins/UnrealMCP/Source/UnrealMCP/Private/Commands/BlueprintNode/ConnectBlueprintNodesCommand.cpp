@@ -1,6 +1,6 @@
 #include "Commands/BlueprintNode/ConnectBlueprintNodesCommand.h"
 #include "Services/IBlueprintNodeService.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"

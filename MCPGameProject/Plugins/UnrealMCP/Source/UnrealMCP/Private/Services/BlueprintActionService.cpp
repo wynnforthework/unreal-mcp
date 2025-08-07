@@ -1,5 +1,5 @@
 #include "Services/BlueprintActionService.h"
-#include "Commands/UnrealMCPBlueprintActionCommands.h"
+#include "Commands/BlueprintAction/UnrealMCPBlueprintActionCommands.h"
 
 FString FBlueprintActionService::GetActionsForPin(const FString& PinType, const FString& PinSubCategory, const FString& SearchFilter, int32 MaxResults)
 {

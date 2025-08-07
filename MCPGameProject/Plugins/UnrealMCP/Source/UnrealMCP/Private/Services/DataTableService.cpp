@@ -6,7 +6,7 @@
 #include "EditorScriptingUtilities/Public/EditorAssetLibrary.h"
 #include "AssetToolsModule.h"
 #include "JsonObjectConverter.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "Editor.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UObject/MetaData.h"
@@ -61,6 +61,7 @@ UDataTable* FDataTableService::CreateDataTable(const FDataTableCreationParams& P
     if (!Params.IsValid(ValidationError))
     {
         UE_LOG(LogTemp, Error, TEXT("MCP DataTable: Invalid parameters: %s"), *ValidationError);
+        LastErrorMessage = FString::Printf(TEXT("Invalid parameters: %s"), *ValidationError);
         return nullptr;
     }
     
@@ -70,7 +71,9 @@ UDataTable* FDataTableService::CreateDataTable(const FDataTableCreationParams& P
     UScriptStruct* FoundStruct = FindStruct(Params.RowStructName);
     if (!FoundStruct)
     {
-        UE_LOG(LogTemp, Error, TEXT("MCP DataTable: Failed to find struct: %s"), *Params.RowStructName);
+        LastErrorMessage = FString::Printf(TEXT("Struct '%s' not found. Make sure the project is compiled and the struct exists. Tried paths: %s"), 
+            *Params.RowStructName, *GetTriedStructPaths(Params.RowStructName));
+        UE_LOG(LogTemp, Error, TEXT("MCP DataTable: %s"), *LastErrorMessage);
         return nullptr;
     }
     
@@ -509,6 +512,9 @@ UScriptStruct* FDataTableService::FindStruct(const FString& StructName)
         StructNameVariations.Add(FString::Printf(TEXT("%s%s.%s"), *GamePath, *StructName, *StructName));
     }
     
+    // Store tried paths for error reporting
+    TriedStructPaths = StructNameVariations;
+    
     // Try each variation of the struct name
     for (const FString& StructVariation : StructNameVariations)
     {
@@ -665,4 +671,24 @@ FString FDataTableService::GenerateUniqueAssetName(const FString& BaseName, cons
     
     UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Could not find unique name after %d retries, using timestamp-based name: '%s'"), MaxRetries, *UniqueName);
     return UniqueName;
+}
+
+FString FDataTableService::GetTriedStructPaths(const FString& StructName) const
+{
+    if (TriedStructPaths.Num() == 0)
+    {
+        return TEXT("No paths were tried");
+    }
+    
+    FString Result = TEXT("[");
+    for (int32 i = 0; i < TriedStructPaths.Num(); ++i)
+    {
+        Result += FString::Printf(TEXT("'%s'"), *TriedStructPaths[i]);
+        if (i < TriedStructPaths.Num() - 1)
+        {
+            Result += TEXT(", ");
+        }
+    }
+    Result += TEXT("]");
+    return Result;
 }

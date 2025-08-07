@@ -1,5 +1,5 @@
 #include "Commands/Project/GetProjectDirCommand.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 
 FGetProjectDirCommand::FGetProjectDirCommand(TSharedPtr<IProjectService> InProjectService)
     : ProjectService(InProjectService)
@@ -28,3 +28,4 @@ FString FGetProjectDirCommand::Execute(const FString& Parameters)
     FJsonSerializer::Serialize(ResponseData.ToSharedRef(), Writer);
     return OutputString;
 }
+

@@ -1,7 +1,7 @@
 #include "Services/UMG/UMGService.h"
 #include "Services/UMG/WidgetComponentService.h"
 #include "Services/UMG/WidgetValidationService.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "WidgetBlueprint.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
