@@ -37,7 +37,7 @@ class UnrealConnection:
             
             logger.info(f"Connecting to Unreal at {UNREAL_HOST}:{UNREAL_PORT}...")
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(5)  # 5 second timeout
+            self.socket.settimeout(8)  # 30 second timeout for complex operations
             
             # Set socket options for better stability
             self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -52,6 +52,14 @@ class UnrealConnection:
             logger.info("Connected to Unreal Engine")
             return True
             
+        except socket.timeout:
+            logger.error(f"Connection timeout to Unreal Engine at {UNREAL_HOST}:{UNREAL_PORT}")
+            self.connected = False
+            return False
+        except ConnectionRefusedError:
+            logger.error(f"Connection refused by Unreal Engine at {UNREAL_HOST}:{UNREAL_PORT} - is Unreal Engine running?")
+            self.connected = False
+            return False
         except Exception as e:
             logger.error(f"Failed to connect to Unreal: {e}")
             self.connected = False
@@ -70,7 +78,7 @@ class UnrealConnection:
     def receive_full_response(self, sock, buffer_size=4096) -> bytes:
         """Receive a complete response from Unreal, handling chunked data."""
         chunks = []
-        sock.settimeout(5)  # 5 second timeout
+        sock.settimeout(30)  # 30 second timeout for complex operations
         try:
             while True:
                 chunk = sock.recv(buffer_size)
@@ -97,17 +105,18 @@ class UnrealConnection:
                     logger.warning(f"Error processing response chunk: {str(e)}")
                     continue
         except socket.timeout:
-            logger.warning("Socket timeout during receive")
+            logger.warning(f"Socket timeout during receive after {len(chunks)} chunks")
             if chunks:
                 # If we have some data already, try to use it
                 data = b''.join(chunks)
+                logger.info(f"Received {len(data)} bytes before timeout")
                 try:
                     json.loads(data.decode('utf-8'))
                     logger.info(f"Using partial response after timeout ({len(data)} bytes)")
                     return data
-                except:
-                    pass
-            raise Exception("Timeout receiving Unreal response")
+                except Exception as parse_error:
+                    logger.warning(f"Partial data is not valid JSON: {parse_error}")
+            raise Exception(f"Timeout receiving Unreal response after 30 seconds (received {len(chunks)} chunks)")
         except Exception as e:
             logger.error(f"Error during receive: {str(e)}")
             raise

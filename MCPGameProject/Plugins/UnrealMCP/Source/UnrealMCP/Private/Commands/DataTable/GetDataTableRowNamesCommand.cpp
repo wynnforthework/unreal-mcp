@@ -12,19 +12,19 @@ FGetDataTableRowNamesCommand::FGetDataTableRowNamesCommand(IDataTableService& In
 FString FGetDataTableRowNamesCommand::Execute(const FString& Parameters)
 {
     // Parse parameters
-    FString DataTableName;
+    FString DataTablePath;
     FString ParseError;
     
-    if (!ParseParameters(Parameters, DataTableName, ParseError))
+    if (!ParseParameters(Parameters, DataTablePath, ParseError))
     {
         return CreateErrorResponse(ParseError);
     }
     
     // Find the DataTable using the service layer
-    UDataTable* DataTable = DataTableService.FindDataTable(DataTableName);
+    UDataTable* DataTable = DataTableService.FindDataTable(DataTablePath);
     if (!DataTable)
     {
-        return CreateErrorResponse(FString::Printf(TEXT("DataTable not found: %s"), *DataTableName));
+        return CreateErrorResponse(FString::Printf(TEXT("DataTable not found: %s"), *DataTablePath));
     }
     
     // Get row names and field names using the service
@@ -39,7 +39,7 @@ FString FGetDataTableRowNamesCommand::Execute(const FString& Parameters)
     
     // Log successful operation
     UE_LOG(LogTemp, Log, TEXT("MCP DataTable: Successfully retrieved %d row names and %d field names from DataTable '%s'"), 
-           RowNames.Num(), FieldNames.Num(), *DataTableName);
+           RowNames.Num(), FieldNames.Num(), *DataTablePath);
     
     return CreateSuccessResponse(RowNames, FieldNames);
 }
@@ -60,9 +60,9 @@ bool FGetDataTableRowNamesCommand::ValidateParams(const FString& Parameters) con
         return false;
     }
     
-    // Basic parameter validation - datatable_name is required
-    FString DataTableName;
-    if (!JsonObject->TryGetStringField(TEXT("datatable_name"), DataTableName) || DataTableName.IsEmpty())
+    // Basic parameter validation - datatable_path is required
+    FString DataTablePath;
+    if (!JsonObject->TryGetStringField(TEXT("datatable_path"), DataTablePath) || DataTablePath.IsEmpty())
     {
         return false;
     }
@@ -70,7 +70,7 @@ bool FGetDataTableRowNamesCommand::ValidateParams(const FString& Parameters) con
     return true;
 }
 
-bool FGetDataTableRowNamesCommand::ParseParameters(const FString& JsonString, FString& OutDataTableName, FString& OutError) const
+bool FGetDataTableRowNamesCommand::ParseParameters(const FString& JsonString, FString& OutDataTablePath, FString& OutError) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -81,10 +81,10 @@ bool FGetDataTableRowNamesCommand::ParseParameters(const FString& JsonString, FS
         return false;
     }
     
-    // Parse required datatable_name parameter
-    if (!JsonObject->TryGetStringField(TEXT("datatable_name"), OutDataTableName))
+    // Parse required datatable_path parameter
+    if (!JsonObject->TryGetStringField(TEXT("datatable_path"), OutDataTablePath))
     {
-        OutError = TEXT("Missing required 'datatable_name' parameter");
+        OutError = TEXT("Missing required 'datatable_path' parameter");
         return false;
     }
     

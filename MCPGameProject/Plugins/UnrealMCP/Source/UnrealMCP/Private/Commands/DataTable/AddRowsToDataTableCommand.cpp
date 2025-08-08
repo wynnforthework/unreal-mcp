@@ -23,11 +23,11 @@ FString FAddRowsToDataTableCommand::Execute(const FString& Parameters)
     }
     
     // Parse parameters
-    FString DataTableName;
+    FString DataTablePath;
     TArray<FDataTableRowParams> Rows;
     FString ParseError;
     
-    if (!ParseParameters(Parameters, DataTableName, Rows, ParseError))
+    if (!ParseParameters(Parameters, DataTablePath, Rows, ParseError))
     {
         FMCPError ParseErrorObj = FMCPErrorHandler::CreateInvalidParametersError(
             FString::Printf(TEXT("Failed to parse parameters: %s"), *ParseError)
@@ -37,14 +37,14 @@ FString FAddRowsToDataTableCommand::Execute(const FString& Parameters)
     }
     
     // Find the DataTable
-    UDataTable* DataTable = DataTableService.FindDataTable(DataTableName);
+    UDataTable* DataTable = DataTableService.FindDataTable(DataTablePath);
     if (!DataTable)
     {
         FMCPError NotFoundError = FMCPErrorHandler::CreateExecutionFailedError(
-            FString::Printf(TEXT("DataTable not found: %s"), *DataTableName)
+            FString::Printf(TEXT("DataTable not found: %s"), *DataTablePath)
         );
         FMCPErrorHandler::LogError(NotFoundError);
-        return CreateErrorResponse(FString::Printf(TEXT("DataTable not found: %s"), *DataTableName));
+        return CreateErrorResponse(FString::Printf(TEXT("DataTable not found: %s"), *DataTablePath));
     }
     
     // Add rows using the service
@@ -63,7 +63,7 @@ FString FAddRowsToDataTableCommand::Execute(const FString& Parameters)
     
     // Log successful operation
     UE_LOG(LogTemp, Log, TEXT("MCP DataTable: Successfully added %d rows to DataTable '%s'"), 
-           AddedRows.Num(), *DataTableName);
+           AddedRows.Num(), *DataTablePath);
     
     return CreateSuccessResponse(AddedRows, FailedRows);
 }
@@ -84,9 +84,9 @@ bool FAddRowsToDataTableCommand::ValidateParams(const FString& Parameters) const
         return false;
     }
     
-    // Basic parameter validation - datatable_name is required
-    FString DataTableName;
-    if (!JsonObject->TryGetStringField(TEXT("datatable_name"), DataTableName) || DataTableName.IsEmpty())
+    // Basic parameter validation - datatable_path is required
+    FString DataTablePath;
+    if (!JsonObject->TryGetStringField(TEXT("datatable_path"), DataTablePath) || DataTablePath.IsEmpty())
     {
         return false;
     }
@@ -130,7 +130,7 @@ bool FAddRowsToDataTableCommand::ValidateParams(const FString& Parameters) const
     return true;
 }
 
-bool FAddRowsToDataTableCommand::ParseParameters(const FString& JsonString, FString& OutDataTableName, TArray<FDataTableRowParams>& OutRows, FString& OutError) const
+bool FAddRowsToDataTableCommand::ParseParameters(const FString& JsonString, FString& OutDataTablePath, TArray<FDataTableRowParams>& OutRows, FString& OutError) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -141,10 +141,10 @@ bool FAddRowsToDataTableCommand::ParseParameters(const FString& JsonString, FStr
         return false;
     }
     
-    // Parse required datatable_name parameter
-    if (!JsonObject->TryGetStringField(TEXT("datatable_name"), OutDataTableName))
+    // Parse required datatable_path parameter
+    if (!JsonObject->TryGetStringField(TEXT("datatable_path"), OutDataTablePath))
     {
-        OutError = TEXT("Missing required 'datatable_name' parameter");
+        OutError = TEXT("Missing required 'datatable_path' parameter");
         return false;
     }
     

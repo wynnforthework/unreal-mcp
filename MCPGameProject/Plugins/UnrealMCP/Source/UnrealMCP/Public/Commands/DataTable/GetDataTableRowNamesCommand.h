@@ -30,11 +30,11 @@ private:
     /**
      * Parse JSON parameters into structured data
      * @param JsonString - JSON string containing parameters
-     * @param OutDataTableName - Parsed DataTable name
+     * @param OutDataTablePath - Parsed DataTable path
      * @param OutError - Error message if parsing fails
      * @return true if parsing succeeded
      */
-    bool ParseParameters(const FString& JsonString, FString& OutDataTableName, FString& OutError) const;
+    bool ParseParameters(const FString& JsonString, FString& OutDataTablePath, FString& OutError) const;
     
     /**
      * Create success response JSON using structured approach

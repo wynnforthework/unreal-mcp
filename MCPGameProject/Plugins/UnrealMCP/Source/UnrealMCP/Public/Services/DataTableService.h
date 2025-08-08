@@ -95,6 +95,13 @@ private:
      * @return Formatted string of all tried paths
      */
     FString GetTriedStructPaths(const FString& StructName) const;
+    
+    /**
+     * Fill missing fields in JSON object with default values based on struct definition
+     * @param RowStruct - The struct definition to use for filling missing fields
+     * @param RowData - JSON object to fill with missing fields
+     */
+    void FillMissingFields(const UScriptStruct* RowStruct, const TSharedPtr<FJsonObject>& RowData);
 
 private:
     /** Last error message from failed operations */

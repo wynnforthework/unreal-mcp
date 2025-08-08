@@ -83,7 +83,7 @@ TSharedPtr<FJsonObject> FDeleteDataTableRowsCommand::ExecuteInternal(const TShar
     }
 
     // Extract parameters
-    FString DataTableName = Params->GetStringField(TEXT("datatable_name"));
+    FString DataTablePath = Params->GetStringField(TEXT("datatable_path"));
     TArray<TSharedPtr<FJsonValue>> RowNamesArray = Params->GetArrayField(TEXT("row_names"));
     
     TArray<FString> RowNames;
@@ -93,10 +93,10 @@ TSharedPtr<FJsonObject> FDeleteDataTableRowsCommand::ExecuteInternal(const TShar
     }
     
     // Find the DataTable using the service
-    UDataTable* DataTable = DataTableService->FindDataTable(DataTableName);
+    UDataTable* DataTable = DataTableService->FindDataTable(DataTablePath);
     if (!DataTable)
     {
-        FMCPError Error = FMCPErrorHandler::CreateExecutionFailedError(FString::Printf(TEXT("DataTable not found: %s"), *DataTableName));
+        FMCPError Error = FMCPErrorHandler::CreateExecutionFailedError(FString::Printf(TEXT("DataTable not found: %s"), *DataTablePath));
         return CreateErrorResponse(Error);
     }
     
@@ -105,21 +105,17 @@ TSharedPtr<FJsonObject> FDeleteDataTableRowsCommand::ExecuteInternal(const TShar
     TArray<FString> FailedRows;
     bool bSuccess = DataTableService->DeleteRowsFromDataTable(DataTable, RowNames, DeletedRows, FailedRows);
     
-    if (!bSuccess && DeletedRows.Num() == 0)
-    {
-        FMCPError Error = FMCPErrorHandler::CreateExecutionFailedError(TEXT("Failed to delete any rows"));
-        return CreateErrorResponse(Error);
-    }
-    
+    // Always return success response with details about deleted/failed rows
+    // This allows the client to see which rows failed and why
     return CreateSuccessResponse(DeletedRows, FailedRows);
 }
 
 bool FDeleteDataTableRowsCommand::ValidateParamsInternal(const TSharedPtr<FJsonObject>& Params, FString& OutError) const
 {
-    // Validate required datatable_name parameter
-    if (!Params->HasField(TEXT("datatable_name")) || Params->GetStringField(TEXT("datatable_name")).IsEmpty())
+    // Validate required datatable_path parameter
+    if (!Params->HasField(TEXT("datatable_path")) || Params->GetStringField(TEXT("datatable_path")).IsEmpty())
     {
-        OutError = TEXT("Missing or empty required 'datatable_name' parameter");
+        OutError = TEXT("Missing or empty required 'datatable_path' parameter");
         return false;
     }
     

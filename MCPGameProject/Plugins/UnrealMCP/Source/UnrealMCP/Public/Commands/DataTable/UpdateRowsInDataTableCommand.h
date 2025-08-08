@@ -27,14 +27,14 @@ private:
     IDataTableService& DataTableService;
     
     /**
-     * Parse JSON parameters into DataTable name and row parameters
+     * Parse JSON parameters into DataTable path and row parameters
      * @param JsonString - JSON string containing parameters
-     * @param OutDataTableName - Parsed DataTable name
+     * @param OutDataTablePath - Parsed DataTable path
      * @param OutRows - Parsed row parameters
      * @param OutError - Error message if parsing fails
      * @return true if parsing succeeded
      */
-    bool ParseParameters(const FString& JsonString, FString& OutDataTableName, TArray<FDataTableRowParams>& OutRows, FString& OutError) const;
+    bool ParseParameters(const FString& JsonString, FString& OutDataTablePath, TArray<FDataTableRowParams>& OutRows, FString& OutError) const;
     
     /**
      * Create success response JSON

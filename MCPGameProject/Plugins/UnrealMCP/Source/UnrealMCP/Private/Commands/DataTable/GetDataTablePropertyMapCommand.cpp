@@ -11,19 +11,19 @@ FGetDataTablePropertyMapCommand::FGetDataTablePropertyMapCommand(IDataTableServi
 
 FString FGetDataTablePropertyMapCommand::Execute(const FString& Parameters)
 {
-    FString DataTableName;
+    FString DataTablePath;
     FString ParseError;
     
-    if (!ParseParameters(Parameters, DataTableName, ParseError))
+    if (!ParseParameters(Parameters, DataTablePath, ParseError))
     {
         return CreateErrorResponse(ParseError);
     }
     
     // Find the DataTable
-    UDataTable* DataTable = DataTableService.FindDataTable(DataTableName);
+    UDataTable* DataTable = DataTableService.FindDataTable(DataTablePath);
     if (!DataTable)
     {
-        return CreateErrorResponse(FString::Printf(TEXT("DataTable not found: %s"), *DataTableName));
+        return CreateErrorResponse(FString::Printf(TEXT("DataTable not found: %s"), *DataTablePath));
     }
     
     // Get property map using the service
@@ -49,7 +49,7 @@ bool FGetDataTablePropertyMapCommand::ValidateParams(const FString& Parameters) 
     return ParseParameters(Parameters, DataTableName, ParseError);
 }
 
-bool FGetDataTablePropertyMapCommand::ParseParameters(const FString& JsonString, FString& OutDataTableName, FString& OutError) const
+bool FGetDataTablePropertyMapCommand::ParseParameters(const FString& JsonString, FString& OutDataTablePath, FString& OutError) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -60,10 +60,10 @@ bool FGetDataTablePropertyMapCommand::ParseParameters(const FString& JsonString,
         return false;
     }
     
-    // Parse required datatable_name parameter
-    if (!JsonObject->TryGetStringField(TEXT("datatable_name"), OutDataTableName))
+    // Parse required datatable_path parameter
+    if (!JsonObject->TryGetStringField(TEXT("datatable_path"), OutDataTablePath))
     {
-        OutError = TEXT("Missing required 'datatable_name' parameter");
+        OutError = TEXT("Missing required 'datatable_path' parameter");
         return false;
     }
     

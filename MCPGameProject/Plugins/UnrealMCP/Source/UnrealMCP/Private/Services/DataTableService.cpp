@@ -10,6 +10,7 @@
 #include "Editor.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UObject/MetaData.h"
+#include "ScopedTransaction.h"
 
 FDataTableService::FDataTableService()
 {
@@ -322,29 +323,108 @@ bool FDataTableService::DeleteRowsFromDataTable(UDataTable* DataTable, const TAr
         return false;
     }
     
+    // Check if DataTable is valid and has a row struct
+    if (!DataTable->GetRowStruct())
+    {
+        UE_LOG(LogTemp, Error, TEXT("MCP DataTable: DataTable has no row struct"));
+        return false;
+    }
+    
+
+    
     OutDeletedRows.Empty();
     OutFailedRows.Empty();
     
+    // First, validate all row names exist before attempting deletion
+    TArray<FName> ValidRowNames;
     for (const FString& RowName : RowNames)
     {
-        if (DataTable->GetRowMap().Contains(FName(*RowName)))
+        FName RowFName(*RowName);
+        if (DataTable->GetRowMap().Contains(RowFName))
         {
-            DataTable->RemoveRow(FName(*RowName));
-            OutDeletedRows.Add(RowName);
+            ValidRowNames.Add(RowFName);
         }
         else
         {
             OutFailedRows.Add(RowName);
+            UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Row '%s' not found in DataTable"), *RowName);
         }
     }
     
-    if (OutDeletedRows.Num() > 0)
+    // Use direct row map manipulation to avoid UE 5.6 RemoveRow() crashes
+    for (const FName& RowFName : ValidRowNames)
     {
-        SaveAndSyncDataTable(DataTable);
-        RefreshDataTableEditor(DataTable);
-        return true;
+        try
+        {
+            // Mark the DataTable as modified before deletion
+            DataTable->Modify();
+            
+            // Get direct access to the row map
+            TMap<FName, uint8*>& RowMap = const_cast<TMap<FName, uint8*>&>(DataTable->GetRowMap());
+            
+            // Double-check the row exists before deletion
+            if (RowMap.Contains(RowFName))
+            {
+                // Create a scoped transaction for undo/redo support
+                FScopedTransaction Transaction(FText::FromString(FString::Printf(TEXT("Delete DataTable Row '%s'"), *RowFName.ToString())));
+                
+                // Mark as modified again within transaction
+                DataTable->Modify();
+                
+                // Get the row data pointer before removing
+                uint8* RowData = RowMap[RowFName];
+                
+                // Remove from the map first
+                RowMap.Remove(RowFName);
+                
+                // Free the memory if it exists and we have a valid struct
+                if (RowData && DataTable->GetRowStruct())
+                {
+                    // Properly destroy the struct data
+                    DataTable->GetRowStruct()->DestroyStruct(RowData);
+                    // Free the allocated memory
+                    FMemory::Free(RowData);
+                }
+                
+                OutDeletedRows.Add(RowFName.ToString());
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Successfully deleted row '%s'"), *RowFName.ToString());
+            }
+            else
+            {
+                OutFailedRows.Add(RowFName.ToString());
+                UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Row '%s' not found during deletion"), *RowFName.ToString());
+            }
+        }
+        catch (const std::exception& e)
+        {
+            OutFailedRows.Add(RowFName.ToString());
+            UE_LOG(LogTemp, Error, TEXT("MCP DataTable: Exception while deleting row '%s': %s"), *RowFName.ToString(), *FString(e.what()));
+        }
+        catch (...)
+        {
+            OutFailedRows.Add(RowFName.ToString());
+            UE_LOG(LogTemp, Error, TEXT("MCP DataTable: Unknown exception while deleting row '%s'"), *RowFName.ToString());
+        }
     }
     
+    // Only save if we successfully deleted at least one row
+    if (OutDeletedRows.Num() > 0)
+    {
+        try
+        {
+            SaveAndSyncDataTable(DataTable);
+            RefreshDataTableEditor(DataTable);
+            UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Successfully deleted %d rows, failed %d rows"), OutDeletedRows.Num(), OutFailedRows.Num());
+            return true;
+        }
+        catch (...)
+        {
+            UE_LOG(LogTemp, Error, TEXT("MCP DataTable: Exception occurred while saving DataTable after deletion"));
+            return false;
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: No rows were deleted"));
     return false;
 }
 
@@ -459,17 +539,8 @@ bool FDataTableService::ValidateRowData(const UDataTable* DataTable, const TShar
     
     UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Validating row data for struct: '%s'"), *DataTable->GetRowStruct()->GetName());
     
-    // Check if all required properties are present
-    for (TFieldIterator<FProperty> PropIt(DataTable->GetRowStruct()); PropIt; ++PropIt)
-    {
-        FProperty* Property = *PropIt;
-        if (!RowData->HasField(Property->GetName()))
-        {
-            OutError = FString::Printf(TEXT("Missing required property: %s"), *Property->GetName());
-            UE_LOG(LogTemp, Error, TEXT("MCP DataTable: %s"), *OutError);
-            return false;
-        }
-    }
+    // Auto-fill missing properties with default values instead of failing
+    FillMissingFields(DataTable->GetRowStruct(), RowData);
     
     UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Row data validation successful"));
     return true;
@@ -691,4 +762,70 @@ FString FDataTableService::GetTriedStructPaths(const FString& StructName) const
     }
     Result += TEXT("]");
     return Result;
+}
+
+void FDataTableService::FillMissingFields(const UScriptStruct* RowStruct, const TSharedPtr<FJsonObject>& RowData)
+{
+    if (!RowStruct || !RowData.IsValid())
+    {
+        return;
+    }
+    
+    UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filling missing fields for struct: '%s'"), *RowStruct->GetName());
+    
+    for (TFieldIterator<FProperty> PropIt(RowStruct); PropIt; ++PropIt)
+    {
+        FProperty* Property = *PropIt;
+        FString PropertyName = Property->GetName();
+        
+        if (!RowData->HasField(PropertyName))
+        {
+            // Auto-fill with appropriate default value based on property type
+            if (Property->IsA<FBoolProperty>())
+            {
+                RowData->SetBoolField(PropertyName, false);
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled bool property '%s' with false"), *PropertyName);
+            }
+            else if (Property->IsA<FIntProperty>())
+            {
+                RowData->SetNumberField(PropertyName, 0);
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled int property '%s' with 0"), *PropertyName);
+            }
+            else if (Property->IsA<FFloatProperty>())
+            {
+                RowData->SetNumberField(PropertyName, 0.0f);
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled float property '%s' with 0.0"), *PropertyName);
+            }
+            else if (Property->IsA<FStrProperty>())
+            {
+                RowData->SetStringField(PropertyName, TEXT(""));
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled string property '%s' with empty string"), *PropertyName);
+            }
+            else if (Property->IsA<FTextProperty>())
+            {
+                RowData->SetStringField(PropertyName, TEXT(""));
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled text property '%s' with empty string"), *PropertyName);
+            }
+            else if (Property->IsA<FArrayProperty>())
+            {
+                // Create empty array for array properties
+                TArray<TSharedPtr<FJsonValue>> EmptyArray;
+                RowData->SetArrayField(PropertyName, EmptyArray);
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled array property '%s' with empty array"), *PropertyName);
+            }
+            else if (Property->IsA<FStructProperty>())
+            {
+                // For struct properties, create empty object
+                TSharedPtr<FJsonObject> EmptyStruct = MakeShared<FJsonObject>();
+                RowData->SetObjectField(PropertyName, EmptyStruct);
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled struct property '%s' with empty object"), *PropertyName);
+            }
+            else
+            {
+                // For other types, try to set a null value or empty string as fallback
+                RowData->SetStringField(PropertyName, TEXT(""));
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled unknown property type '%s' with empty string"), *PropertyName);
+            }
+        }
+    }
 }

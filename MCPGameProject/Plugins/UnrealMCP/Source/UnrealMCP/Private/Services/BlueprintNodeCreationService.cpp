@@ -217,8 +217,76 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
             }
         }
     }
+    // Check for literal/constant value creation
+    if (EffectiveFunctionName.Equals(TEXT("Float"), ESearchCase::IgnoreCase) ||
+        EffectiveFunctionName.Equals(TEXT("Integer"), ESearchCase::IgnoreCase) ||
+        EffectiveFunctionName.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase) ||
+        EffectiveFunctionName.StartsWith(TEXT("Literal"), ESearchCase::IgnoreCase))
+    {
+        // For literal values, we create a simple variable get node with a default value
+        // This is the most straightforward way to create constants in Blueprint
+        UK2Node_VariableGet* LiteralNode = NewObject<UK2Node_VariableGet>(EventGraph);
+        
+        // Set up a temporary variable reference for the literal
+        FString LiteralVarName = TEXT("LiteralValue");
+        if (ParamsObject.IsValid())
+        {
+            FString ParamValue;
+            if (ParamsObject->TryGetStringField(TEXT("value"), ParamValue) && !ParamValue.IsEmpty())
+            {
+                LiteralVarName = FString::Printf(TEXT("Literal_%s"), *ParamValue);
+            }
+        }
+        
+        // For now, create a simple math operation that returns the constant
+        // This is a workaround since direct literal nodes are complex in UE
+        UK2Node_CallFunction* MathNode = NewObject<UK2Node_CallFunction>(EventGraph);
+        
+        // Use SelectFloat from KismetMathLibrary to create a constant
+        UFunction* SelectFloatFunc = UKismetMathLibrary::StaticClass()->FindFunctionByName(TEXT("SelectFloat"));
+        if (SelectFloatFunc)
+        {
+            MathNode->SetFromFunction(SelectFloatFunc);
+            MathNode->NodePosX = PositionX;
+            MathNode->NodePosY = PositionY;
+            MathNode->CreateNewGuid();
+            EventGraph->AddNode(MathNode, true, true);
+            MathNode->PostPlacedNewNode();
+            MathNode->AllocateDefaultPins();
+            
+            // Set default values on pins to create the constant
+            if (ParamsObject.IsValid())
+            {
+                FString ParamValue;
+                if (ParamsObject->TryGetStringField(TEXT("value"), ParamValue) && !ParamValue.IsEmpty())
+                {
+                    // Find the A and B pins and set them to the same value
+                    for (UEdGraphPin* Pin : MathNode->Pins)
+                    {
+                        if (Pin && (Pin->PinName == TEXT("A") || Pin->PinName == TEXT("B")))
+                        {
+                            Pin->DefaultValue = ParamValue;
+                        }
+                        // Set the Index pin to false (0) so it always returns A
+                        else if (Pin && Pin->PinName == TEXT("Index"))
+                        {
+                            Pin->DefaultValue = TEXT("false");
+                        }
+                    }
+                }
+            }
+            
+            NewNode = MathNode;
+            NodeTitle = FString::Printf(TEXT("Constant %s"), *EffectiveFunctionName);
+            NodeType = TEXT("K2Node_CallFunction");
+        }
+        else
+        {
+            return BuildNodeResult(false, TEXT("Could not find SelectFloat function for literal creation"));
+        }
+    }
     // Check if this is a control flow node request
-    if (EffectiveFunctionName.Equals(TEXT("Branch"), ESearchCase::IgnoreCase) || 
+    else if (EffectiveFunctionName.Equals(TEXT("Branch"), ESearchCase::IgnoreCase) || 
         EffectiveFunctionName.Equals(TEXT("IfThenElse"), ESearchCase::IgnoreCase) ||
         EffectiveFunctionName.Equals(TEXT("UK2Node_IfThenElse"), ESearchCase::IgnoreCase))
     {
