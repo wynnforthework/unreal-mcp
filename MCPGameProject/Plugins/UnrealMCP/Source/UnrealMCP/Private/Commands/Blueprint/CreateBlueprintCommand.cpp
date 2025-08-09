@@ -3,6 +3,13 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Engine/Blueprint.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/GameModeBase.h"
+#include "Components/ActorComponent.h"
+#include "Components/SceneComponent.h"
 
 FCreateBlueprintCommand::FCreateBlueprintCommand(IBlueprintService& InBlueprintService)
     : BlueprintService(InBlueprintService)
@@ -80,9 +87,18 @@ bool FCreateBlueprintCommand::ParseParameters(const FString& JsonString, FBluepr
     FString ParentClassName;
     if (JsonObject->TryGetStringField(TEXT("parent_class"), ParentClassName))
     {
-        // Resolve parent class - this would need to be implemented in the service
-        // For now, we'll store the string and let the service handle resolution
-        OutParams.ParentClass = nullptr; // Will be resolved by service
+        // Resolve parent class using the service's resolution logic
+        OutParams.ParentClass = ResolveParentClass(ParentClassName);
+        if (!OutParams.ParentClass)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Could not resolve parent class '%s', defaulting to AActor"), *ParentClassName);
+            OutParams.ParentClass = AActor::StaticClass();
+        }
+    }
+    else
+    {
+        // Default to Actor if no parent class specified
+        OutParams.ParentClass = AActor::StaticClass();
     }
     
     // Parse optional compile_on_creation parameter
@@ -117,6 +133,80 @@ FString FCreateBlueprintCommand::CreateErrorResponse(const FString& ErrorMessage
     FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
     
     return OutputString;
+}
+
+UClass* FCreateBlueprintCommand::ResolveParentClass(const FString& ParentClassName) const
+{
+    if (ParentClassName.IsEmpty())
+    {
+        return AActor::StaticClass(); // Default
+    }
+    
+    FString ClassName = ParentClassName;
+    
+    // Add appropriate prefix if not present
+    if (!ClassName.StartsWith(TEXT("A")) && !ClassName.StartsWith(TEXT("U")))
+    {
+        if (ClassName.EndsWith(TEXT("Component")))
+        {
+            ClassName = TEXT("U") + ClassName;
+        }
+        else
+        {
+            ClassName = TEXT("A") + ClassName;
+        }
+    }
+    
+    // Try direct StaticClass lookup for common classes
+    if (ClassName == TEXT("APawn"))
+    {
+        return APawn::StaticClass();
+    }
+    else if (ClassName == TEXT("AActor"))
+    {
+        return AActor::StaticClass();
+    }
+    else if (ClassName == TEXT("ACharacter"))
+    {
+        return ACharacter::StaticClass();
+    }
+    else if (ClassName == TEXT("APlayerController"))
+    {
+        return APlayerController::StaticClass();
+    }
+    else if (ClassName == TEXT("AGameModeBase"))
+    {
+        return AGameModeBase::StaticClass();
+    }
+    else if (ClassName == TEXT("UActorComponent"))
+    {
+        return UActorComponent::StaticClass();
+    }
+    else if (ClassName == TEXT("USceneComponent"))
+    {
+        return USceneComponent::StaticClass();
+    }
+    
+    // Try loading from common module paths
+    TArray<FString> ModulePaths = {
+        TEXT("/Script/Engine"),
+        TEXT("/Script/GameplayAbilities"),
+        TEXT("/Script/AIModule"),
+        TEXT("/Script/Game"),
+        TEXT("/Script/CoreUObject")
+    };
+    
+    for (const FString& ModulePath : ModulePaths)
+    {
+        const FString ClassPath = FString::Printf(TEXT("%s.%s"), *ModulePath, *ClassName);
+        if (UClass* FoundClass = LoadClass<UObject>(nullptr, *ClassPath))
+        {
+            return FoundClass;
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("FCreateBlueprintCommand::ResolveParentClass: Could not resolve parent class '%s'"), *ParentClassName);
+    return AActor::StaticClass(); // Fallback to Actor
 }
 
 

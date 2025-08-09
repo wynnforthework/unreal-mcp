@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Commands/IUnrealMCPCommand.h"
 #include "Services/IBlueprintService.h"
+#include "Engine/Engine.h"
 
 /**
  * Command for creating new Blueprint assets
@@ -48,4 +49,11 @@ private:
      * @return JSON response string
      */
     FString CreateErrorResponse(const FString& ErrorMessage) const;
+    
+    /**
+     * Resolve parent class from string name
+     * @param ParentClassName - Name of the parent class
+     * @return Resolved UClass or nullptr if not found
+     */
+    UClass* ResolveParentClass(const FString& ParentClassName) const;
 };
