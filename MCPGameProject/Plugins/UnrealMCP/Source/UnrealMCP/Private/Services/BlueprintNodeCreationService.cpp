@@ -35,6 +35,9 @@
 
 // Forward declaration of native property helper
 static bool TryCreateNativePropertyNode(const FString& VarName, bool bIsGetter, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType);
+
+// Helper function to create arithmetic and comparison operations directly
+static bool TryCreateArithmeticOrComparisonNode(const FString& OperationName, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType);
 // Utility to convert property names into friendly display strings
 static FString ConvertPropertyNameToDisplayLocal(const FString& InPropName)
 {
@@ -914,6 +917,11 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
             UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created MakeStruct node for '%s'"), *StructType->GetName());
         }
     }
+    // Try to create arithmetic or comparison operations directly
+    else if (TryCreateArithmeticOrComparisonNode(EffectiveFunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created arithmetic/comparison node '%s'"), *NodeTitle);
+    }
     // Universal dynamic node creation using Blueprint Action Database
     else if (TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
     {
@@ -1102,11 +1110,50 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
 {
     UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Attempting dynamic creation for '%s'"), *FunctionName);
     
+    // Create a map of common operation aliases to their actual function names
+    TMap<FString, TArray<FString>> OperationAliases;
+    
+    // Arithmetic operations
+    OperationAliases.Add(TEXT("Add"), {TEXT("Add_FloatFloat"), TEXT("Add_IntInt"), TEXT("Add_DoubleDouble"), TEXT("Add_VectorVector"), TEXT("Add")});
+    OperationAliases.Add(TEXT("Subtract"), {TEXT("Subtract_FloatFloat"), TEXT("Subtract_IntInt"), TEXT("Subtract_DoubleDouble"), TEXT("Subtract_VectorVector"), TEXT("Subtract")});
+    OperationAliases.Add(TEXT("Multiply"), {TEXT("Multiply_FloatFloat"), TEXT("Multiply_IntInt"), TEXT("Multiply_DoubleDouble"), TEXT("Multiply_VectorFloat"), TEXT("Multiply")});
+    OperationAliases.Add(TEXT("Divide"), {TEXT("Divide_FloatFloat"), TEXT("Divide_IntInt"), TEXT("Divide_DoubleDouble"), TEXT("Divide_VectorFloat"), TEXT("Divide")});
+    OperationAliases.Add(TEXT("Modulo"), {TEXT("Percent_IntInt"), TEXT("Percent_FloatFloat"), TEXT("FMod"), TEXT("Modulo")});
+    OperationAliases.Add(TEXT("Power"), {TEXT("MultiplyMultiply_FloatFloat"), TEXT("Power")});
+    
+    // Comparison operations
+    OperationAliases.Add(TEXT("Equal"), {TEXT("EqualEqual_FloatFloat"), TEXT("EqualEqual_IntInt"), TEXT("EqualEqual_BoolBool"), TEXT("EqualEqual_ObjectObject"), TEXT("Equal")});
+    OperationAliases.Add(TEXT("NotEqual"), {TEXT("NotEqual_FloatFloat"), TEXT("NotEqual_IntInt"), TEXT("NotEqual_BoolBool"), TEXT("NotEqual_ObjectObject"), TEXT("NotEqual")});
+    OperationAliases.Add(TEXT("Greater"), {TEXT("Greater_FloatFloat"), TEXT("Greater_IntInt"), TEXT("Greater_DoubleDouble"), TEXT("Greater")});
+    OperationAliases.Add(TEXT("GreaterEqual"), {TEXT("GreaterEqual_FloatFloat"), TEXT("GreaterEqual_IntInt"), TEXT("GreaterEqual_DoubleDouble"), TEXT("GreaterEqual")});
+    OperationAliases.Add(TEXT("Less"), {TEXT("Less_FloatFloat"), TEXT("Less_IntInt"), TEXT("Less_DoubleDouble"), TEXT("Less")});
+    OperationAliases.Add(TEXT("LessEqual"), {TEXT("LessEqual_FloatFloat"), TEXT("LessEqual_IntInt"), TEXT("LessEqual_DoubleDouble"), TEXT("LessEqual")});
+    
+    // Logical operations
+    OperationAliases.Add(TEXT("And"), {TEXT("BooleanAND"), TEXT("And")});
+    OperationAliases.Add(TEXT("Or"), {TEXT("BooleanOR"), TEXT("Or")});
+    OperationAliases.Add(TEXT("Not"), {TEXT("BooleanNOT"), TEXT("Not")});
+    
+    // Build list of function names to search for
+    TArray<FString> SearchNames;
+    SearchNames.Add(FunctionName);
+    
+    // Add aliases if this is a known operation
+    if (OperationAliases.Contains(FunctionName))
+    {
+        SearchNames.Append(OperationAliases[FunctionName]);
+    }
+    
+    // Also try some common variations
+    SearchNames.Add(FString::Printf(TEXT("%s_FloatFloat"), *FunctionName));
+    SearchNames.Add(FString::Printf(TEXT("%s_IntInt"), *FunctionName));
+    SearchNames.Add(FString::Printf(TEXT("%s_DoubleDouble"), *FunctionName));
+    
     // Use Blueprint Action Database to find the appropriate spawner
     FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
     FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
     
-    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found %d action categories"), ActionRegistry.Num());
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found %d action categories, searching for %d name variations"), ActionRegistry.Num(), SearchNames.Num());
     
     // Search through spawners directly
     for (const auto& ActionPair : ActionRegistry)
@@ -1125,6 +1172,7 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
                 // Try to match based on node type and function name
                 FString NodeName = TEXT("");
                 FString NodeClass = TemplateNode->GetClass()->GetName();
+                FString FunctionNameFromNode = TEXT("");
                 
                 // Get human-readable node name
                 if (UK2Node* K2Node = Cast<UK2Node>(TemplateNode))
@@ -1140,7 +1188,12 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
                     {
                         if (UFunction* Function = FunctionNode->GetTargetFunction())
                         {
-                            NodeName = Function->GetName();
+                            FunctionNameFromNode = Function->GetName();
+                            // Use function name as node name if it's more descriptive
+                            if (NodeName.IsEmpty() || NodeName == NodeClass)
+                            {
+                                NodeName = FunctionNameFromNode;
+                            }
                         }
                     }
                 }
@@ -1149,10 +1202,41 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
                     NodeName = TemplateNode->GetClass()->GetName();
                 }
                 
-                // Check if this matches our function name
-                if (NodeName.Equals(FunctionName, ESearchCase::IgnoreCase))
+                // Check if any of our search names match
+                bool bFoundMatch = false;
+                FString MatchedName;
+                
+                for (const FString& SearchName : SearchNames)
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found matching spawner for '%s' (node class: %s)"), *NodeName, *NodeClass);
+                    // Try exact match on node title
+                    if (NodeName.Equals(SearchName, ESearchCase::IgnoreCase))
+                    {
+                        bFoundMatch = true;
+                        MatchedName = SearchName;
+                        break;
+                    }
+                    
+                    // Try exact match on function name
+                    if (!FunctionNameFromNode.IsEmpty() && FunctionNameFromNode.Equals(SearchName, ESearchCase::IgnoreCase))
+                    {
+                        bFoundMatch = true;
+                        MatchedName = SearchName;
+                        break;
+                    }
+                    
+                    // Try partial match (for operations like "+" which might show as "Add (float)")
+                    if (NodeName.Contains(SearchName, ESearchCase::IgnoreCase))
+                    {
+                        bFoundMatch = true;
+                        MatchedName = SearchName;
+                        break;
+                    }
+                }
+                
+                if (bFoundMatch)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found matching spawner for '%s' -> '%s' (node class: %s, function: %s)"), 
+                           *FunctionName, *MatchedName, *NodeClass, *FunctionNameFromNode);
                     
                     // Create the node using the spawner
                     NewNode = NodeSpawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
@@ -1168,7 +1252,7 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
         }
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: No matching spawner found for '%s'"), *FunctionName);
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: No matching spawner found for '%s' (tried %d variations)"), *FunctionName, SearchNames.Num());
     return false;
 }
 
@@ -1227,6 +1311,86 @@ void FBlueprintNodeCreationService::LogNodeCreationAttempt(const FString& Functi
     UE_LOG(LogTemp, Warning, TEXT("FBlueprintNodeCreationService: Creating node '%s' in blueprint '%s' with class '%s' at position [%d, %d]"), 
            *FunctionName, *BlueprintName, *ClassName, PositionX, PositionY);
 } 
+
+// Helper function to create arithmetic and comparison operations directly
+static bool TryCreateArithmeticOrComparisonNode(const FString& OperationName, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType)
+{
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Attempting to create '%s'"), *OperationName);
+    
+    // Map common operation names to their KismetMathLibrary function names
+    TMap<FString, TArray<FString>> OperationMappings;
+    
+    // Arithmetic operations - try float first, then int, then double
+    OperationMappings.Add(TEXT("Add"), {TEXT("Add_FloatFloat"), TEXT("Add_IntInt"), TEXT("Add_DoubleDouble")});
+    OperationMappings.Add(TEXT("Subtract"), {TEXT("Subtract_FloatFloat"), TEXT("Subtract_IntInt"), TEXT("Subtract_DoubleDouble")});
+    OperationMappings.Add(TEXT("Multiply"), {TEXT("Multiply_FloatFloat"), TEXT("Multiply_IntInt"), TEXT("Multiply_DoubleDouble")});
+    OperationMappings.Add(TEXT("Divide"), {TEXT("Divide_FloatFloat"), TEXT("Divide_IntInt"), TEXT("Divide_DoubleDouble")});
+    OperationMappings.Add(TEXT("Modulo"), {TEXT("Percent_IntInt"), TEXT("FMod")});
+    OperationMappings.Add(TEXT("Power"), {TEXT("MultiplyMultiply_FloatFloat")});
+    
+    // Comparison operations
+    OperationMappings.Add(TEXT("Equal"), {TEXT("EqualEqual_FloatFloat"), TEXT("EqualEqual_IntInt"), TEXT("EqualEqual_BoolBool")});
+    OperationMappings.Add(TEXT("NotEqual"), {TEXT("NotEqual_FloatFloat"), TEXT("NotEqual_IntInt"), TEXT("NotEqual_BoolBool")});
+    OperationMappings.Add(TEXT("Greater"), {TEXT("Greater_FloatFloat"), TEXT("Greater_IntInt"), TEXT("Greater_DoubleDouble")});
+    OperationMappings.Add(TEXT("GreaterEqual"), {TEXT("GreaterEqual_FloatFloat"), TEXT("GreaterEqual_IntInt"), TEXT("GreaterEqual_DoubleDouble")});
+    OperationMappings.Add(TEXT("Less"), {TEXT("Less_FloatFloat"), TEXT("Less_IntInt"), TEXT("Less_DoubleDouble")});
+    OperationMappings.Add(TEXT("LessEqual"), {TEXT("LessEqual_FloatFloat"), TEXT("LessEqual_IntInt"), TEXT("LessEqual_DoubleDouble")});
+    
+    // Logical operations
+    OperationMappings.Add(TEXT("And"), {TEXT("BooleanAND")});
+    OperationMappings.Add(TEXT("Or"), {TEXT("BooleanOR")});
+    OperationMappings.Add(TEXT("Not"), {TEXT("BooleanNOT")});
+    
+    // Also try some symbol-based operations
+    OperationMappings.Add(TEXT("+"), {TEXT("Add_FloatFloat"), TEXT("Add_IntInt")});
+    OperationMappings.Add(TEXT("-"), {TEXT("Subtract_FloatFloat"), TEXT("Subtract_IntInt")});
+    OperationMappings.Add(TEXT("*"), {TEXT("Multiply_FloatFloat"), TEXT("Multiply_IntInt")});
+    OperationMappings.Add(TEXT("/"), {TEXT("Divide_FloatFloat"), TEXT("Divide_IntInt")});
+    OperationMappings.Add(TEXT("=="), {TEXT("EqualEqual_FloatFloat"), TEXT("EqualEqual_IntInt")});
+    OperationMappings.Add(TEXT("!="), {TEXT("NotEqual_FloatFloat"), TEXT("NotEqual_IntInt")});
+    OperationMappings.Add(TEXT(">"), {TEXT("Greater_FloatFloat"), TEXT("Greater_IntInt")});
+    OperationMappings.Add(TEXT(">="), {TEXT("GreaterEqual_FloatFloat"), TEXT("GreaterEqual_IntInt")});
+    OperationMappings.Add(TEXT("<"), {TEXT("Less_FloatFloat"), TEXT("Less_IntInt")});
+    OperationMappings.Add(TEXT("<="), {TEXT("LessEqual_FloatFloat"), TEXT("LessEqual_IntInt")});
+    
+    // Check if we have a mapping for this operation
+    const TArray<FString>* FunctionNames = OperationMappings.Find(OperationName);
+    if (!FunctionNames)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: No mapping found for '%s'"), *OperationName);
+        return false;
+    }
+    
+    // Try each function name until we find one that works
+    for (const FString& FunctionName : *FunctionNames)
+    {
+        UFunction* TargetFunction = UKismetMathLibrary::StaticClass()->FindFunctionByName(*FunctionName);
+        if (TargetFunction)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Found function '%s' for operation '%s'"), *FunctionName, *OperationName);
+            
+            // Create the function call node
+            UK2Node_CallFunction* FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
+            FunctionNode->FunctionReference.SetExternalMember(TargetFunction->GetFName(), UKismetMathLibrary::StaticClass());
+            FunctionNode->NodePosX = PositionX;
+            FunctionNode->NodePosY = PositionY;
+            FunctionNode->CreateNewGuid();
+            EventGraph->AddNode(FunctionNode, true, true);
+            FunctionNode->PostPlacedNewNode();
+            FunctionNode->AllocateDefaultPins();
+            
+            OutNode = FunctionNode;
+            OutTitle = OperationName;
+            OutNodeType = TEXT("UK2Node_CallFunction");
+            
+            UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Successfully created '%s' node using function '%s'"), *OperationName, *FunctionName);
+            return true;
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: No suitable function found for operation '%s'"), *OperationName);
+    return false;
+}
 
 static bool TryCreateNativePropertyNode(const FString& VarName, bool bIsGetter, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType)
 {
