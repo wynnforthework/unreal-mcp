@@ -155,14 +155,31 @@ def register_blueprint_action_tools(mcp: FastMCP):
         blueprint_name: str = None
     ) -> Dict[str, Any]:
         """
-        Search for Blueprint actions using keywords.
+        Search for EXISTING Blueprint actions/nodes using keywords.
         
-        This tool provides a general search interface for finding Blueprint actions by name,
-        category, keywords, or tooltip text. It's similar to typing in the search box in
-        Unreal's Blueprint editor context menu.
+        IMPORTANT: This tool ONLY searches for existing Blueprint nodes and functions that are 
+        already available in Unreal Engine's FBlueprintActionDatabase. It searches built-in 
+        engine functionality like math operations, engine functions, and existing Blueprint nodes.
+        
+        DO NOT use this tool to search for:
+        - Custom functions you want to create
+        - Custom events you want to create  
+        - Custom Blueprint logic that doesn't exist yet
+        - Concepts like "custom function", "my function", etc.
+        
+        USE this tool to find:
+        - Built-in math operations (add, multiply, etc.)
+        - Engine functions (GetActorLocation, SetActorLocation, etc.)
+        - Flow control nodes (Branch, Sequence, etc.)
+        - Existing Blueprint nodes and functions
+        
+        If you want to CREATE custom functionality, use create_node_by_action_name directly
+        with the appropriate node type (like "CustomEvent" for custom events).
+        
+        This tool is similar to typing in the search box in Unreal's Blueprint editor context menu.
         
         Args:
-            search_query: Search string to find actions (searches in name, keywords, category, tooltip)
+            search_query: Search string to find EXISTING actions (searches in name, keywords, category, tooltip)
             category: Optional category filter (Flow Control, Math, Utilities, etc.)
             max_results: Maximum number of results to return (default: 50)
             blueprint_name: Optional name of the Blueprint asset for local variable discovery
@@ -170,23 +187,23 @@ def register_blueprint_action_tools(mcp: FastMCP):
         Returns:
             Dict containing:
                 - success: Boolean indicating if the operation succeeded
-                - actions: List of matching actions with title, tooltip, category, keywords
+                - actions: List of matching EXISTING actions with title, tooltip, category, keywords
                 - search_query: The search query that was used
                 - category_filter: The category filter that was applied
                 - action_count: Number of actions found
                 - message: Status message
         
         Examples:
-            # Search for math operations
+            # Search for existing math operations
             search_blueprint_actions(search_query="add")
             
-            # Search for flow control nodes
+            # Search for existing flow control nodes
             search_blueprint_actions(search_query="branch", category="Flow Control")
             
-            # Search for print functions
+            # Search for existing print functions
             search_blueprint_actions(search_query="print")
             
-            # Search for variable nodes in a Blueprint
+            # Search for existing variable nodes in a Blueprint
             search_blueprint_actions(search_query="myvar", blueprint_name="BP_TestActor")
         """
         return search_blueprint_actions_impl(ctx, search_query, category, max_results, blueprint_name)
