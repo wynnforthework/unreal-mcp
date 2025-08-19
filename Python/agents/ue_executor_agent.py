@@ -12,8 +12,8 @@ import socket
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 
-from .base_agent import BaseAgent, AgentResult, AgentStatus
-from .schemas import (
+from base_agent import BaseAgent, AgentResult, AgentStatus
+from schemas import (
     UE_EXECUTION_INPUT_SCHEMA,
     UE_EXECUTION_OUTPUT_SCHEMA
 )

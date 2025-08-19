@@ -13,8 +13,8 @@ import time
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 
-from .base_agent import BaseAgent, AgentResult, AgentStatus
-from .schemas import (
+from base_agent import BaseAgent, AgentResult, AgentStatus
+from schemas import (
     UI_REQUIREMENTS_INPUT_SCHEMA,
     UI_REQUIREMENTS_OUTPUT_SCHEMA,
     UIComponentType

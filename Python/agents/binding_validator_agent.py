@@ -15,8 +15,8 @@ from typing import Dict, Any, List, Optional, Tuple, Set
 from dataclasses import dataclass
 from pathlib import Path
 
-from .base_agent import BaseAgent, AgentResult, AgentStatus
-from .schemas import (
+from base_agent import BaseAgent, AgentResult, AgentStatus
+from schemas import (
     BINDING_VALIDATION_INPUT_SCHEMA,
     BINDING_VALIDATION_OUTPUT_SCHEMA,
     BindingType

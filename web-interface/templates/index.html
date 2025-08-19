@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UMG Agent - Web Interface</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: #44ff44;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .main-container {
+            flex: 1;
+            display: flex;
+            padding: 1rem;
+            gap: 1rem;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .config-section, .history-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .section-title {
+            color: white;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 0.8rem;
+        }
+
+        .form-group label {
+            display: block;
+            color: white;
+            font-size: 0.9rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .chat-container {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 0.8rem 1rem;
+            border-radius: 10px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: #007bff;
+            color: white;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+
+        .message.system {
+            align-self: center;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-style: italic;
+            text-align: center;
+        }
+
+        .message.error {
+            align-self: flex-start;
+            background: #ff4444;
+            color: white;
+        }
+
+        .message.loading {
+            opacity: 0.7;
+            animation: pulse 1.5s infinite;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-top: 0.3rem;
+        }
+
+        .chat-input {
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input textarea {
+            flex: 1;
+            padding: 0.8rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            resize: none;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .chat-input textarea::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .history-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .history-item-title {
+            color: white;
+            font-size: 0.8rem;
+            margin-bottom: 0.2rem;
+        }
+
+        .history-item-meta {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.7rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: #28a745;
+        }
+
+        .notification.error {
+            background: #dc3545;
+        }
+
+        .notification.info {
+            background: #17a2b8;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                order: 2;
+            }
+            
+            .chat-container {
+                order: 1;
+                min-height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            <i class="fas fa-gamepad"></i>
+            UMG Agent - Web Interface
+        </h1>
+        <div class="header-controls">
+            <div class="connection-status">
+                <div class="status-indicator" id="connectionIndicator"></div>
+                <span id="connectionText">Disconnected</span>
+            </div>
+            <button class="btn btn-secondary" onclick="testConnection()">
+                <i class="fas fa-plug"></i> Test Connection
+            </button>
+            <button class="btn btn-secondary" onclick="showSettings()">
+                <i class="fas fa-cog"></i> Settings
+            </button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="config-section">
+                <div class="section-title">
+                    <i class="fas fa-cog"></i>
+                    Configuration
+                </div>
+                <div class="form-group">
+                    <label>TCP Host:</label>
+                    <input type="text" id="tcpHost" value="127.0.0.1">
+                </div>
+                <div class="form-group">
+                    <label>TCP Port:</label>
+                    <input type="number" id="tcpPort" value="55557">
+                </div>
+                <div class="form-group">
+                    <label>Project Path:</label>
+                    <input type="text" id="projectPath" placeholder="Path to UE project">
+                </div>
+                <div class="form-group">
+                    <label>Widget Path:</label>
+                    <input type="text" id="widgetPath" value="/Game/Widgets">
+                </div>
+                <button class="btn btn-primary" onclick="saveConfig()" style="width: 100%;">
+                    <i class="fas fa-save"></i> Save Config
+                </button>
+            </div>
+
+            <div class="history-section">
+                <div class="section-title">
+                    <i class="fas fa-history"></i>
+                    Generation History
+                    <button class="btn btn-secondary" onclick="clearHistory()" style="margin-left: auto; padding: 0.2rem 0.5rem; font-size: 0.8rem;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+                <div class="history-list" id="historyList">
+                    <!-- 历史记录将在这里动态添加 -->
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-container">
+            <div class="chat-header">
+                <div class="section-title">
+                    <i class="fas fa-comments"></i>
+                    UI Generation Chat
+                </div>
+                <button class="btn btn-secondary" onclick="clearChat()">
+                    <i class="fas fa-broom"></i> Clear
+                </button>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                <!-- 聊天消息将在这里动态添加 -->
+            </div>
+            
+            <div class="chat-input">
+                <textarea id="messageInput" placeholder="Describe the UI you want to generate..." rows="3"></textarea>
+                <button class="btn btn-primary" onclick="generateUI()" id="generateBtn">
+                    <i class="fas fa-paper-plane"></i>
+                    Generate
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket连接
+        const socket = io();
+        let isConnected = false;
+        let isGenerating = false;
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConfig();
+            setupEventListeners();
+        });
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 回车键发送消息
+            document.getElementById('messageInput').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    generateUI();
+                }
+            });
+
+            // Socket事件监听
+            socket.on('connected', function(data) {
+                console.log('Connected to server:', data);
+                updateConnectionStatus(data.is_ue_connected);
+                if (data.config) {
+                    updateConfigUI(data.config);
+                }
+            });
+
+            socket.on('chat_message', function(data) {
+                addChatMessage(data);
+            });
+
+            socket.on('connection_status', function(data) {
+                updateConnectionStatus(data.connected);
+                showNotification(data.message, data.connected ? 'success' : 'error');
+            });
+
+            socket.on('ui_generation_result', function(data) {
+                handleGenerationResult(data);
+            });
+        }
+
+        // 更新连接状态
+        function updateConnectionStatus(connected) {
+            isConnected = connected;
+            const indicator = document.getElementById('connectionIndicator');
+            const text = document.getElementById('connectionText');
+            
+            if (connected) {
+                indicator.classList.add('connected');
+                text.textContent = 'Connected';
+            } else {
+                indicator.classList.remove('connected');
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        // 添加聊天消息
+        function addChatMessage(data) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${data.type}`;
+            
+            if (data.is_loading) {
+                messageDiv.classList.add('loading');
+                messageDiv.id = 'loadingMessage';
+            }
+            
+            messageDiv.innerHTML = `
+                <div>${data.content}</div>
+                <div class="message-time">${new Date(data.timestamp).toLocaleTimeString()}</div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 处理UI生成结果
+        function handleGenerationResult(data) {
+            isGenerating = false;
+            document.getElementById('generateBtn').disabled = false;
+            
+            // 移除加载消息
+            const loadingMessage = document.getElementById('loadingMessage');
+            if (loadingMessage) {
+                loadingMessage.remove();
+            }
+            
+            if (data.status === 'success') {
+                const result = data.result;
+                let content = `✅ UI generated successfully!\n\n`;
+                content += `📁 Widget Path: ${result.widget_path}\n`;
+                content += `🔧 Created Components: ${result.component_count}\n`;
+                
+                if (result.recommendations && result.recommendations.length > 0) {
+                    content += `\n💡 Recommendations:\n`;
+                    result.recommendations.slice(0, 3).forEach(rec => {
+                        content += `• ${rec}\n`;
+                    });
+                }
+                
+                addChatMessage({
+                    type: 'assistant',
+                    content: content,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // 更新历史记录
+                updateHistory();
+                
+                showNotification('UI generated successfully!', 'success');
+            } else {
+                let content = `❌ UI generation failed\n\n`;
+                if (data.error) {
+                    content += `Error: ${data.error}`;
+                }
+                
+                addChatMessage({
+                    type: 'error',
+                    content: content,
+                    timestamp: new Date().toISOString()
+                });
+                
+                showNotification('UI generation failed', 'error');
+            }
+        }
+
+        // 生成UI
+        function generateUI() {
+            if (isGenerating) return;
+            
+            const input = document.getElementById('messageInput');
+            const description = input.value.trim();
+            
+            if (!description) {
+                showNotification('Please enter a UI description', 'error');
+                return;
+            }
+            
+            isGenerating = true;
+            document.getElementById('generateBtn').disabled = true;
+            input.value = '';
+            
+            socket.emit('generate_ui', { description: description });
+        }
+
+        // 测试连接
+        function testConnection() {
+            socket.emit('test_connection');
+        }
+
+        // 清空聊天
+        function clearChat() {
+            document.getElementById('chatMessages').innerHTML = '';
+            addChatMessage({
+                type: 'system',
+                content: 'Chat cleared. Welcome back to UMG Agent! 🎮',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // 保存配置
+        function saveConfig() {
+            const config = {
+                ue_tcp_host: document.getElementById('tcpHost').value,
+                ue_tcp_port: parseInt(document.getElementById('tcpPort').value),
+                project_path: document.getElementById('projectPath').value,
+                widget_path: document.getElementById('widgetPath').value
+            };
+            
+            fetch('/api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('Configuration saved', 'success');
+                } else {
+                    showNotification('Failed to save configuration', 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('Error saving configuration', 'error');
+            });
+        }
+
+        // 加载配置
+        function loadConfig() {
+            fetch('/api/config')
+            .then(response => response.json())
+            .then(config => {
+                updateConfigUI(config);
+            })
+            .catch(error => {
+                console.error('Error loading config:', error);
+            });
+        }
+
+        // 更新配置UI
+        function updateConfigUI(config) {
+            document.getElementById('tcpHost').value = config.ue_tcp_host || '127.0.0.1';
+            document.getElementById('tcpPort').value = config.ue_tcp_port || 55557;
+            document.getElementById('projectPath').value = config.project_path || '';
+            document.getElementById('widgetPath').value = config.widget_path || '/Game/Widgets';
+        }
+
+        // 更新历史记录
+        function updateHistory() {
+            fetch('/api/history')
+            .then(response => response.json())
+            .then(history => {
+                const historyList = document.getElementById('historyList');
+                historyList.innerHTML = '';
+                
+                history.slice(0, 10).forEach(item => {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'history-item';
+                    historyItem.innerHTML = `
+                        <div class="history-item-title">
+                            ${item.status === 'success' ? '✅' : '❌'} ${item.description.substring(0, 40)}...
+                        </div>
+                        <div class="history-item-meta">
+                            <span>${item.component_count || 0} components</span>
+                            <span>${new Date(item.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                    `;
+                    historyList.appendChild(historyItem);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading history:', error);
+            });
+        }
+
+        // 清空历史记录
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all history?')) {
+                fetch('/api/history', { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        updateHistory();
+                        showNotification('History cleared', 'success');
+                    }
+                })
+                .catch(error => {
+                    showNotification('Error clearing history', 'error');
+                });
+            }
+        }
+
+        // 显示设置（占位符）
+        function showSettings() {
+            showNotification('Settings panel not implemented yet', 'info');
+        }
+
+        // 显示通知
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // 页面加载完成后更新历史记录
+        window.addEventListener('load', function() {
+            setTimeout(updateHistory, 1000);
+        });
+    </script>
+</body>
+</html>

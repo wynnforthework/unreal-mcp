@@ -13,9 +13,9 @@ from typing import Dict, Any, List, Optional
 from mcp.server.fastmcp import FastMCP
 from mcp.types import Tool
 
-from .orchestrator import AgentOrchestrator, WorkflowConfig, WorkflowResult
-from .tools.figma_ui_tool import FigmaUITool
-from .tools.ue_python_tool import UEPythonTool
+from orchestrator import AgentOrchestrator, WorkflowConfig, WorkflowResult
+from tools.figma_ui_tool import FigmaUITool
+from tools.ue_python_tool import UEPythonTool
 
 
 # Initialize FastMCP server

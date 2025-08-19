@@ -16,12 +16,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
-from .base_agent import BaseAgent, AgentResult, AgentStatus
-from .communication import MessageBus, AgentEndpoint, WorkflowState, MessageType
-from .ui_parser_agent import UIParserAgent
-from .design_translator_agent import DesignTranslatorAgent
-from .ue_executor_agent import UEExecutorAgent
-from .binding_validator_agent import BindingValidatorAgent
+from base_agent import BaseAgent, AgentResult, AgentStatus
+from communication import MessageBus, AgentEndpoint, WorkflowState, MessageType
+from ui_parser_agent import UIParserAgent
+from design_translator_agent import DesignTranslatorAgent
+from ue_executor_agent import UEExecutorAgent
+from binding_validator_agent import BindingValidatorAgent
 
 
 class WorkflowStep(Enum):
