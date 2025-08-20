@@ -179,6 +179,19 @@
             color: #212529;
         }
 
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+        }
+
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
@@ -736,6 +749,12 @@
                             <button class="btn btn-primary" onclick="selectProject('${project.path}')">
                                 <i class="fas fa-check"></i> Select
                             </button>
+                            <button class="btn btn-warning" onclick="startMCPServers('${project.path}')" id="start-btn-${btoa(project.path)}">
+                                <i class="fas fa-play"></i> Start Servers
+                            </button>
+                            <button class="btn btn-info" onclick="checkServerStatus('${project.path}')" id="status-btn-${btoa(project.path)}">
+                                <i class="fas fa-heartbeat"></i> Check Status
+                            </button>
                         `}
                         <button class="btn btn-secondary" onclick="openProjectFolder('${project.path}')">
                             <i class="fas fa-folder-open"></i> Open Folder
@@ -871,6 +890,68 @@
         function openProjectFolder(projectPath) {
             // 这个功能需要桌面应用支持，这里只是提示
             showNotification(`Project path: ${projectPath}`, 'info');
+        }
+
+        // 启动 MCP 服务器
+        function startMCPServers(projectPath) {
+            const startBtn = document.getElementById(`start-btn-${btoa(projectPath)}`);
+            if (startBtn) {
+                startBtn.disabled = true;
+                startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+            }
+
+            fetch(`/api/projects/${encodeURIComponent(projectPath)}/start-servers`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('MCP servers started successfully! Check your terminal windows.', 'success');
+                    // 自动检查状态
+                    setTimeout(() => checkServerStatus(projectPath), 2000);
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error starting MCP servers:', error);
+                showNotification('Failed to start MCP servers', 'error');
+            })
+            .finally(() => {
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '<i class="fas fa-play"></i> Start Servers';
+                }
+            });
+        }
+
+        // 检查服务器状态
+        function checkServerStatus(projectPath) {
+            const statusBtn = document.getElementById(`status-btn-${btoa(projectPath)}`);
+            if (statusBtn) {
+                statusBtn.disabled = true;
+                statusBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+            }
+
+            fetch(`/api/projects/${encodeURIComponent(projectPath)}/server-status`)
+            .then(response => response.json())
+            .then(data => {
+                const statusMessage = data.running 
+                    ? `✅ ${data.total_servers} MCP servers running:\n${data.servers.join('\n')}`
+                    : '❌ No MCP servers detected';
+                
+                showNotification(statusMessage, data.running ? 'success' : 'warning');
+            })
+            .catch(error => {
+                console.error('Error checking server status:', error);
+                showNotification('Failed to check server status', 'error');
+            })
+            .finally(() => {
+                if (statusBtn) {
+                    statusBtn.disabled = false;
+                    statusBtn.innerHTML = '<i class="fas fa-heartbeat"></i> Check Status';
+                }
+            });
         }
 
         // 刷新项目列表

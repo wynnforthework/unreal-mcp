@@ -161,6 +161,27 @@ def select_project(project_path):
     else:
         return jsonify({'status': 'error', 'message': 'Project not found'}), 404
 
+@app.route('/api/projects/<path:project_path>/start-servers', methods=['POST'])
+def start_mcp_servers(project_path):
+    """启动项目的 MCP 服务器"""
+    success, message = install_manager.start_mcp_servers(project_path)
+    
+    if success:
+        return jsonify({'status': 'success', 'message': message})
+    else:
+        return jsonify({'status': 'error', 'message': message}), 400
+
+@app.route('/api/projects/<path:project_path>/server-status')
+def get_server_status(project_path):
+    """获取 MCP 服务器运行状态"""
+    running, servers = install_manager.check_mcp_servers_running(project_path)
+    
+    return jsonify({
+        'running': running,
+        'servers': servers,
+        'total_servers': len(servers)
+    })
+
 @app.route('/api/system/check')
 def check_system():
     """检查系统环境"""

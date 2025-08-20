@@ -9,6 +9,7 @@
 - **一键安装** - 单击即可安装 Unreal MCP 工具集
 - **安装状态跟踪** - 实时进度和状态更新
 - **项目切换** - 无缝切换不同项目
+- **MCP 服务器管理** - 一键启动和状态检查
 - **系统健康监控** - 检查 Python、Agents 和 UE 连接状态
 
 ### 🤖 UMG Agent 集成
@@ -80,10 +81,12 @@ python app.py
 3. 等待安装完成（自动安装依赖）
 4. 完成后状态更新为 "Installed"
 
-#### 选择项目
+#### 选择和启动项目
 1. 找到状态为 "Installed" 的项目
 2. 点击 "Select" 设为活动项目
-3. 将跳转到聊天界面
+3. 点击 "Start Servers" 启动 MCP 服务器
+4. 点击 "Check Status" 验证服务器运行状态
+5. 将跳转到聊天界面
 
 ### 2. UMG Agent 聊天界面
 
@@ -146,6 +149,8 @@ Web 界面自动管理：
 - `POST /api/projects/<path>/install` - 安装 MCP 工具
 - `GET /api/projects/<path>/status` - 获取安装状态
 - `POST /api/projects/<path>/select` - 选择活动项目
+- `POST /api/projects/<path>/start-servers` - 启动 MCP 服务器
+- `GET /api/projects/<path>/server-status` - 检查服务器状态
 
 ### 系统 API
 

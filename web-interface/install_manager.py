@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
+import socket
 
 @dataclass
 class ProjectInfo:
@@ -282,3 +283,68 @@ class InstallManager:
             "error_message": project.error_message,
             "last_updated": project.last_updated
         }
+    
+    def start_mcp_servers(self, project_path: str) -> Tuple[bool, str]:
+        """启动项目的 MCP 服务器"""
+        if project_path not in self.projects:
+            return False, "Project not found"
+        
+        project = self.projects[project_path]
+        if not project.has_mcp_tools:
+            return False, "MCP tools not installed in this project"
+        
+        project_dir = Path(project_path)
+        start_script = project_dir / "start_mcp_servers.bat"
+        
+        if not start_script.exists():
+            return False, "start_mcp_servers.bat not found"
+        
+        try:
+            # 在新的命令提示符窗口中启动批处理脚本
+            subprocess.Popen(
+                [str(start_script)],
+                cwd=str(project_dir),
+                shell=True,
+                creationflags=subprocess.CREATE_NEW_CONSOLE  # 在新窗口中打开
+            )
+            
+            return True, "MCP servers started successfully"
+            
+        except Exception as e:
+            return False, f"Failed to start MCP servers: {str(e)}"
+    
+    def check_mcp_servers_running(self, project_path: str) -> Tuple[bool, List[str]]:
+        """检查 MCP 服务器是否运行"""
+        if project_path not in self.projects:
+            return False, ["Project not found"]
+        
+        project = self.projects[project_path]
+        if not project.has_mcp_tools:
+            return False, ["MCP tools not installed"]
+        
+        # 检查常用的 MCP 服务器端口
+        mcp_ports = [
+            ("UMG MCP Server", 8001),
+            ("Blueprint MCP Server", 8002),
+            ("Editor MCP Server", 8003),
+            ("Node MCP Server", 8004),
+            ("DataTable MCP Server", 8005),
+            ("Project MCP Server", 8006),
+            ("Actor MCP Server", 8007),
+        ]
+        
+        running_servers = []
+        for server_name, port in mcp_ports:
+            try:
+                import socket
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                result = sock.connect_ex(("127.0.0.1", port))
+                sock.close()
+                
+                if result == 0:
+                    running_servers.append(f"{server_name} (port {port})")
+            except:
+                pass
+        
+        return len(running_servers) > 0, running_servers
