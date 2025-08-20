@@ -164,12 +164,25 @@ def select_project(project_path):
 @app.route('/api/projects/<path:project_path>/start-servers', methods=['POST'])
 def start_mcp_servers(project_path):
     """启动项目的 MCP 服务器"""
-    success, message = install_manager.start_mcp_servers(project_path)
-    
-    if success:
-        return jsonify({'status': 'success', 'message': message})
-    else:
-        return jsonify({'status': 'error', 'message': message}), 400
+    try:
+        print(f"🚀 Starting MCP servers for project: {project_path}")
+        
+        # 检查项目路径是否存在
+        if project_path not in install_manager.projects:
+            return jsonify({'status': 'error', 'message': 'Project not found'}), 404
+        
+        success, message = install_manager.start_mcp_servers(project_path)
+        
+        if success:
+            print(f"✅ MCP servers started successfully for: {project_path}")
+            return jsonify({'status': 'success', 'message': message})
+        else:
+            print(f"❌ Failed to start MCP servers for: {project_path} - {message}")
+            return jsonify({'status': 'error', 'message': message}), 400
+            
+    except Exception as e:
+        print(f"💥 Exception in start_mcp_servers: {str(e)}")
+        return jsonify({'status': 'error', 'message': f'Server error: {str(e)}'}), 500
 
 @app.route('/api/projects/<path:project_path>/server-status')
 def get_server_status(project_path):

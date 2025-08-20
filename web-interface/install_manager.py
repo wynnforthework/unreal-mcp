@@ -286,8 +286,25 @@ class InstallManager:
     
     def start_mcp_servers(self, project_path: str) -> Tuple[bool, str]:
         """启动项目的 MCP 服务器"""
-        if project_path not in self.projects:
-            return False, "Project not found"
+        print(f"🔍 Looking for project path: '{project_path}'")
+        print(f"📋 Available projects: {list(self.projects.keys())}")
+        
+        # 尝试多种路径匹配方式
+        target_project = None
+        normalized_path = str(Path(project_path).resolve())
+        
+        for stored_path, project in self.projects.items():
+            stored_normalized = str(Path(stored_path).resolve())
+            if (project_path == stored_path or 
+                normalized_path == stored_normalized or
+                project_path.replace('\\', '/') == stored_path.replace('\\', '/') or
+                project_path.replace('/', '\\') == stored_path.replace('/', '\\')):
+                target_project = project
+                project_path = stored_path  # 使用存储的路径
+                break
+        
+        if not target_project:
+            return False, f"Project not found. Looking for: '{project_path}', Available: {list(self.projects.keys())}"
         
         project = self.projects[project_path]
         if not project.has_mcp_tools:
@@ -296,26 +313,61 @@ class InstallManager:
         project_dir = Path(project_path)
         start_script = project_dir / "start_mcp_servers.bat"
         
+        print(f"📂 Project directory: {project_dir}")
+        print(f"📄 Start script path: {start_script}")
+        print(f"✅ Script exists: {start_script.exists()}")
+        
         if not start_script.exists():
-            return False, "start_mcp_servers.bat not found"
+            return False, f"start_mcp_servers.bat not found at: {start_script}"
         
         try:
-            # 在新的命令提示符窗口中启动批处理脚本
-            subprocess.Popen(
-                [str(start_script)],
-                cwd=str(project_dir),
-                shell=True,
-                creationflags=subprocess.CREATE_NEW_CONSOLE  # 在新窗口中打开
-            )
+            import platform
             
-            return True, "MCP servers started successfully"
+            # 在新的命令提示符窗口中启动批处理脚本
+            if platform.system() == "Windows":
+                print("🪟 Running on Windows, using CREATE_NEW_CONSOLE")
+                # Windows 系统使用 CREATE_NEW_CONSOLE
+                process = subprocess.Popen(
+                    [str(start_script)],
+                    cwd=str(project_dir),
+                    shell=True,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
+                print(f"🚀 Process started with PID: {process.pid}")
+            else:
+                print("🐧 Running on non-Windows system")
+                # 其他系统的处理方式
+                process = subprocess.Popen(
+                    [str(start_script)],
+                    cwd=str(project_dir),
+                    shell=True
+                )
+                print(f"🚀 Process started with PID: {process.pid}")
+            
+            return True, f"MCP servers started successfully (PID: {process.pid})"
             
         except Exception as e:
-            return False, f"Failed to start MCP servers: {str(e)}"
+            error_msg = f"Failed to start MCP servers: {str(e)}"
+            print(f"💥 Exception: {error_msg}")
+            return False, error_msg
     
     def check_mcp_servers_running(self, project_path: str) -> Tuple[bool, List[str]]:
         """检查 MCP 服务器是否运行"""
-        if project_path not in self.projects:
+        # 使用同样的路径匹配逻辑
+        target_project = None
+        normalized_path = str(Path(project_path).resolve())
+        
+        for stored_path, project in self.projects.items():
+            stored_normalized = str(Path(stored_path).resolve())
+            if (project_path == stored_path or 
+                normalized_path == stored_normalized or
+                project_path.replace('\\', '/') == stored_path.replace('\\', '/') or
+                project_path.replace('/', '\\') == stored_path.replace('/', '\\')):
+                target_project = project
+                project_path = stored_path
+                break
+        
+        if not target_project:
             return False, ["Project not found"]
         
         project = self.projects[project_path]

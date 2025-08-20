@@ -903,19 +903,23 @@
             fetch(`/api/projects/${encodeURIComponent(projectPath)}/start-servers`, {
                 method: 'POST'
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Start servers response status:', response.status);
+                return response.json();
+            })
             .then(data => {
+                console.log('Start servers response data:', data);
                 if (data.status === 'success') {
                     showNotification('MCP servers started successfully! Check your terminal windows.', 'success');
                     // 自动检查状态
                     setTimeout(() => checkServerStatus(projectPath), 2000);
                 } else {
-                    showNotification(data.message, 'error');
+                    showNotification(data.message || 'Unknown error', 'error');
                 }
             })
             .catch(error => {
                 console.error('Error starting MCP servers:', error);
-                showNotification('Failed to start MCP servers', 'error');
+                showNotification(`Failed to start MCP servers: ${error.message}`, 'error');
             })
             .finally(() => {
                 if (startBtn) {
