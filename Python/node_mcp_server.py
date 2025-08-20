@@ -1,10 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 from node_tools.node_tools import register_blueprint_node_tools
 
-mcp = FastMCP(
-    "nodeMCP",
-    description="Blueprint Node tools for Unreal via MCP"
-)
+mcp = FastMCP("nodeMCP")
 
 register_blueprint_node_tools(mcp)
 

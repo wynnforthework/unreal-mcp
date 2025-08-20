@@ -19,10 +19,7 @@ from tools.ue_python_tool import UEPythonTool
 
 
 # Initialize FastMCP server
-mcp = FastMCP(
-    "agentOrchestrationMCP",
-    description="Agent orchestration server for UMG Widget Blueprint generation"
-)
+mcp = FastMCP("agentOrchestrationMCP")
 
 # Global orchestrator instance
 orchestrator: Optional[AgentOrchestrator] = None

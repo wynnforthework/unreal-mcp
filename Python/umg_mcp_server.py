@@ -199,10 +199,7 @@ See the main server or tool docstrings for argument details and examples.
 from mcp.server.fastmcp import FastMCP
 from umg_tools.umg_tools import register_umg_tools
 
-mcp = FastMCP(
-    "umgMCP",
-    description="UMG (Widget) tools for Unreal via MCP"
-)
+mcp = FastMCP("umgMCP")
 
 register_umg_tools(mcp)
 
