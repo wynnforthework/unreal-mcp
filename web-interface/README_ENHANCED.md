@@ -25,7 +25,21 @@
 
 ## 🚀 快速开始
 
-### 方式 1: 增强版界面（推荐）
+### 方式 1: 一键启动（推荐）⚡
+
+**双击运行项目根目录下的批处理脚本：**
+
+```
+START_WEB_INTERFACE.bat
+```
+
+🎯 **超简单流程：**
+1. 双击 `START_WEB_INTERFACE.bat`
+2. 自动检查 Python 和依赖
+3. 自动启动 Web 界面
+4. 浏览器访问 `http://localhost:5000`
+
+### 方式 2: 手动启动增强版界面
 
 ```bash
 # 1. 进入 web-interface 目录
@@ -41,7 +55,7 @@ python app_enhanced.py
 # 访问 http://localhost:5000
 ```
 
-### 方式 2: 原版界面
+### 方式 3: 原版界面
 
 ```bash
 # 启动原版服务器

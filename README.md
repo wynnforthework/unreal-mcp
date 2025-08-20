@@ -86,7 +86,20 @@ Each guide includes natural language usage examples, advanced patterns, and real
 
 ## 🚀 Quick Start Guide
 
-### Prerequisites
+### Super Simple: One-Click Installation ⚡
+```bash
+# For Windows users - just double-click:
+ONE_CLICK_INSTALL.bat
+```
+
+### Web Interface: Visual Project Management 🌐
+```bash
+# Double-click to start the web interface:
+START_WEB_INTERFACE.bat
+# Then open http://localhost:5000 to manage projects visually
+```
+
+### Manual Setup Prerequisites
 - Unreal Engine 5.6
 - Python 3.12+
 - MCP Client (e.g., Claude Desktop, Cursor, Windsurf)
