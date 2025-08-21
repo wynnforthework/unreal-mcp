@@ -11,10 +11,10 @@ import json
 import socket
 from typing import Any, Dict, List, Optional
 
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 
 # Initialize FastMCP app
-app = FastMCP("Blueprint MCP Server")
+mcp = FastMCP("blueprintMCP")
 
 # TCP connection settings
 TCP_HOST = "127.0.0.1"
@@ -57,7 +57,7 @@ async def send_tcp_command(command_type: str, params: Dict[str, Any]) -> Dict[st
     except Exception as e:
         return {"success": False, "error": f"TCP communication error: {str(e)}"}
 
-@app.tool()
+@mcp.tool()
 async def create_blueprint(name: str, parent_class: str, folder_path: str = "") -> Dict[str, Any]:
     """
     Create a new Blueprint class.
@@ -79,7 +79,7 @@ async def create_blueprint(name: str, parent_class: str, folder_path: str = "") 
     
     return await send_tcp_command("create_blueprint", params)
 
-@app.tool()
+@mcp.tool()
 async def compile_blueprint(blueprint_name: str) -> Dict[str, Any]:
     """
     Compile a Blueprint with enhanced error reporting.
@@ -105,7 +105,7 @@ async def compile_blueprint(blueprint_name: str) -> Dict[str, Any]:
     
     return await send_tcp_command("compile_blueprint", params)
 
-@app.tool()
+@mcp.tool()
 async def add_blueprint_variable(
     blueprint_name: str, 
     variable_name: str, 
@@ -133,7 +133,7 @@ async def add_blueprint_variable(
     
     return await send_tcp_command("add_blueprint_variable", params)
 
-@app.tool()
+@mcp.tool()
 async def add_component_to_blueprint(
     blueprint_name: str,
     component_type: str,
@@ -171,7 +171,7 @@ async def add_component_to_blueprint(
     
     return await send_tcp_command("add_component_to_blueprint", params)
 
-@app.tool()
+@mcp.tool()
 async def set_component_property(
     blueprint_name: str,
     component_name: str,
@@ -203,7 +203,7 @@ async def set_component_property(
     
     return await send_tcp_command("set_component_property", params)
 
-@app.tool()
+@mcp.tool()
 async def list_blueprint_components(blueprint_name: str) -> Dict[str, Any]:
     """
     List all components in a Blueprint class.
@@ -221,4 +221,4 @@ async def list_blueprint_components(blueprint_name: str) -> Dict[str, Any]:
     return await send_tcp_command("list_blueprint_components", params)
 
 if __name__ == "__main__":
-    app.run()
+    mcp.run(transport='stdio')
