@@ -190,6 +190,9 @@ def create_requirements_file(project_dir: Path) -> bool:
     """创建Python依赖文件"""
     
     requirements_content = """# Unreal MCP 完整工具集依赖
+# 注意：此项目使用 uv 作为包管理器
+# 安装 uv: https://docs.astral.sh/uv/getting-started/installation/
+
 mcp[cli]>=1.4.1
 fastmcp>=0.2.0
 uvicorn
@@ -221,13 +224,13 @@ echo 🚀 启动 Unreal MCP 工具集...
 cd /d "{project_dir / 'Python'}"
 
 echo 启动所有 MCP 服务器...
-start "UMG MCP" cmd /k "python umg_mcp_server.py"
-start "Blueprint MCP" cmd /k "python blueprint_mcp_server.py"
-start "Editor MCP" cmd /k "python editor_mcp_server.py"
-start "Node MCP" cmd /k "python node_mcp_server.py"
-start "DataTable MCP" cmd /k "python datatable_mcp_server.py"
-start "Project MCP" cmd /k "python project_mcp_server.py"
-start "Blueprint Action MCP" cmd /k "python blueprint_action_mcp_server.py"
+start "UMG MCP" cmd /k "uv run umg_mcp_server.py"
+start "Blueprint MCP" cmd /k "uv run blueprint_mcp_server.py"
+start "Editor MCP" cmd /k "uv run editor_mcp_server.py"
+start "Node MCP" cmd /k "uv run node_mcp_server.py"
+start "DataTable MCP" cmd /k "uv run datatable_mcp_server.py"
+start "Project MCP" cmd /k "uv run project_mcp_server.py"
+start "Blueprint Action MCP" cmd /k "uv run blueprint_action_mcp_server.py"
 
 echo ✅ 所有 MCP 服务器已启动
 echo 现在可以在 AI 助手中使用 Unreal MCP 工具了！
@@ -244,36 +247,70 @@ pause
 def create_mcp_config(project_dir: Path) -> bool:
     """创建MCP配置文件"""
     
-    mcp_config = {
-        "mcpServers": {
-            "blueprintMCP": {
-                "command": "python",
-                "args": [str(project_dir / "Python" / "blueprint_mcp_server.py")]
-            },
-            "editorMCP": {
-                "command": "python", 
-                "args": [str(project_dir / "Python" / "editor_mcp_server.py")]
-            },
-            "umgMCP": {
-                "command": "python",
-                "args": [str(project_dir / "Python" / "umg_mcp_server.py")]
-            },
-            "nodeMCP": {
-                "command": "python",
-                "args": [str(project_dir / "Python" / "node_mcp_server.py")]
-            },
-            "datatableMCP": {
-                "command": "python",
-                "args": [str(project_dir / "Python" / "datatable_mcp_server.py")]
-            },
-            "projectMCP": {
-                "command": "python",
-                "args": [str(project_dir / "Python" / "project_mcp_server.py")]
-            },
-            "blueprintActionMCP": {
-                "command": "python",
-                "args": [str(project_dir / "Python" / "blueprint_action_mcp_server.py")]
-            }
+    # 定义 Unreal MCP 服务器配置
+    unreal_mcp_servers = {
+        "unrealBlueprintMCP": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                str(project_dir / "Python"),
+                "run",
+                "blueprint_mcp_server.py"
+            ]
+        },
+        "unrealEditorMCP": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                str(project_dir / "Python"),
+                "run",
+                "editor_mcp_server.py"
+            ]
+        },
+        "unrealUMGMCP": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                str(project_dir / "Python"),
+                "run",
+                "umg_mcp_server.py"
+            ]
+        },
+        "unrealNodeMCP": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                str(project_dir / "Python"),
+                "run",
+                "node_mcp_server.py"
+            ]
+        },
+        "unrealDataTableMCP": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                str(project_dir / "Python"),
+                "run",
+                "datatable_mcp_server.py"
+            ]
+        },
+        "unrealProjectMCP": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                str(project_dir / "Python"),
+                "run",
+                "project_mcp_server.py"
+            ]
+        },
+        "unrealBlueprintActionMCP": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                str(project_dir / "Python"),
+                "run",
+                "blueprint_action_mcp_server.py"
+            ]
         }
     }
     
@@ -282,17 +319,64 @@ def create_mcp_config(project_dir: Path) -> bool:
     cursor_dir.mkdir(exist_ok=True)
     cursor_config = cursor_dir / "mcp.json"
     
-    with open(cursor_config, 'w', encoding='utf-8') as f:
-        json.dump(mcp_config, f, indent=2)
+    # 检查是否已存在配置文件
+    existing_config = {}
+    if cursor_config.exists():
+        try:
+            with open(cursor_config, 'r', encoding='utf-8') as f:
+                existing_config = json.load(f)
+            print(f"📁 发现现有MCP配置: {cursor_config}")
+        except Exception as e:
+            print(f"⚠️  读取现有配置失败，将创建新配置: {e}")
+            existing_config = {}
     
-    print(f"✅ Cursor MCP配置已创建: {cursor_config}")
+    # 检查是否已安装过 Unreal MCP
+    unreal_mcp_installed = False
+    if "mcpServers" in existing_config:
+        for server_name in unreal_mcp_servers.keys():
+            if server_name in existing_config["mcpServers"]:
+                unreal_mcp_installed = True
+                break
     
-    # 通用配置文件
+    # 处理不同的安装情况
+    if unreal_mcp_installed:
+        print("🔄 检测到已安装的 Unreal MCP，正在更新配置...")
+        # 更新现有的 Unreal MCP 服务器配置
+        if "mcpServers" not in existing_config:
+            existing_config["mcpServers"] = {}
+        
+        for server_name, server_config in unreal_mcp_servers.items():
+            existing_config["mcpServers"][server_name] = server_config
+            print(f"  ✅ 更新服务器配置: {server_name}")
+    else:
+        print("🆕 创建新的 Unreal MCP 配置...")
+        # 创建新的配置或添加到现有配置
+        if "mcpServers" not in existing_config:
+            existing_config["mcpServers"] = {}
+        
+        for server_name, server_config in unreal_mcp_servers.items():
+            existing_config["mcpServers"][server_name] = server_config
+            print(f"  ✅ 添加服务器配置: {server_name}")
+    
+    # 保存更新后的配置
+    try:
+        with open(cursor_config, 'w', encoding='utf-8') as f:
+            json.dump(existing_config, f, indent=2)
+        print(f"✅ Cursor MCP配置已更新: {cursor_config}")
+    except Exception as e:
+        print(f"❌ 保存Cursor配置失败: {e}")
+        return False
+    
+    # 创建通用配置文件（用于其他AI助手）
     general_config = project_dir / "mcp_config.json"
-    with open(general_config, 'w', encoding='utf-8') as f:
-        json.dump(mcp_config, f, indent=2)
+    try:
+        with open(general_config, 'w', encoding='utf-8') as f:
+            json.dump(existing_config, f, indent=2)
+        print(f"✅ 通用MCP配置已创建: {general_config}")
+    except Exception as e:
+        print(f"❌ 保存通用配置失败: {e}")
+        return False
     
-    print(f"✅ 通用MCP配置已创建: {general_config}")
     return True
 
 
@@ -310,6 +394,10 @@ def create_quick_start_guide(project_dir: Path) -> bool:
 ### 1. 安装 Python 依赖
 ```bash
 cd "{project_dir / 'Python'}"
+# 使用 uv 安装依赖（推荐）
+uv sync
+
+# 或者使用 pip（如果未安装 uv）
 pip install -r requirements.txt
 ```
 
@@ -327,13 +415,13 @@ pip install -r requirements.txt
 或手动启动：
 ```bash
 cd "{project_dir / 'Python'}"
-python umg_mcp_server.py
-python blueprint_mcp_server.py
-python editor_mcp_server.py
-python node_mcp_server.py
-python datatable_mcp_server.py
-python project_mcp_server.py
-python blueprint_action_mcp_server.py
+uv run umg_mcp_server.py
+uv run blueprint_mcp_server.py
+uv run editor_mcp_server.py
+uv run node_mcp_server.py
+uv run datatable_mcp_server.py
+uv run project_mcp_server.py
+uv run blueprint_action_mcp_server.py
 ```
 
 ### 4. 配置 AI 助手
