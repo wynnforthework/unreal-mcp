@@ -853,13 +853,15 @@
                 return;
             }
 
+            showNotification(i18n.t('starting_with_editor'), 'info');
+
             fetch(`/api/projects/${projectId}/install`, {
                 method: 'POST'
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    showNotification('Installation started...', 'info');
+                    showNotification(i18n.t('installation_with_editor'), 'success');
                     loadProjects(); // 刷新显示安装状态
                 } else {
                     showNotification(data.message, 'error');
@@ -929,6 +931,8 @@
                 startBtn.disabled = true;
                 startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
             }
+
+            showNotification(i18n.t('starting_with_editor'), 'info');
 
             fetch(`/api/projects/${projectId}/start-servers`, {
                 method: 'POST'

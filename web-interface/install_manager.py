@@ -13,6 +13,8 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 import socket
+import platform
+import time
 
 @dataclass
 class ProjectInfo:
@@ -40,6 +42,83 @@ class InstallManager:
         # 使用项目名称和路径的组合生成唯一ID
         id_source = f"{project_name}:{project_path}"
         return hashlib.md5(id_source.encode('utf-8')).hexdigest()[:12]
+    
+    def is_unreal_editor_running(self) -> bool:
+        """检查 Unreal Editor 是否正在运行"""
+        try:
+            if platform.system() == "Windows":
+                result = subprocess.run(
+                    ["tasklist", "/FI", "IMAGENAME eq UnrealEditor.exe"],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                return "UnrealEditor.exe" in result.stdout
+            else:
+                # Linux/Mac 系统
+                result = subprocess.run(
+                    ["pgrep", "-f", "UnrealEditor"],
+                    capture_output=True,
+                    text=True
+                )
+                return result.returncode == 0
+        except Exception as e:
+            print(f"Error checking Unreal Editor status: {e}")
+            return False
+    
+    def close_unreal_editor(self) -> Tuple[bool, str]:
+        """关闭 Unreal Editor"""
+        try:
+            if platform.system() == "Windows":
+                result = subprocess.run(
+                    ["taskkill", "/F", "/IM", "UnrealEditor.exe"],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0:
+                    return True, "Unreal Editor closed successfully"
+                else:
+                    return False, "No Unreal Editor process found or failed to close"
+            else:
+                # Linux/Mac 系统
+                result = subprocess.run(
+                    ["pkill", "-f", "UnrealEditor"],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0:
+                    return True, "Unreal Editor closed successfully"
+                else:
+                    return False, "No Unreal Editor process found or failed to close"
+        except Exception as e:
+            return False, f"Error closing Unreal Editor: {str(e)}"
+    
+    def open_unreal_editor(self, project_path: str) -> Tuple[bool, str]:
+        """打开 Unreal Editor 并加载指定项目"""
+        try:
+            project_dir = Path(project_path)
+            uproject_files = list(project_dir.glob("*.uproject"))
+            
+            if not uproject_files:
+                return False, "No .uproject file found in the project directory"
+            
+            uproject_file = uproject_files[0]
+            
+            if platform.system() == "Windows":
+                # Windows: 使用 start 命令打开
+                subprocess.Popen([
+                    "start", "", str(uproject_file)
+                ], shell=True)
+            else:
+                # Linux/Mac: 直接打开
+                subprocess.Popen([
+                    str(uproject_file)
+                ])
+            
+            return True, f"Unreal Editor opened with project: {uproject_file.name}"
+            
+        except Exception as e:
+            return False, f"Error opening Unreal Editor: {str(e)}"
     
     def load_projects(self):
         """加载项目配置"""
@@ -219,6 +298,17 @@ class InstallManager:
         self.save_projects()
         
         try:
+            # 检查并关闭 UE 编辑器
+            if self.is_unreal_editor_running():
+                print("🔄 Unreal Editor is running, closing it before installation...")
+                success, message = self.close_unreal_editor()
+                if not success:
+                    return False, f"Failed to close Unreal Editor: {message}"
+                
+                # 等待编辑器完全关闭
+                print("⏳ Waiting for Unreal Editor to close...")
+                time.sleep(3)
+            
             # 获取 install_to_project.py 的路径
             install_script = Path(__file__).parent.parent / "install_to_project.py"
             if not install_script.exists():
@@ -321,6 +411,19 @@ class InstallManager:
         if not project.has_mcp_tools:
             return False, "MCP tools not installed in this project"
         
+        # 检查并启动 UE 编辑器
+        if not self.is_unreal_editor_running():
+            print("🔄 Unreal Editor is not running, opening it with the project...")
+            success, message = self.open_unreal_editor(project_path)
+            if not success:
+                return False, f"Failed to open Unreal Editor: {message}"
+            
+            # 等待编辑器启动
+            print("⏳ Waiting for Unreal Editor to start...")
+            time.sleep(5)
+        else:
+            print("✅ Unreal Editor is already running")
+        
         project_dir = Path(project_path)
         start_script = project_dir / "start_mcp_servers.bat"
         
@@ -332,8 +435,6 @@ class InstallManager:
             return False, f"start_mcp_servers.bat not found at: {start_script}"
         
         try:
-            import platform
-            
             # 在新的命令提示符窗口中启动批处理脚本
             if platform.system() == "Windows":
                 print("🪟 Running on Windows, using CREATE_NEW_CONSOLE")
