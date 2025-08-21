@@ -1,12 +1,66 @@
 {
   "mcpServers": {
-    "unrealMCP": {
+    "unrealBlueprintMCP": {
       "command": "uv",
       "args": [
         "--directory",
-        "E:\\code\\unreal-mcp\\Python",
+        "D:\\Unreal Projects\\LuckyDragon\\Python",
+        "run",
+        "blueprint_mcp_server.py"
+      ]
+    },
+    "unrealEditorMCP": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "D:\\Unreal Projects\\LuckyDragon\\Python",
+        "run",
+        "editor_mcp_server.py"
+      ]
+    },
+    "unrealUMGMCP": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "D:\\Unreal Projects\\LuckyDragon\\Python",
+        "run",
+        "umg_mcp_server.py"
+      ]
+    },
+    "unrealNodeMCP": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "D:\\Unreal Projects\\LuckyDragon\\Python",
+        "run",
+        "node_mcp_server.py"
+      ]
+    },
+    "unrealDataTableMCP": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "D:\\Unreal Projects\\LuckyDragon\\Python",
+        "run",
+        "datatable_mcp_server.py"
+      ]
+    },
+    "unrealProjectMCP": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "D:\\Unreal Projects\\LuckyDragon\\Python",
         "run",
         "project_mcp_server.py"
+      ]
+    },
+    "unrealBlueprintActionMCP": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "D:\\Unreal Projects\\LuckyDragon\\Python",
+        "run",
+        "blueprint_action_mcp_server.py"
       ]
     }
   }
