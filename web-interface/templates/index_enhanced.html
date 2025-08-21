@@ -785,6 +785,9 @@
                             <button class="btn btn-info" onclick="checkServerStatus('${project.id}')" id="status-btn-${project.id}">
                                 <i class="fas fa-heartbeat"></i> ${i18n.t('check_status')}
                             </button>
+                            <button class="btn btn-success" onclick="reinstallMCPTools('${project.id}')" title="重新安装/更新MCP工具">
+                                <i class="fas fa-sync-alt"></i> 更新MCP
+                            </button>
                         `}
                         <button class="btn btn-secondary" onclick="openProjectFolder('${project.path}')">
                             <i class="fas fa-folder-open"></i> ${i18n.t('open_folder')}
@@ -870,6 +873,33 @@
             .catch(error => {
                 console.error('Failed to start installation:', error);
                 showNotification('Failed to start installation', 'error');
+            });
+        }
+
+        // 重新安装 MCP 工具
+        function reinstallMCPTools(projectId) {
+            if (!systemStatus.python) {
+                showNotification(i18n.t('python_required'), 'error');
+                return;
+            }
+
+            showNotification(i18n.t('starting_with_editor'), 'info');
+
+            fetch(`/api/projects/${projectId}/reinstall`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification(i18n.t('reinstall_with_editor'), 'success');
+                    loadProjects(); // 刷新显示安装状态
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Failed to reinstall MCP tools:', error);
+                showNotification('Failed to reinstall MCP tools', 'error');
             });
         }
 

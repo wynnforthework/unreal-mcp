@@ -235,7 +235,7 @@ class UEExecutorAgent(BaseAgent):
                 result = await self._send_ue_command("create_parent_and_child_widget_components", command_params)
             else:
                 # Use direct component creation
-                result = await self._send_ue_command("add_widget_component", command_params)
+                result = await self._send_ue_command("add_widget_component_to_widget", command_params)
             
             if result.get("success", False):
                 self.logger.debug(f"Created component: {component_name} ({component_type})")
@@ -278,12 +278,12 @@ class UEExecutorAgent(BaseAgent):
                 # Create event binding
                 command_params = {
                     "widget_name": widget_name,
-                    "component_name": widget_component_name,
-                    "event_type": event_type,
+                    "widget_component_name": widget_component_name,
+                    "event_name": event_type,
                     "function_name": function_name
                 }
                 
-                result = await self._send_ue_command("bind_widget_event", command_params)
+                result = await self._send_ue_command("bind_widget_component_event", command_params)
                 
                 if result.get("success", False):
                     self.logger.debug(f"Created event binding: {widget_component_name}.{event_type} -> {function_name}")

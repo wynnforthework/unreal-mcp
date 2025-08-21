@@ -140,6 +140,40 @@ def install_project(project_id):
     
     return jsonify({'status': 'success', 'message': 'Installation started'})
 
+@app.route('/api/projects/<project_id>/reinstall', methods=['POST'])
+def reinstall_project(project_id):
+    """重新安装 MCP 工具到项目"""
+    # 异步重新安装
+    def reinstall_async():
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            success, message = loop.run_until_complete(
+                install_manager.reinstall_mcp_tools(project_id)
+            )
+            
+            # 通过 WebSocket 发送重新安装结果
+            socketio.emit('reinstallation_result', {
+                'project_id': project_id,
+                'success': success,
+                'message': message
+            })
+            
+        except Exception as e:
+            socketio.emit('reinstallation_result', {
+                'project_id': project_id,
+                'success': False,
+                'message': str(e)
+            })
+    
+    # 在新线程中运行重新安装
+    thread = threading.Thread(target=reinstall_async)
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({'status': 'success', 'message': 'Reinstallation started'})
+
 @app.route('/api/projects/<project_id>/status')
 def get_project_status(project_id):
     """获取项目安装状态"""
@@ -358,7 +392,21 @@ def handle_generate_ui(data):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
-            result = loop.run_until_complete(async_generate_ui(description))
+            # 添加超时处理
+            try:
+                result = loop.run_until_complete(asyncio.wait_for(async_generate_ui(description), timeout=60.0))
+            except asyncio.TimeoutError:
+                socketio.emit('ui_generation_result', {
+                    'status': 'error',
+                    'error': 'UI generation timed out after 60 seconds'
+                }, room=request.sid)
+                return
+            except Exception as e:
+                socketio.emit('ui_generation_result', {
+                    'status': 'error',
+                    'error': f'UI generation failed: {str(e)}'
+                }, room=request.sid)
+                return
             
             # 发送结果
             socketio.emit('ui_generation_result', result, room=request.sid)

@@ -615,6 +615,17 @@
                 return;
             }
             
+            // 检查项目路径是否有效
+            if (currentProject.trim() === '') {
+                showNotification('Invalid project path', 'error');
+                addChatMessage({
+                    type: 'error',
+                    content: 'Invalid project path. Please select a valid project.',
+                    timestamp: new Date().toISOString()
+                });
+                return;
+            }
+            
             const input = document.getElementById('messageInput');
             const description = input.value.trim();
             

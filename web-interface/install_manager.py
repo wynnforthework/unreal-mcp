@@ -356,6 +356,92 @@ class InstallManager:
             self.save_projects()
             
             return False, str(e)
+
+    async def reinstall_mcp_tools(self, project_id: str) -> Tuple[bool, str]:
+        """重新安装 MCP 工具（更新现有安装）"""
+        if project_id not in self.projects:
+            return False, "Project not found"
+        
+        project = self.projects[project_id]
+        project_path = project.path
+        project.status = "installing"
+        project.error_message = ""
+        self.save_projects()
+        
+        try:
+            print(f"🔄 Reinstalling MCP tools for project: {project.name}")
+            
+            # 检查并关闭 UE 编辑器
+            if self.is_unreal_editor_running():
+                print("🔄 Unreal Editor is running, closing it before reinstallation...")
+                success, message = self.close_unreal_editor()
+                if not success:
+                    return False, f"Failed to close Unreal Editor: {message}"
+                
+                # 等待编辑器完全关闭
+                print("⏳ Waiting for Unreal Editor to close...")
+                time.sleep(3)
+            
+            # 获取 install_to_project.py 的路径
+            install_script = Path(__file__).parent.parent / "install_to_project.py"
+            if not install_script.exists():
+                raise FileNotFoundError("install_to_project.py not found")
+            
+            # 执行安装脚本（重新安装会覆盖现有文件）
+            result = await asyncio.create_subprocess_exec(
+                "python", str(install_script), project_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await result.communicate()
+            
+            if result.returncode == 0:
+                # 重新安装成功，更新 Python 依赖
+                python_dir = Path(project_path) / "Python"
+                if python_dir.exists():
+                    # 先卸载旧版本，再安装新版本
+                    try:
+                        uninstall_result = await asyncio.create_subprocess_exec(
+                            "pip", "uninstall", "-y", "unreal-mcp",
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                            cwd=str(python_dir)
+                        )
+                        await uninstall_result.communicate()
+                    except:
+                        pass  # 忽略卸载错误
+                    
+                    # 安装新版本
+                    pip_result = await asyncio.create_subprocess_exec(
+                        "pip", "install", "-r", str(python_dir / "requirements.txt"),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(python_dir)
+                    )
+                    
+                    await pip_result.communicate()
+                
+                project.status = "installed"
+                project.has_mcp_tools = True
+                project.last_updated = datetime.now().isoformat()
+                self.save_projects()
+                
+                return True, "MCP tools reinstalled successfully"
+            else:
+                error_msg = stderr.decode('utf-8') if stderr else "Reinstallation failed"
+                project.status = "error"
+                project.error_message = error_msg
+                self.save_projects()
+                
+                return False, error_msg
+                
+        except Exception as e:
+            project.status = "error"
+            project.error_message = str(e)
+            self.save_projects()
+            
+            return False, str(e)
     
     def check_python_dependencies(self) -> Tuple[bool, str]:
         """检查 Python 环境"""
