@@ -221,7 +221,7 @@ def register_blueprint_tools(mcp: FastMCP):
         ctx: Context,
         blueprint_name: str,
         component_name: str,
-        **kwargs
+        properties: str
     ) -> Dict[str, Any]:
         """
         Set one or more properties on a specific component within a UMG Widget Blueprint.
@@ -229,7 +229,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Parameters:
             blueprint_name: Name of the target Blueprint
             component_name: Name of the component to modify
-            kwargs: Properties to set as a JSON string. Must be formatted as a valid JSON string.
+            properties: JSON string containing properties to set. Must be formatted as a valid JSON string.
                    Example format: '{"PropertyName": value}'
                 
                 Light Component Properties:
@@ -303,9 +303,17 @@ def register_blueprint_tools(mcp: FastMCP):
             set_component_property(
                 blueprint_name="BP_DialogueNPC",
                 component_name="InteractionSphere",
-                kwargs='{"SphereRadius": 100.0}'  # Correct! Use JSON string
+                properties='{"SphereRadius": 100.0}'  # Correct! Use JSON string
             )
         """
+        import json
+        
+        # Parse properties JSON string
+        try:
+            kwargs = json.loads(properties)
+        except json.JSONDecodeError as e:
+            return {"success": False, "error": f"Invalid JSON in properties: {str(e)}"}
+        
         return set_component_property_impl(ctx, blueprint_name, component_name, **kwargs)
     
     @mcp.tool()

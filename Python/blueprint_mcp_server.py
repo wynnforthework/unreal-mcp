@@ -175,7 +175,7 @@ async def add_component_to_blueprint(
 async def set_component_property(
     blueprint_name: str,
     component_name: str,
-    **kwargs
+    properties: str
 ) -> Dict[str, Any]:
     """
     Set properties on a Blueprint component.
@@ -183,15 +183,22 @@ async def set_component_property(
     Args:
         blueprint_name: Name of the target Blueprint
         component_name: Name of the component to modify
-        **kwargs: Properties to set (passed as JSON string)
+        properties: JSON string containing properties to set (e.g., '{"SphereRadius": 100.0, "Color": [1.0, 0.0, 0.0, 1.0]}')
     
     Returns:
         Dictionary containing success status and property results
     """
+    import json
+    
+    try:
+        properties_dict = json.loads(properties)
+    except json.JSONDecodeError as e:
+        return {"success": False, "error": f"Invalid JSON in properties: {str(e)}"}
+    
     params = {
         "blueprint_name": blueprint_name,
         "component_name": component_name,
-        "kwargs": json.dumps(kwargs)
+        "kwargs": json.dumps(properties_dict)
     }
     
     return await send_tcp_command("set_component_property", params)
