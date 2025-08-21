@@ -782,8 +782,14 @@
                             <button class="btn btn-warning" onclick="startMCPServers('${project.id}')" id="start-btn-${project.id}">
                                 <i class="fas fa-play"></i> ${i18n.t('start_servers')}
                             </button>
+                            <button class="btn btn-danger" onclick="stopMCPServers('${project.id}')" id="stop-btn-${project.id}">
+                                <i class="fas fa-stop"></i> ${i18n.t('stop_servers')}
+                            </button>
                             <button class="btn btn-info" onclick="checkServerStatus('${project.id}')" id="status-btn-${project.id}">
                                 <i class="fas fa-heartbeat"></i> ${i18n.t('check_status')}
+                            </button>
+                            <button class="btn btn-secondary" onclick="checkDetailedMCPStatus('${project.id}')" id="detailed-status-btn-${project.id}">
+                                <i class="fas fa-list"></i> ${i18n.t('detailed_status')}
                             </button>
                             <button class="btn btn-success" onclick="reinstallMCPTools('${project.id}')" title="重新安装/更新MCP工具">
                                 <i class="fas fa-sync-alt"></i> 更新MCP
@@ -993,6 +999,39 @@
             });
         }
 
+        // 停止 MCP 服务器
+        function stopMCPServers(projectId) {
+            const stopBtn = document.getElementById(`stop-btn-${projectId}`);
+            if (stopBtn) {
+                stopBtn.disabled = true;
+                stopBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Stopping...';
+            }
+
+            showNotification(i18n.t('stopping_servers'), 'info');
+
+            fetch(`/api/projects/${projectId}/stop-servers`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification(i18n.t('servers_stopped'), 'success');
+                } else {
+                    showNotification(data.message || i18n.t('unknown_error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping MCP servers:', error);
+                showNotification(`${i18n.t('failed_stop_servers')}: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                if (stopBtn) {
+                    stopBtn.disabled = false;
+                    stopBtn.innerHTML = `<i class="fas fa-stop"></i> ${i18n.t('stop_servers')}`;
+                }
+            });
+        }
+
         // 检查服务器状态
         function checkServerStatus(projectId) {
             const statusBtn = document.getElementById(`status-btn-${projectId}`);
@@ -1018,6 +1057,44 @@
                 if (statusBtn) {
                     statusBtn.disabled = false;
                     statusBtn.innerHTML = `<i class="fas fa-heartbeat"></i> ${i18n.t('check_status')}`;
+                }
+            });
+        }
+
+        // 检查详细 MCP 状态
+        function checkDetailedMCPStatus(projectId) {
+            const detailedStatusBtn = document.getElementById(`detailed-status-btn-${projectId}`);
+            if (detailedStatusBtn) {
+                detailedStatusBtn.disabled = true;
+                detailedStatusBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+            }
+
+            fetch(`/api/projects/${projectId}/check-mcp-status`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const statusInfo = data.status_info;
+                    let statusMessage = `📊 MCP Status Report:\n`;
+                    statusMessage += `Running: ${statusInfo.running_count}/${statusInfo.total_servers} servers\n\n`;
+                    
+                    statusInfo.servers.forEach(server => {
+                        const icon = server.status === 'running' ? '✅' : '❌';
+                        statusMessage += `${icon} ${server.name}: ${server.status}\n`;
+                    });
+                    
+                    showNotification(statusMessage, statusInfo.running ? 'success' : 'warning');
+                } else {
+                    showNotification(data.message || i18n.t('unknown_error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error checking detailed MCP status:', error);
+                showNotification(`${i18n.t('failed_check_detailed_status')}: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                if (detailedStatusBtn) {
+                    detailedStatusBtn.disabled = false;
+                    detailedStatusBtn.innerHTML = `<i class="fas fa-list"></i> ${i18n.t('detailed_status')}`;
                 }
             });
         }

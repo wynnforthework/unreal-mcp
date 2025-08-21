@@ -230,6 +230,51 @@ def get_server_status(project_id):
         'total_servers': len(servers)
     })
 
+@app.route('/api/projects/<project_id>/stop-servers', methods=['POST'])
+def stop_mcp_servers(project_id):
+    """停止项目的 MCP 服务器"""
+    try:
+        print(f"🛑 Stopping MCP servers for project ID: {project_id}")
+        
+        # 检查项目ID是否存在
+        if project_id not in install_manager.projects:
+            return jsonify({'status': 'error', 'message': 'Project not found'}), 404
+        
+        success, message = install_manager.stop_mcp_servers(project_id)
+        
+        if success:
+            print(f"✅ MCP servers stopped successfully for: {project_id}")
+            return jsonify({'status': 'success', 'message': message})
+        else:
+            print(f"❌ Failed to stop MCP servers for: {project_id} - {message}")
+            return jsonify({'status': 'error', 'message': message}), 400
+            
+    except Exception as e:
+        print(f"💥 Exception in stop_mcp_servers: {str(e)}")
+        return jsonify({'status': 'error', 'message': f'Server error: {str(e)}'}), 500
+
+@app.route('/api/projects/<project_id>/check-mcp-status')
+def check_mcp_status(project_id):
+    """检查项目的 MCP 服务器详细状态"""
+    try:
+        print(f"📊 Checking MCP status for project ID: {project_id}")
+        
+        # 检查项目ID是否存在
+        if project_id not in install_manager.projects:
+            return jsonify({'status': 'error', 'message': 'Project not found'}), 404
+        
+        status_info = install_manager.get_detailed_mcp_status(project_id)
+        
+        return jsonify({
+            'status': 'success',
+            'project_id': project_id,
+            'status_info': status_info
+        })
+        
+    except Exception as e:
+        print(f"💥 Exception in check_mcp_status: {str(e)}")
+        return jsonify({'status': 'error', 'message': f'Server error: {str(e)}'}), 500
+
 @app.route('/api/system/check')
 def check_system():
     """检查系统环境"""

@@ -584,3 +584,168 @@ class InstallManager:
                 pass
         
         return len(running_servers) > 0, running_servers
+
+    def stop_mcp_servers(self, project_id: str) -> Tuple[bool, str]:
+        """停止项目的 MCP 服务器"""
+        print(f"🛑 Stopping MCP servers for project ID: '{project_id}'")
+        
+        if project_id not in self.projects:
+            return False, f"Project not found. Looking for: '{project_id}', Available: {list(self.projects.keys())}"
+        
+        project = self.projects[project_id]
+        project_path = project.path
+        if not project.has_mcp_tools:
+            return False, "MCP tools not installed in this project"
+        
+        project_dir = Path(project_path)
+        stop_script = project_dir / "stop_mcp_servers.bat"
+        
+        print(f"📂 Project directory: {project_dir}")
+        print(f"📄 Stop script path: {stop_script}")
+        print(f"✅ Script exists: {stop_script.exists()}")
+        
+        if not stop_script.exists():
+            return False, f"stop_mcp_servers.bat not found at: {stop_script}"
+        
+        try:
+            # 运行停止脚本
+            if platform.system() == "Windows":
+                print("🪟 Running stop script on Windows")
+                result = subprocess.run(
+                    [str(stop_script)],
+                    cwd=str(project_dir),
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+            else:
+                print("🐧 Running stop script on non-Windows system")
+                result = subprocess.run(
+                    [str(stop_script)],
+                    cwd=str(project_dir),
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+            
+            if result.returncode == 0:
+                return True, "MCP servers stopped successfully"
+            else:
+                return False, f"Failed to stop MCP servers: {result.stderr}"
+            
+        except subprocess.TimeoutExpired:
+            return False, "Timeout while stopping MCP servers"
+        except Exception as e:
+            error_msg = f"Failed to stop MCP servers: {str(e)}"
+            print(f"💥 Exception: {error_msg}")
+            return False, error_msg
+
+    def get_detailed_mcp_status(self, project_id: str) -> Dict[str, any]:
+        """获取项目的 MCP 服务器详细状态"""
+        print(f"📊 Getting detailed MCP status for project ID: '{project_id}'")
+        
+        if project_id not in self.projects:
+            return {
+                "error": "Project not found",
+                "running": False,
+                "servers": []
+            }
+        
+        project = self.projects[project_id]
+        if not project.has_mcp_tools:
+            return {
+                "error": "MCP tools not installed",
+                "running": False,
+                "servers": []
+            }
+        
+        project_dir = Path(project.path)
+        status_script = project_dir / "check_mcp_status.bat"
+        
+        # 如果状态检查脚本存在，使用它
+        if status_script.exists():
+            try:
+                if platform.system() == "Windows":
+                    result = subprocess.run(
+                        [str(status_script)],
+                        cwd=str(project_dir),
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                else:
+                    result = subprocess.run(
+                        [str(status_script)],
+                        cwd=str(project_dir),
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                
+                # 解析输出
+                output = result.stdout
+                servers_status = []
+                running_count = 0
+                
+                # 解析脚本输出
+                for line in output.split('\n'):
+                    if '[RUNNING]' in line:
+                        server_name = line.split('[RUNNING]')[1].strip()
+                        servers_status.append({
+                            "name": server_name,
+                            "status": "running"
+                        })
+                        running_count += 1
+                    elif '[STOPPED]' in line:
+                        server_name = line.split('[STOPPED]')[1].strip()
+                        servers_status.append({
+                            "name": server_name,
+                            "status": "stopped"
+                        })
+                
+                return {
+                    "running": running_count > 0,
+                    "running_count": running_count,
+                    "total_servers": 7,
+                    "servers": servers_status,
+                    "output": output
+                }
+                
+            except Exception as e:
+                print(f"💥 Exception running status script: {str(e)}")
+                # 如果脚本执行失败，回退到端口检查
+                pass
+        
+        # 回退到端口检查方法
+        running, servers = self.check_mcp_servers_running(project_id)
+        
+        # 构建详细的服务器状态
+        all_servers = [
+            "UMG MCP Server",
+            "Blueprint MCP Server", 
+            "Editor MCP Server",
+            "Node MCP Server",
+            "DataTable MCP Server",
+            "Project MCP Server",
+            "Blueprint Action MCP Server"
+        ]
+        
+        servers_status = []
+        for server in all_servers:
+            is_running = any(server in running_server for running_server in servers)
+            servers_status.append({
+                "name": server,
+                "status": "running" if is_running else "stopped"
+            })
+        
+        return {
+            "running": running,
+            "running_count": len(servers),
+            "total_servers": len(all_servers),
+            "servers": servers_status,
+            "method": "port_check"
+        }

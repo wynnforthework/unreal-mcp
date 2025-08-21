@@ -220,27 +220,237 @@ def create_startup_scripts(project_dir: Path) -> bool:
     
     # Windows 启动脚本
     startup_bat = f"""@echo off
-echo 🚀 启动 Unreal MCP 工具集...
-cd /d "{project_dir / 'Python'}"
+chcp 65001 >nul
+setlocal enabledelayedexpansion
 
-echo 启动所有 MCP 服务器...
-start "UMG MCP" cmd /k "uv run umg_mcp_server.py"
-start "Blueprint MCP" cmd /k "uv run blueprint_mcp_server.py"
-start "Editor MCP" cmd /k "uv run editor_mcp_server.py"
-start "Node MCP" cmd /k "uv run node_mcp_server.py"
-start "DataTable MCP" cmd /k "uv run datatable_mcp_server.py"
-start "Project MCP" cmd /k "uv run project_mcp_server.py"
-start "Blueprint Action MCP" cmd /k "uv run blueprint_action_mcp_server.py"
+echo ========================================
+echo    Unreal MCP Server Manager
+echo ========================================
 
-echo ✅ 所有 MCP 服务器已启动
-echo 现在可以在 AI 助手中使用 Unreal MCP 工具了！
+:: Set Python directory
+set PYTHON_DIR={project_dir / 'Python'}
+cd /d "%PYTHON_DIR%"
+
+:: Check parameters
+if "%1"=="stop" goto :stop_servers
+if "%1"=="status" goto :check_status
+
+:: Default: start servers
+goto :start_servers
+
+:start_servers
+echo [INFO] Checking existing MCP server processes...
+
+:: Stop existing MCP server processes
+echo [INFO] Stopping existing processes...
+taskkill /f /im python.exe /fi "WINDOWTITLE eq *MCP*" >nul 2>&1
+taskkill /f /im uv.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+
+echo.
+echo [INFO] Starting all MCP servers...
+
+:: Start all MCP servers
+start "UMG MCP Server" cmd /k "title UMG MCP Server && echo Starting UMG MCP Server... && uv run umg_mcp_server.py"
+timeout /t 1 /nobreak >nul
+
+start "Blueprint MCP Server" cmd /k "title Blueprint MCP Server && echo Starting Blueprint MCP Server... && uv run blueprint_mcp_server.py"
+timeout /t 1 /nobreak >nul
+
+start "Editor MCP Server" cmd /k "title Editor MCP Server && echo Starting Editor MCP Server... && uv run editor_mcp_server.py"
+timeout /t 1 /nobreak >nul
+
+start "Node MCP Server" cmd /k "title Node MCP Server && echo Starting Node MCP Server... && uv run node_mcp_server.py"
+timeout /t 1 /nobreak >nul
+
+start "DataTable MCP Server" cmd /k "title DataTable MCP Server && echo Starting DataTable MCP Server... && uv run datatable_mcp_server.py"
+timeout /t 1 /nobreak >nul
+
+start "Project MCP Server" cmd /k "title Project MCP Server && echo Starting Project MCP Server... && uv run project_mcp_server.py"
+timeout /t 1 /nobreak >nul
+
+start "Blueprint Action MCP Server" cmd /k "title Blueprint Action MCP Server && echo Starting Blueprint Action MCP Server... && uv run blueprint_action_mcp_server.py"
+
+echo.
+echo [SUCCESS] All MCP servers started successfully!
+echo.
+echo [USAGE] Instructions:
+echo   - Closing this window will NOT stop the servers
+echo   - Run "%~f0 stop" to stop all servers
+echo   - Run "%~f0 status" to check server status
+echo.
+echo [READY] You can now use Unreal MCP tools in your AI assistant!
+echo.
+pause
+goto :end
+
+:stop_servers
+echo [INFO] Stopping all MCP servers...
+taskkill /f /im python.exe /fi "WINDOWTITLE eq *MCP*" >nul 2>&1
+taskkill /f /im uv.exe >nul 2>&1
+echo [SUCCESS] All MCP servers stopped
+pause
+goto :end
+
+:check_status
+echo [INFO] Checking MCP server status...
+echo.
+echo Current running MCP server processes:
+echo -------------------------------------
+
+:: Check server processes
+set "found=0"
+
+:: Check all MCP related processes
+tasklist /fi "WINDOWTITLE eq *MCP*" /fo csv | find "python.exe" >nul
+if !errorlevel! equ 0 (
+    echo [FOUND] Running MCP server processes detected
+    set "found=1"
+) else (
+    echo [NOT FOUND] No running MCP server processes
+)
+
+echo.
+if !found! equ 1 (
+    echo [STATUS] Some servers are running
+) else (
+    echo [STATUS] No servers are running
+)
+pause
+goto :end
+
+:end
+endlocal
+"""
+    
+    # 停止脚本
+    stop_bat = f"""@echo off
+chcp 65001 >nul
+echo ========================================
+echo    Stop All Unreal MCP Servers
+echo ========================================
+
+echo [INFO] Stopping all MCP server processes...
+
+:: Stop all MCP related Python processes
+taskkill /f /im python.exe /fi "WINDOWTITLE eq *MCP*" >nul 2>&1
+taskkill /f /im uv.exe >nul 2>&1
+
+:: Wait for processes to fully stop
+timeout /t 2 /nobreak >nul
+
+echo [SUCCESS] All MCP servers stopped
+echo.
+echo [TIP] Run start_mcp_servers.bat to restart servers
 pause
 """
     
+    # 状态检查脚本
+    status_bat = f"""@echo off
+chcp 65001 >nul
+echo ========================================
+echo    Unreal MCP Server Status Check
+echo ========================================
+
+echo [INFO] Checking current running MCP server processes:
+echo.
+
+:: Check each server process
+set "running_count=0"
+
+:: Check UMG MCP
+tasklist /fi "WINDOWTITLE eq UMG MCP Server*" /fo csv | find "python.exe" >nul
+if %errorlevel% equ 0 (
+    echo [RUNNING] UMG MCP Server
+    set /a running_count+=1
+) else (
+    echo [STOPPED] UMG MCP Server
+)
+
+:: Check Blueprint MCP
+tasklist /fi "WINDOWTITLE eq Blueprint MCP Server*" /fo csv | find "python.exe" >nul
+if %errorlevel% equ 0 (
+    echo [RUNNING] Blueprint MCP Server
+    set /a running_count+=1
+) else (
+    echo [STOPPED] Blueprint MCP Server
+)
+
+:: Check Editor MCP
+tasklist /fi "WINDOWTITLE eq Editor MCP Server*" /fo csv | find "python.exe" >nul
+if %errorlevel% equ 0 (
+    echo [RUNNING] Editor MCP Server
+    set /a running_count+=1
+) else (
+    echo [STOPPED] Editor MCP Server
+)
+
+:: Check Node MCP
+tasklist /fi "WINDOWTITLE eq Node MCP Server*" /fo csv | find "python.exe" >nul
+if %errorlevel% equ 0 (
+    echo [RUNNING] Node MCP Server
+    set /a running_count+=1
+) else (
+    echo [STOPPED] Node MCP Server
+)
+
+:: Check DataTable MCP
+tasklist /fi "WINDOWTITLE eq DataTable MCP Server*" /fo csv | find "python.exe" >nul
+if %errorlevel% equ 0 (
+    echo [RUNNING] DataTable MCP Server
+    set /a running_count+=1
+) else (
+    echo [STOPPED] DataTable MCP Server
+)
+
+:: Check Project MCP
+tasklist /fi "WINDOWTITLE eq Project MCP Server*" /fo csv | find "python.exe" >nul
+if %errorlevel% equ 0 (
+    echo [RUNNING] Project MCP Server
+    set /a running_count+=1
+) else (
+    echo [STOPPED] Project MCP Server
+)
+
+:: Check Blueprint Action MCP
+tasklist /fi "WINDOWTITLE eq Blueprint Action MCP Server*" /fo csv | find "python.exe" >nul
+if %errorlevel% equ 0 (
+    echo [RUNNING] Blueprint Action MCP Server
+    set /a running_count+=1
+) else (
+    echo [STOPPED] Blueprint Action MCP Server
+)
+
+echo.
+echo [SUMMARY] Status Summary:
+if %running_count% equ 7 (
+    echo [SUCCESS] All 7 MCP servers are running normally
+) else if %running_count% gtr 0 (
+    echo [WARNING] %running_count% servers running, %running_count% stopped
+) else (
+    echo [ERROR] No MCP servers are running
+)
+
+echo.
+echo [TIPS] Commands:
+echo - Run start_mcp_servers.bat to start all servers
+echo - Run stop_mcp_servers.bat to stop all servers
+pause
+"""
+    
+    # 创建所有脚本
     startup_script = project_dir / "start_mcp_servers.bat"
     startup_script.write_text(startup_bat, encoding='utf-8')
     
+    stop_script = project_dir / "stop_mcp_servers.bat"
+    stop_script.write_text(stop_bat, encoding='utf-8')
+    
+    status_script = project_dir / "check_mcp_status.bat"
+    status_script.write_text(status_bat, encoding='utf-8')
+    
     print(f"✅ 启动脚本已创建: {startup_script}")
+    print(f"✅ 停止脚本已创建: {stop_script}")
+    print(f"✅ 状态检查脚本已创建: {status_script}")
     return True
 
 
@@ -412,6 +622,18 @@ pip install -r requirements.txt
 {project_dir / 'start_mcp_servers.bat'}
 ```
 
+或使用参数：
+```bash
+# 启动所有服务器
+{project_dir / 'start_mcp_servers.bat'}
+
+# 停止所有服务器
+{project_dir / 'start_mcp_servers.bat'} stop
+
+# 检查服务器状态
+{project_dir / 'start_mcp_servers.bat'} status
+```
+
 或手动启动：
 ```bash
 cd "{project_dir / 'Python'}"
@@ -572,7 +794,9 @@ def main():
         print("  - UnrealMCP C++ 插件")
         print("  - 7个 MCP 服务器（UMG、Blueprint、Editor等）")
         print("  - Agent 自动化系统")
-        print("  - 启动脚本 (start_mcp_servers.bat)")
+        print("  - 智能启动脚本 (start_mcp_servers.bat)")
+        print("  - 停止脚本 (stop_mcp_servers.bat)")
+        print("  - 状态检查脚本 (check_mcp_status.bat)")
         print("  - MCP 配置文件")
         print("  - 快速开始指南 (QUICK_START.md)")
         
@@ -583,8 +807,11 @@ def main():
         print("   pip install -r requirements.txt")
         print("3. 双击运行启动脚本：")
         print(f"   {project_dir / 'start_mcp_servers.bat'}")
-        print("4. 在 Cursor 中开始使用！")
-        print(f"5. 查看详细说明：{project_dir / 'QUICK_START.md'}")
+        print("4. 使用参数管理服务器：")
+        print(f"   {project_dir / 'start_mcp_servers.bat'} stop    # 停止服务器")
+        print(f"   {project_dir / 'start_mcp_servers.bat'} status  # 检查状态")
+        print("5. 在 Cursor 中开始使用！")
+        print(f"6. 查看详细说明：{project_dir / 'QUICK_START.md'}")
     else:
         print("❌ 安装过程中出现错误，请检查上述错误信息")
 
