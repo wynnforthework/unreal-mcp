@@ -16,6 +16,7 @@ from utils.datatable.datatable_utils import (
 
 def register_datatable_tools(mcp: 'FastMCP'):
     """Register DataTable-related tools with the MCP server."""
+    print("[INFO] DataTable tools registered successfully")
     
     @mcp.tool()
     def create_datatable(

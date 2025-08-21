@@ -23,6 +23,7 @@ logger = logging.getLogger("UnrealMCP")
 
 def register_blueprint_action_tools(mcp: FastMCP):
     """Register blueprint action tools with the MCP server."""
+    print("[INFO] Blueprint Action tools registered successfully")
 
     @mcp.tool()
     def get_actions_for_pin(

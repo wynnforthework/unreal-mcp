@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 def register_blueprint_node_tools(mcp: FastMCP):
     """Register all blueprint node tools with the MCP server."""
+    print("[INFO] Node tools registered successfully")
     
     # REMOVED: Event nodes now handled by create_node_by_action_name
     # @mcp.tool()
