@@ -11,6 +11,8 @@
 
 </div>
 
+en [English](README.en.md) 英文版内容更丰富和详细
+
 ## 🎯 项目简介
 
 Unreal MCP 是一个革命性的工具，让 AI 助手（如 Cursor、Claude Desktop、Windsurf）能够通过自然语言直接控制虚幻引擎。通过 Model Context Protocol (MCP)，您可以：
