@@ -23,6 +23,7 @@ logger = logging.getLogger("UnrealMCP")
 
 def register_blueprint_action_tools(mcp: FastMCP):
     """Register blueprint action tools with the MCP server."""
+    print("[INFO] Blueprint Action tools registered successfully")
 
     @mcp.tool()
     def get_actions_for_pin(
@@ -155,14 +156,31 @@ def register_blueprint_action_tools(mcp: FastMCP):
         blueprint_name: str = None
     ) -> Dict[str, Any]:
         """
-        Search for Blueprint actions using keywords.
+        Search for EXISTING Blueprint actions/nodes using keywords.
         
-        This tool provides a general search interface for finding Blueprint actions by name,
-        category, keywords, or tooltip text. It's similar to typing in the search box in
-        Unreal's Blueprint editor context menu.
+        IMPORTANT: This tool ONLY searches for existing Blueprint nodes and functions that are 
+        already available in Unreal Engine's FBlueprintActionDatabase. It searches built-in 
+        engine functionality like math operations, engine functions, and existing Blueprint nodes.
+        
+        DO NOT use this tool to search for:
+        - Custom functions you want to create
+        - Custom events you want to create  
+        - Custom Blueprint logic that doesn't exist yet
+        - Concepts like "custom function", "my function", etc.
+        
+        USE this tool to find:
+        - Built-in math operations (add, multiply, etc.)
+        - Engine functions (GetActorLocation, SetActorLocation, etc.)
+        - Flow control nodes (Branch, Sequence, etc.)
+        - Existing Blueprint nodes and functions
+        
+        If you want to CREATE custom functionality, use create_node_by_action_name directly
+        with the appropriate node type (like "CustomEvent" for custom events).
+        
+        This tool is similar to typing in the search box in Unreal's Blueprint editor context menu.
         
         Args:
-            search_query: Search string to find actions (searches in name, keywords, category, tooltip)
+            search_query: Search string to find EXISTING actions (searches in name, keywords, category, tooltip)
             category: Optional category filter (Flow Control, Math, Utilities, etc.)
             max_results: Maximum number of results to return (default: 50)
             blueprint_name: Optional name of the Blueprint asset for local variable discovery
@@ -170,23 +188,23 @@ def register_blueprint_action_tools(mcp: FastMCP):
         Returns:
             Dict containing:
                 - success: Boolean indicating if the operation succeeded
-                - actions: List of matching actions with title, tooltip, category, keywords
+                - actions: List of matching EXISTING actions with title, tooltip, category, keywords
                 - search_query: The search query that was used
                 - category_filter: The category filter that was applied
                 - action_count: Number of actions found
                 - message: Status message
         
         Examples:
-            # Search for math operations
+            # Search for existing math operations
             search_blueprint_actions(search_query="add")
             
-            # Search for flow control nodes
+            # Search for existing flow control nodes
             search_blueprint_actions(search_query="branch", category="Flow Control")
             
-            # Search for print functions
+            # Search for existing print functions
             search_blueprint_actions(search_query="print")
             
-            # Search for variable nodes in a Blueprint
+            # Search for existing variable nodes in a Blueprint
             search_blueprint_actions(search_query="myvar", blueprint_name="BP_TestActor")
         """
         return search_blueprint_actions_impl(ctx, search_query, category, max_results, blueprint_name)
@@ -194,20 +212,16 @@ def register_blueprint_action_tools(mcp: FastMCP):
     @mcp.tool()
     def get_node_pin_info(
         ctx: Context,
-        node_name: str, 
+        node_name: str,
         pin_name: str
     ) -> Dict[str, Any]:
         """
         Get specific information about a Blueprint node's pin including expected types.
-
-        This tool provides detailed information about what a specific pin on a specific node
-        expects or outputs, including the data type, whether it's required, input/output direction,
-        and a description of its purpose.
-
+        
         Args:
             node_name: Name of the Blueprint node (e.g., "Create Widget", "Get Controller", "Cast to PlayerController")
             pin_name: Name of the specific pin (e.g., "Owning Player", "Class", "Return Value", "Target")
-
+        
         Returns:
             Dict containing:
                 - success: Boolean indicating if the operation succeeded
@@ -221,16 +235,16 @@ def register_blueprint_action_tools(mcp: FastMCP):
                     - is_input: Whether it's an input (true) or output (false) pin
                 - message: Status message
                 - available_pins: List of available pins if the node is known but pin is not found
-
+        
         Examples:
-            # Find out what the "Owning Player" pin expects on Create Widget
+            # Get info about the Class pin on Create Widget node
+            get_node_pin_info(node_name="Create Widget", pin_name="Class")
+            
+            # Get info about the Target pin on Get Controller node
+            get_node_pin_info(node_name="Get Controller", pin_name="Target")
+            
+            # Get info about the Owning Player pin on Create Widget node
             get_node_pin_info(node_name="Create Widget", pin_name="Owning Player")
-            
-            # Check what Get Controller returns
-            get_node_pin_info(node_name="Get Controller", pin_name="Return Value")
-            
-            # Understand Cast to PlayerController inputs
-            get_node_pin_info(node_name="Cast to PlayerController", pin_name="Object")
         """
         return get_node_pin_info_impl(ctx, node_name, pin_name)
 
@@ -242,7 +256,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         class_name: str = "",
         node_position: List[float] = None,
         target_graph: str = None,
-        **kwargs
+        additional_parameters: str = "{}"
     ) -> Dict[str, Any]:
         """
         Create a blueprint node by discovered action/function name.
@@ -265,7 +279,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
             class_name: Optional class name (supports both short names like "KismetMathLibrary" 
                        and full paths like "/Script/Engine.KismetMathLibrary")
             node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
-            **kwargs: Additional parameters for special nodes (e.g., target_type="PlayerController" for Cast nodes)
+            additional_parameters: JSON string containing additional parameters for special nodes (e.g., '{"target_type": "PlayerController"}' for Cast nodes)
 
         Returns:
             Dict containing:
@@ -323,4 +337,12 @@ def register_blueprint_action_tools(mcp: FastMCP):
             # search_blueprint_actions(search_query="float", category="Math") 
             # Then use the discovered function names
         """
+        import json
+        
+        # Parse additional parameters
+        try:
+            kwargs = json.loads(additional_parameters)
+        except json.JSONDecodeError as e:
+            return {"success": False, "error": f"Invalid JSON in additional_parameters: {str(e)}"}
+        
         return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, target_graph=target_graph, **kwargs) 

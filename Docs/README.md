@@ -21,6 +21,7 @@ The Unreal MCP system provides powerful tools for controlling Unreal Engine thro
 ### Additional Resources
 
 - **[Tools](Tools/README.md)** - Technical implementation details and tool references
+- **[AI Integration Guide](AI_INTEGRATION_GUIDE_ZH.md)** - How to configure AI assistants (Cursor, Claude Desktop, Windsurf) to use unreal-mcp tools
 
 ## Getting Started
 

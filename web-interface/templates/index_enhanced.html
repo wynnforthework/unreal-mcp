@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unreal MCP - Project Manager</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="/static/i18n.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff4444;
+        }
+
+        .status-indicator.ok {
+            background: #44ff44;
+        }
+
+        .main-container {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .welcome-section {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .welcome-section h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .welcome-section p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .action-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #ffd700;
+        }
+
+        .card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+        }
+
+        .card p {
+            margin-bottom: 1.5rem;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .language-switcher {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .language-switcher label {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .language-switcher select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .language-switcher select option {
+            background: #333;
+            color: white;
+        }
+
+        .projects-section {
+            margin-top: 3rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .project-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .project-card.installing {
+            border-color: #ffc107;
+            animation: pulse 2s infinite;
+        }
+
+        .project-card.installed {
+            border-color: #28a745;
+        }
+
+        .project-card.error {
+            border-color: #dc3545;
+        }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .project-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .project-path {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            word-break: break-all;
+        }
+
+        .project-status {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-configured {
+            background: rgba(108, 117, 125, 0.3);
+            color: #6c757d;
+        }
+
+        .status-installing {
+            background: rgba(255, 193, 7, 0.3);
+            color: #ffc107;
+        }
+
+        .status-installed {
+            background: rgba(40, 167, 69, 0.3);
+            color: #28a745;
+        }
+
+        .status-error {
+            background: rgba(220, 53, 69, 0.3);
+            color: #dc3545;
+        }
+
+        .project-meta {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .project-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .project-actions .btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: white;
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+            z-index: 1100;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            max-width: 400px;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: #28a745;
+        }
+
+        .notification.error {
+            background: #dc3545;
+        }
+
+        .notification.info {
+            background: #17a2b8;
+        }
+
+        .notification.warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            opacity: 0.7;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .action-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section-header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .project-actions {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            <i class="fas fa-gamepad"></i>
+            <span data-i18n="header_title">Unreal MCP - 项目管理器</span>
+        </h1>
+        <div class="header-controls">
+            <div class="system-status">
+                <div class="status-item">
+                    <div class="status-indicator" id="pythonStatus"></div>
+                    <span data-i18n="python_status">Python</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-indicator" id="agentsStatus"></div>
+                    <span data-i18n="agents_status">Agents</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-indicator" id="ueStatus"></div>
+                    <span data-i18n="ue_status">UE连接</span>
+                </div>
+            </div>
+            <button class="btn btn-secondary" onclick="checkSystem()">
+                <i class="fas fa-sync"></i> Check System
+            </button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="welcome-section">
+            <h2 data-i18n="welcome_title">🚀 欢迎使用 Unreal MCP</h2>
+            <p data-i18n="welcome_desc">
+                管理您的 Unreal Engine 项目并安装 MCP 工具，实现 AI 驱动的开发。选择现有项目或添加新项目以开始使用。
+            </p>
+        </div>
+
+        <div class="action-cards">
+            <div class="card">
+                <div class="card-icon">
+                    <i class="fas fa-plus-circle"></i>
+                </div>
+                <h3 data-i18n="add_project_title">添加新项目</h3>
+                <p data-i18n="add_project_desc">添加现有的 Unreal Engine 项目以开始使用 AI 助手的 MCP 工具。</p>
+                <button class="btn btn-primary" onclick="showAddProjectModal()">
+                    <i class="fas fa-plus"></i> <span data-i18n="add_project_btn">添加项目</span>
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <h3 data-i18n="chat_interface_title">UMG 聊天界面</h3>
+                <p data-i18n="chat_interface_desc">使用聊天界面通过自然语言命令生成 UI 组件。</p>
+                <a href="/chat" class="btn btn-primary">
+                    <i class="fas fa-comments"></i> <span data-i18n="open_chat_btn">打开聊天</span>
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">
+                    <i class="fas fa-book"></i>
+                </div>
+                <h3 data-i18n="documentation_title">文档</h3>
+                <p data-i18n="documentation_desc">学习如何使用 Unreal MCP 工具并将它们与 AI 助手集成。</p>
+                <button class="btn btn-primary" onclick="openDocumentation()">
+                    <i class="fas fa-external-link-alt"></i> <span data-i18n="view_docs_btn">查看文档</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="projects-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <i class="fas fa-folder-open"></i>
+                    <span data-i18n="projects_section_title">项目管理</span>
+                </div>
+                <button class="btn btn-secondary" onclick="refreshProjects()">
+                    <i class="fas fa-sync"></i> <span data-i18n="refresh_projects">刷新项目</span>
+                </button>
+            </div>
+
+            <div id="projectsContainer">
+                <div class="loading-container" style="text-align: center; padding: 2rem;">
+                    <div class="loading"></div>
+                    <p style="margin-top: 1rem;">Loading projects...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加项目模态框 -->
+    <div id="addProjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fas fa-plus-circle"></i>
+                    <span data-i18n="add_project_modal_title">添加新项目</span>
+                </div>
+                <button class="close" onclick="closeAddProjectModal()">&times;</button>
+            </div>
+            <form id="addProjectForm">
+                <div class="form-group">
+                    <label for="projectPath" data-i18n="project_path_label">项目路径:</label>
+                    <input 
+                        type="text" 
+                        id="projectPath" 
+                        data-i18n-placeholder="project_path_placeholder"
+                        placeholder="输入 Unreal Engine 项目文件夹路径"
+                        required
+                    >
+                    <small style="opacity: 0.7; margin-top: 0.5rem; display: block;">
+                        Enter the path to your Unreal Engine project folder
+                    </small>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddProjectModal()">
+                        <span data-i18n="cancel">取消</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> <span data-i18n="add">添加</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket连接
+        const socket = io();
+        let systemStatus = {
+            python: false,
+            agents: false,
+            ue: false
+        };
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化国际化
+            i18n.init();
+            
+            setupEventListeners();
+            checkSystem();
+            loadProjects();
+        });
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // Socket事件监听
+            socket.on('connected', function(data) {
+                console.log('Connected to server:', data);
+                systemStatus.ue = data.is_ue_connected;
+                systemStatus.agents = data.agents_available;
+                updateSystemStatus();
+            });
+
+            socket.on('installation_result', function(data) {
+                console.log('Installation result:', data);
+                showNotification(
+                    data.message,
+                    data.success ? 'success' : 'error'
+                );
+                loadProjects(); // 刷新项目列表
+            });
+
+            // 表单提交
+            document.getElementById('addProjectForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addProject();
+            });
+        }
+
+        // 检查系统状态
+        function checkSystem() {
+            fetch('/api/system/check')
+            .then(response => response.json())
+            .then(data => {
+                systemStatus.python = data.python.available;
+                systemStatus.agents = data.agents.available;
+                updateSystemStatus();
+                
+                if (!data.python.available) {
+                    showNotification('Python not available: ' + data.python.message, 'warning');
+                }
+                if (!data.agents.available) {
+                    showNotification('UMG Agents not available: ' + data.agents.message, 'info');
+                }
+            })
+            .catch(error => {
+                console.error('System check failed:', error);
+                showNotification('System check failed', 'error');
+            });
+        }
+
+        // 更新系统状态指示器
+        function updateSystemStatus() {
+            document.getElementById('pythonStatus').className = 
+                'status-indicator' + (systemStatus.python ? ' ok' : '');
+            document.getElementById('agentsStatus').className = 
+                'status-indicator' + (systemStatus.agents ? ' ok' : '');
+            document.getElementById('ueStatus').className = 
+                'status-indicator' + (systemStatus.ue ? ' ok' : '');
+        }
+
+        // 加载项目列表
+        function loadProjects() {
+            fetch('/api/projects')
+            .then(response => response.json())
+            .then(projects => {
+                renderProjects(projects);
+            })
+            .catch(error => {
+                console.error('Failed to load projects:', error);
+                showNotification('Failed to load projects', 'error');
+            });
+        }
+
+        // 渲染项目列表
+        function renderProjects(projects) {
+            const container = document.getElementById('projectsContainer');
+            
+            if (projects.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open"></i>
+                        <h3>${i18n.t('no_projects')}</h3>
+                        <p>Add your first Unreal Engine project to get started with MCP tools.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const projectsGrid = document.createElement('div');
+            projectsGrid.className = 'projects-grid';
+
+            projects.forEach(project => {
+                const projectCard = document.createElement('div');
+                projectCard.className = `project-card ${project.status}`;
+                
+                const statusClass = `status-${project.status}`;
+                const statusText = project.status.charAt(0).toUpperCase() + project.status.slice(1);
+                
+                projectCard.innerHTML = `
+                    <div class="project-header">
+                        <div>
+                            <div class="project-name">${project.name}</div>
+                            <div class="project-path">${project.path}</div>
+                        </div>
+                        <div class="project-status ${statusClass}">${statusText}</div>
+                    </div>
+                    
+                    <div class="project-meta">
+                        <div><i class="fas fa-code"></i> ${project.ue_version}</div>
+                        <div><i class="fas fa-clock"></i> ${new Date(project.last_updated).toLocaleDateString()}</div>
+                        <div><i class="fas fa-tools"></i> ${project.has_mcp_tools ? 'MCP Installed' : 'No MCP'}</div>
+                    </div>
+                    
+                    ${project.error_message ? `
+                        <div style="background: rgba(220, 53, 69, 0.2); padding: 0.5rem; border-radius: 5px; margin-bottom: 1rem; font-size: 0.9rem;">
+                            <i class="fas fa-exclamation-triangle"></i> ${project.error_message}
+                        </div>
+                    ` : ''}
+                    
+                    <div class="project-actions">
+                        ${!project.has_mcp_tools ? `
+                            <button class="btn btn-success" onclick="installMCPTools('${project.id}')" ${project.status === 'installing' ? 'disabled' : ''}>
+                                ${project.status === 'installing' ? '<div class="loading"></div>' : '<i class="fas fa-download"></i>'} 
+                                ${project.status === 'installing' ? i18n.t('installing') : i18n.t('install_mcp')}
+                            </button>
+                        ` : `
+                            <button class="btn btn-primary" onclick="selectProject('${project.id}')">
+                                <i class="fas fa-check"></i> ${i18n.t('select_project')}
+                            </button>
+                            <button class="btn btn-warning" onclick="startMCPServers('${project.id}')" id="start-btn-${project.id}">
+                                <i class="fas fa-play"></i> ${i18n.t('start_servers')}
+                            </button>
+                            <button class="btn btn-info" onclick="checkServerStatus('${project.id}')" id="status-btn-${project.id}">
+                                <i class="fas fa-heartbeat"></i> ${i18n.t('check_status')}
+                            </button>
+                        `}
+                        <button class="btn btn-secondary" onclick="openProjectFolder('${project.path}')">
+                            <i class="fas fa-folder-open"></i> ${i18n.t('open_folder')}
+                        </button>
+                        <button class="btn btn-danger" onclick="removeProject('${project.id}')">
+                            <i class="fas fa-trash"></i> ${i18n.t('remove_project')}
+                        </button>
+                    </div>
+                `;
+                
+                projectsGrid.appendChild(projectCard);
+            });
+
+            container.innerHTML = '';
+            container.appendChild(projectsGrid);
+        }
+
+        // 显示添加项目模态框
+        function showAddProjectModal() {
+            document.getElementById('addProjectModal').style.display = 'block';
+            document.getElementById('projectPath').focus();
+        }
+
+        // 关闭添加项目模态框
+        function closeAddProjectModal() {
+            document.getElementById('addProjectModal').style.display = 'none';
+            document.getElementById('addProjectForm').reset();
+        }
+
+        // 添加项目
+        function addProject() {
+            const path = document.getElementById('projectPath').value.trim();
+            
+            if (!path) {
+                showNotification(i18n.t('project_path_required'), 'error');
+                return;
+            }
+
+            fetch('/api/projects', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ path: path })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification(i18n.t('project_added'), 'success');
+                    closeAddProjectModal();
+                    loadProjects();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Failed to add project:', error);
+                showNotification('Failed to add project', 'error');
+            });
+        }
+
+        // 安装 MCP 工具
+        function installMCPTools(projectId) {
+            if (!systemStatus.python) {
+                showNotification(i18n.t('python_required'), 'error');
+                return;
+            }
+
+            showNotification(i18n.t('starting_with_editor'), 'info');
+
+            fetch(`/api/projects/${projectId}/install`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification(i18n.t('installation_with_editor'), 'success');
+                    loadProjects(); // 刷新显示安装状态
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Failed to start installation:', error);
+                showNotification('Failed to start installation', 'error');
+            });
+        }
+
+        // 选择项目
+        function selectProject(projectId) {
+            fetch(`/api/projects/${projectId}/select`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('Project selected', 'success');
+                    // 跳转到聊天界面
+                    window.location.href = '/chat';
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Failed to select project:', error);
+                showNotification('Failed to select project', 'error');
+            });
+        }
+
+        // 移除项目
+        function removeProject(projectId) {
+            if (!confirm(i18n.t('remove_project_confirm'))) {
+                return;
+            }
+
+            fetch(`/api/projects/${projectId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('Project removed', 'success');
+                    loadProjects();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Failed to remove project:', error);
+                showNotification('Failed to remove project', 'error');
+            });
+        }
+
+        // 打开项目文件夹
+        function openProjectFolder(projectPath) {
+            // 这个功能需要桌面应用支持，这里只是提示
+            showNotification(`Project path: ${projectPath}`, 'info');
+        }
+
+        // 启动 MCP 服务器
+        function startMCPServers(projectId) {
+            const startBtn = document.getElementById(`start-btn-${projectId}`);
+            if (startBtn) {
+                startBtn.disabled = true;
+                startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+            }
+
+            showNotification(i18n.t('starting_with_editor'), 'info');
+
+            fetch(`/api/projects/${projectId}/start-servers`, {
+                method: 'POST'
+            })
+            .then(response => {
+                console.log('Start servers response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Start servers response data:', data);
+                if (data.status === 'success') {
+                    showNotification(i18n.t('servers_started'), 'success');
+                    // 自动检查状态
+                    setTimeout(() => checkServerStatus(projectId), 2000);
+                } else {
+                    showNotification(data.message || i18n.t('unknown_error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error starting MCP servers:', error);
+                showNotification(`${i18n.t('failed_start_servers')}: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = `<i class="fas fa-play"></i> ${i18n.t('start_servers')}`;
+                }
+            });
+        }
+
+        // 检查服务器状态
+        function checkServerStatus(projectId) {
+            const statusBtn = document.getElementById(`status-btn-${projectId}`);
+            if (statusBtn) {
+                statusBtn.disabled = true;
+                statusBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+            }
+
+            fetch(`/api/projects/${projectId}/server-status`)
+            .then(response => response.json())
+            .then(data => {
+                const statusMessage = data.running 
+                    ? `✅ ${data.total_servers} ${i18n.t('servers_running')}:\n${data.servers.join('\n')}`
+                    : `❌ ${i18n.t('no_servers_detected')}`;
+                
+                showNotification(statusMessage, data.running ? 'success' : 'warning');
+            })
+            .catch(error => {
+                console.error('Error checking server status:', error);
+                showNotification(i18n.t('failed_check_status'), 'error');
+            })
+            .finally(() => {
+                if (statusBtn) {
+                    statusBtn.disabled = false;
+                    statusBtn.innerHTML = `<i class="fas fa-heartbeat"></i> ${i18n.t('check_status')}`;
+                }
+            });
+        }
+
+        // 刷新项目列表
+        function refreshProjects() {
+            loadProjects();
+        }
+
+        // 打开文档
+        function openDocumentation() {
+            // 这里可以链接到文档
+            showNotification('Documentation feature coming soon', 'info');
+        }
+
+        // 显示通知
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
+            }, 4000);
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('addProjectModal');
+            if (event.target === modal) {
+                closeAddProjectModal();
+            }
+        };
+    </script>
+</body>
+</html>

@@ -21,7 +21,8 @@ from utils.blueprints.blueprint_operations import (
     add_interface_to_blueprint as add_interface_to_blueprint_impl,
     create_blueprint_interface as create_blueprint_interface_impl,
     list_blueprint_components as list_blueprint_components_impl,
-    create_custom_blueprint_function as create_custom_blueprint_function_impl
+    create_custom_blueprint_function as create_custom_blueprint_function_impl,
+    call_blueprint_function as call_blueprint_function_impl
 )
 
 # Get logger
@@ -220,7 +221,7 @@ def register_blueprint_tools(mcp: FastMCP):
         ctx: Context,
         blueprint_name: str,
         component_name: str,
-        **kwargs
+        properties: str
     ) -> Dict[str, Any]:
         """
         Set one or more properties on a specific component within a UMG Widget Blueprint.
@@ -228,7 +229,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Parameters:
             blueprint_name: Name of the target Blueprint
             component_name: Name of the component to modify
-            kwargs: Properties to set as a JSON string. Must be formatted as a valid JSON string.
+            properties: JSON string containing properties to set. Must be formatted as a valid JSON string.
                    Example format: '{"PropertyName": value}'
                 
                 Light Component Properties:
@@ -302,9 +303,17 @@ def register_blueprint_tools(mcp: FastMCP):
             set_component_property(
                 blueprint_name="BP_DialogueNPC",
                 component_name="InteractionSphere",
-                kwargs='{"SphereRadius": 100.0}'  # Correct! Use JSON string
+                properties='{"SphereRadius": 100.0}'  # Correct! Use JSON string
             )
         """
+        import json
+        
+        # Parse properties JSON string
+        try:
+            kwargs = json.loads(properties)
+        except json.JSONDecodeError as e:
+            return {"success": False, "error": f"Invalid JSON in properties: {str(e)}"}
+        
         return set_component_property_impl(ctx, blueprint_name, component_name, **kwargs)
     
     @mcp.tool()
@@ -429,12 +438,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Call a BlueprintCallable function by name on the specified target.
         Only supports FString parameters for now.
         """
-        payload = {
-            "target_name": target_name,
-            "function_name": function_name,
-            "string_params": string_params or []
-        }
-        return ctx.mcp.command("call_function_by_name", payload)
+        return call_blueprint_function_impl(ctx, target_name, function_name, string_params)
     
     @mcp.tool()
     def add_interface_to_blueprint(

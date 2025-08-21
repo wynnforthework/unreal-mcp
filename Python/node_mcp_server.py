@@ -1,10 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 from node_tools.node_tools import register_blueprint_node_tools
 
-mcp = FastMCP(
-    "nodeMCP",
-    description="Blueprint Node tools for Unreal via MCP"
-)
+mcp = FastMCP("nodeMCP")
 
 register_blueprint_node_tools(mcp)
 
@@ -47,6 +44,7 @@ The following tools have been **consolidated into Blueprint Action Commands**:
 - ~~`add_blueprint_event_node`~~ → Use `create_node_by_action_name` with event names
 - ~~`add_blueprint_function_node`~~ → Use `create_node_by_action_name` with function names
 - ~~`add_blueprint_custom_event_node`~~ → Use `create_node_by_action_name` with "CustomEvent"
+- ~~`add_blueprint_input_action_node`~~ → Use `create_node_by_action_name` with "EnhancedInputAction {ActionName}"
 
 ### Examples
 
@@ -74,6 +72,12 @@ create_node_by_action_name(
     blueprint_name="BP_Calculator", 
     function_name="SelectFloat",
     class_name="KismetMathLibrary"
+)
+
+# Enhanced Input Action nodes
+create_node_by_action_name(
+    blueprint_name="BP_Player",
+    function_name="EnhancedInputAction IA_Jump"
 )
 ```
 
