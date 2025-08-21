@@ -6,6 +6,7 @@
     <title>Unreal MCP - Project Manager</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="/static/i18n.js"></script>
     <style>
         * {
             margin: 0;
@@ -195,6 +196,32 @@
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+
+        .language-switcher {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .language-switcher label {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .language-switcher select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .language-switcher select option {
+            background: #333;
+            color: white;
         }
 
         .projects-section {
@@ -484,21 +511,21 @@
     <div class="header">
         <h1>
             <i class="fas fa-gamepad"></i>
-            Unreal MCP - Project Manager
+            <span data-i18n="header_title">Unreal MCP - 项目管理器</span>
         </h1>
         <div class="header-controls">
             <div class="system-status">
                 <div class="status-item">
                     <div class="status-indicator" id="pythonStatus"></div>
-                    <span>Python</span>
+                    <span data-i18n="python_status">Python</span>
                 </div>
                 <div class="status-item">
                     <div class="status-indicator" id="agentsStatus"></div>
-                    <span>Agents</span>
+                    <span data-i18n="agents_status">Agents</span>
                 </div>
                 <div class="status-item">
                     <div class="status-indicator" id="ueStatus"></div>
-                    <span>UE Connection</span>
+                    <span data-i18n="ue_status">UE连接</span>
                 </div>
             </div>
             <button class="btn btn-secondary" onclick="checkSystem()">
@@ -509,10 +536,9 @@
 
     <div class="main-container">
         <div class="welcome-section">
-            <h2>🚀 Welcome to Unreal MCP</h2>
-            <p>
-                Manage your Unreal Engine projects and install MCP tools for AI-powered development.
-                Select an existing project or add a new one to get started.
+            <h2 data-i18n="welcome_title">🚀 欢迎使用 Unreal MCP</h2>
+            <p data-i18n="welcome_desc">
+                管理您的 Unreal Engine 项目并安装 MCP 工具，实现 AI 驱动的开发。选择现有项目或添加新项目以开始使用。
             </p>
         </div>
 
@@ -521,10 +547,10 @@
                 <div class="card-icon">
                     <i class="fas fa-plus-circle"></i>
                 </div>
-                <h3>Add New Project</h3>
-                <p>Add an existing Unreal Engine project to start using MCP tools with AI assistants.</p>
+                <h3 data-i18n="add_project_title">添加新项目</h3>
+                <p data-i18n="add_project_desc">添加现有的 Unreal Engine 项目以开始使用 AI 助手的 MCP 工具。</p>
                 <button class="btn btn-primary" onclick="showAddProjectModal()">
-                    <i class="fas fa-plus"></i> Add Project
+                    <i class="fas fa-plus"></i> <span data-i18n="add_project_btn">添加项目</span>
                 </button>
             </div>
 
@@ -532,10 +558,10 @@
                 <div class="card-icon">
                     <i class="fas fa-comments"></i>
                 </div>
-                <h3>UMG Chat Interface</h3>
-                <p>Use the chat interface to generate UI components with natural language commands.</p>
+                <h3 data-i18n="chat_interface_title">UMG 聊天界面</h3>
+                <p data-i18n="chat_interface_desc">使用聊天界面通过自然语言命令生成 UI 组件。</p>
                 <a href="/chat" class="btn btn-primary">
-                    <i class="fas fa-comments"></i> Open Chat
+                    <i class="fas fa-comments"></i> <span data-i18n="open_chat_btn">打开聊天</span>
                 </a>
             </div>
 
@@ -543,10 +569,10 @@
                 <div class="card-icon">
                     <i class="fas fa-book"></i>
                 </div>
-                <h3>Documentation</h3>
-                <p>Learn how to use Unreal MCP tools and integrate them with AI assistants.</p>
+                <h3 data-i18n="documentation_title">文档</h3>
+                <p data-i18n="documentation_desc">学习如何使用 Unreal MCP 工具并将它们与 AI 助手集成。</p>
                 <button class="btn btn-primary" onclick="openDocumentation()">
-                    <i class="fas fa-external-link-alt"></i> View Docs
+                    <i class="fas fa-external-link-alt"></i> <span data-i18n="view_docs_btn">查看文档</span>
                 </button>
             </div>
         </div>
@@ -555,10 +581,10 @@
             <div class="section-header">
                 <div class="section-title">
                     <i class="fas fa-folder-open"></i>
-                    Your Projects
+                    <span data-i18n="projects_section_title">项目管理</span>
                 </div>
                 <button class="btn btn-secondary" onclick="refreshProjects()">
-                    <i class="fas fa-sync"></i> Refresh
+                    <i class="fas fa-sync"></i> <span data-i18n="refresh_projects">刷新项目</span>
                 </button>
             </div>
 
@@ -577,17 +603,18 @@
             <div class="modal-header">
                 <div class="modal-title">
                     <i class="fas fa-plus-circle"></i>
-                    Add New Project
+                    <span data-i18n="add_project_modal_title">添加新项目</span>
                 </div>
                 <button class="close" onclick="closeAddProjectModal()">&times;</button>
             </div>
             <form id="addProjectForm">
                 <div class="form-group">
-                    <label for="projectPath">Project Path:</label>
+                    <label for="projectPath" data-i18n="project_path_label">项目路径:</label>
                     <input 
                         type="text" 
                         id="projectPath" 
-                        placeholder="D:\MyUEProject (folder containing .uproject file)"
+                        data-i18n-placeholder="project_path_placeholder"
+                        placeholder="输入 Unreal Engine 项目文件夹路径"
                         required
                     >
                     <small style="opacity: 0.7; margin-top: 0.5rem; display: block;">
@@ -596,10 +623,10 @@
                 </div>
                 <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                     <button type="button" class="btn btn-secondary" onclick="closeAddProjectModal()">
-                        Cancel
+                        <span data-i18n="cancel">取消</span>
                     </button>
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Add Project
+                        <i class="fas fa-plus"></i> <span data-i18n="add">添加</span>
                     </button>
                 </div>
             </form>
@@ -617,6 +644,9 @@
 
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
+            // 初始化国际化
+            i18n.init();
+            
             setupEventListeners();
             checkSystem();
             loadProjects();
@@ -701,7 +731,7 @@
                 container.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-folder-open"></i>
-                        <h3>No Projects Yet</h3>
+                        <h3>${i18n.t('no_projects')}</h3>
                         <p>Add your first Unreal Engine project to get started with MCP tools.</p>
                     </div>
                 `;
@@ -743,24 +773,24 @@
                         ${!project.has_mcp_tools ? `
                             <button class="btn btn-success" onclick="installMCPTools('${project.path}')" ${project.status === 'installing' ? 'disabled' : ''}>
                                 ${project.status === 'installing' ? '<div class="loading"></div>' : '<i class="fas fa-download"></i>'} 
-                                ${project.status === 'installing' ? 'Installing...' : 'Install MCP'}
+                                ${project.status === 'installing' ? i18n.t('installing') : i18n.t('install_mcp')}
                             </button>
                         ` : `
                             <button class="btn btn-primary" onclick="selectProject('${project.path}')">
-                                <i class="fas fa-check"></i> Select
+                                <i class="fas fa-check"></i> ${i18n.t('select_project')}
                             </button>
                             <button class="btn btn-warning" onclick="startMCPServers('${project.path}')" id="start-btn-${btoa(project.path)}">
-                                <i class="fas fa-play"></i> Start Servers
+                                <i class="fas fa-play"></i> ${i18n.t('start_servers')}
                             </button>
                             <button class="btn btn-info" onclick="checkServerStatus('${project.path}')" id="status-btn-${btoa(project.path)}">
-                                <i class="fas fa-heartbeat"></i> Check Status
+                                <i class="fas fa-heartbeat"></i> ${i18n.t('check_status')}
                             </button>
                         `}
                         <button class="btn btn-secondary" onclick="openProjectFolder('${project.path}')">
-                            <i class="fas fa-folder-open"></i> Open Folder
+                            <i class="fas fa-folder-open"></i> ${i18n.t('open_folder')}
                         </button>
                         <button class="btn btn-danger" onclick="removeProject('${project.path}')">
-                            <i class="fas fa-trash"></i> Remove
+                            <i class="fas fa-trash"></i> ${i18n.t('remove_project')}
                         </button>
                     </div>
                 `;
@@ -789,7 +819,7 @@
             const path = document.getElementById('projectPath').value.trim();
             
             if (!path) {
-                showNotification('Please enter a project path', 'error');
+                showNotification(i18n.t('project_path_required'), 'error');
                 return;
             }
 
@@ -803,7 +833,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    showNotification('Project added successfully', 'success');
+                    showNotification(i18n.t('project_added'), 'success');
                     closeAddProjectModal();
                     loadProjects();
                 } else {
@@ -864,7 +894,7 @@
 
         // 移除项目
         function removeProject(projectPath) {
-            if (!confirm('Are you sure you want to remove this project from the list?')) {
+            if (!confirm(i18n.t('remove_project_confirm'))) {
                 return;
             }
 

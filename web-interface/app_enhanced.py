@@ -39,7 +39,7 @@ except ImportError as e:
     print(f"⚠️  UMG Agent modules not available: {e}")
     AGENTS_AVAILABLE = False
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.config['SECRET_KEY'] = 'umg-agent-secret-key'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
