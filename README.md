@@ -1,235 +1,132 @@
+# Unreal MCP - AI 驱动的虚幻引擎开发工具
+
 <div align="center">
 
-# Model Context Protocol for Unreal Engine
-<span style="color: #555555">unreal-mcp</span>
+![Unreal MCP UI](images/ui.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.6-orange)](https://www.unrealengine.com)
 [![Python](https://img.shields.io/badge/Python-3.12%2B-yellow)](https://www.python.org)
-[![Status](https://img.shields.io/badge/Status-Experimental-red)](https://github.com/chongdashu/unreal-mcp)
+[![Status](https://img.shields.io/badge/Status-实验性-red)](https://github.com/chongdashu/unreal-mcp)
 
 </div>
 
-This project enables AI assistant clients like Cursor, Windsurf and Claude Desktop to control Unreal Engine through natural language using the Model Context Protocol (MCP).
+## 🎯 项目简介
 
-## ⚠️ Experimental Status
+Unreal MCP 是一个革命性的工具，让 AI 助手（如 Cursor、Claude Desktop、Windsurf）能够通过自然语言直接控制虚幻引擎。通过 Model Context Protocol (MCP)，您可以：
 
-This project is currently in an **EXPERIMENTAL** state. The API, functionality, and implementation details are subject to significant changes. While we encourage testing and feedback, please be aware that:
+- 🎮 **自然语言控制**：用中文描述需求，AI 自动生成蓝图、UI、数据表等
+- 🚀 **一键安装**：简单的批处理脚本，快速集成到任何 UE 项目
+- 🌐 **Web 管理界面**：可视化项目管理，支持多项目切换
+- 🤖 **7 大工具集**：覆盖蓝图、UI、编辑器、数据表等核心功能
 
-- Breaking changes may occur without notice
-- Features may be incomplete or unstable
-- Documentation may be outdated or missing
-- Production use is not recommended at this time
+## ⚡ 快速开始
 
-## 🌟 Overview
-
-The Unreal MCP integration provides comprehensive tools for controlling Unreal Engine through natural language:
-
-| Category | Capabilities |
-|----------|-------------|
-| **Actor Management** | • Create and delete actors (cubes, spheres, lights, cameras, etc.)<br>• Set actor transforms (position, rotation, scale)<br>• Query actor properties and find actors by name or pattern<br>• List all actors in the current level<br>• Set and query light properties (intensity, color, attenuation, shadows, source size)<br>• Spawn actors from Blueprint classes with custom transforms |
-| **Blueprint Development** | • Create new Blueprint classes with custom parent classes (Actor, Pawn, etc.)<br>• Add and configure components (StaticMesh, Camera, Light, etc.)<br>• Set component properties and static mesh assets<br>• Configure physics properties (simulation, gravity, mass, damping)<br>• Set Pawn-specific properties (auto possess, rotation control, damageability)<br>• Compile Blueprints<br>• Set Blueprint class default properties<br>• Add variables of any type (Boolean, Integer, Float, Vector, Struct, Array, Delegate, Blueprint references)<br>• Add interfaces to Blueprints<br>• Create Blueprint Interfaces<br>• Add custom event nodes to Blueprints<br>• Call BlueprintCallable functions by name<br>• **List all components (including inherited) in a Blueprint class for inspection and automation**<br>• **Dynamic Blueprint Action Discovery**: Discover available actions for specific pin types, classes, and hierarchies<br>• **Intelligent Node Creation**: Create Blueprint nodes using discovered action names from Unreal's action database<br>• **Pin Requirement Analysis**: Get detailed information about node pins and their type requirements<br>• **Class Hierarchy Exploration**: Explore complete functionality across inheritance chains |
-| **Blueprint Node Graph** | • Add event nodes for standard events (BeginPlay, Tick) and input actions<br>• Add custom event nodes<br>• Create function call nodes with target components and parameters<br>• Connect nodes with proper pin linkages for execution and data flow<br>• Add variables with various types (Boolean, Integer, Float, Vector, Struct, etc.)<br>• Create component references and self references in the graph<br>• Find and identify nodes in the Blueprint graph by type/event<br>• Get variable type information for automation<br>• Build complete gameplay logic chains through the Blueprint visual scripting system |
-| **UMG/UI Development** | • Create UMG Widget Blueprints for building user interfaces<br>• Add and customize UI components (text, buttons, images, checkboxes, sliders, etc.)<br>• Add any widget component type to a widget<br>• Create complex layouts with scrollboxes, borders, containers, and nested hierarchies<br>• Set up event bindings and property bindings for dynamic UI<br>• Add widgets to the viewport with z-ordering control<br>• Set and query widget component properties (text, color, brush, etc.)<br>• Change widget placement, size, and alignment<br>• Check for component existence<br>• Get hierarchical layout information for all components in a widget<br>• Get container dimensions for layout automation |
-| **DataTable Management** | • Create new DataTables with custom row structs<br>• Add, update, and delete rows (single or multiple) in DataTables<br>• Query all rows or specific rows<br>• Get all row names and struct field names<br>• Automate row property mapping using GUID-based field names |
-| **Project Management** | • Create and organize content browser folders for asset management<br>• Create project folders for non-content files (logs, intermediate, etc.)<br>• Set up input mappings for keyboard, mouse, and gamepad controls<br>• **Enhanced Input System**: Create Input Action assets with value types (Digital, Analog, Axis2D, Axis3D)<br>• **Enhanced Input System**: Create Input Mapping Context assets for organized input handling<br>• **Enhanced Input System**: Add key mappings between contexts and actions with modifier support (Shift, Ctrl, Alt, Cmd)<br>• **Enhanced Input System**: List and query Enhanced Input Actions and Mapping Contexts with metadata<br>• **Enhanced Input System**: Full integration with UE 5.5+ Enhanced Input architecture<br>• Create, update, and inspect Unreal structs<br>• List folder contents for project and content folders |
-| **Editor Control** | • Focus viewport on specific actors or locations with custom distance<br>• Control viewport camera orientation with precise angle settings<br>• Find actors in the scene using name pattern matching and wildcards<br>• Access and modify actor properties through the editor interface<br>• Create and configure different light types (Point, Spot, Directional)<br>• Adjust light properties (intensity, color, attenuation, shadows, source size)<br>• Spawn Blueprint actors with custom logic and components |
-
-All these capabilities are accessible through natural language commands via AI assistants, making it easy to automate and control Unreal Engine workflows.
-
-## 📖 Comprehensive Documentation
-
-For detailed guides, examples, and best practices, see our **[Complete Documentation](Docs/README.md)** which includes:
-
-- **[Blueprint Tools](Docs/Blueprint-Tools.md)** - Creating and managing Blueprint classes, components, and variables
-- **[Blueprint Action Tools](Docs/Blueprint-Action-Tools.md)** - Discovering available Blueprint actions and creating nodes dynamically
-- **[Editor Tools](Docs/Editor-Tools.md)** - Controlling actors, transforms, and scene management  
-- **[Node Tools](Docs/Node-Tools.md)** - Building Blueprint visual scripting logic and event chains
-- **[UMG Tools](Docs/UMG-Tools.md)** - Creating user interfaces and interactive UI elements
-- **[DataTable Tools](Docs/DataTable-Tools.md)** - Managing structured game data and tables
-- **[Project Tools](Docs/Project-Tools.md)** - Organizing projects, input systems, and structs
-
-Each guide includes natural language usage examples, advanced patterns, and real-world workflows.
-
-## 🧩 Components
-
-### Sample Project (MCPGameProject) `MCPGameProject`
-- Based off the Blank Project, but with the UnrealMCP plugin added.
-
-### Plugin (UnrealMCP) `MCPGameProject/Plugins/UnrealMCP`
-- Native TCP server for MCP communication
-- Integrates with Unreal Editor subsystems
-- Implements actor manipulation tools
-- Handles command execution and response handling
-
-### Python MCP Servers
-- 7 different mcp servers, stored in Python/*_tools/
-- Manages TCP socket connections to the C++ plugin (port 55557)
-- Handles command serialization and response parsing
-- Provides error handling and connection management
-- Loads and registers tool modules from the `tools` directory
-- Uses the FastMCP library to implement the Model Context Protocol
-
-## 📂 Directory Structure
-
-- **MCPGameProject/** - Example Unreal project
-  - **Plugins/UnrealMCP/** - C++ plugin source
-    - **Source/UnrealMCP/** - Plugin source code
-    - **UnrealMCP.uplugin** - Plugin definition
-
-- **Python/** - Python server and tools
-  - **tools/** - Tool modules for actor, editor, blueprint, and UMG operations
-  - **scripts/** - Example scripts and demos
-
-- **Docs/** - Comprehensive documentation
-  - See [Docs/README.md](Docs/README.md) for documentation index
-
-## 🚀 Quick Start Guide
-
-### Super Simple: One-Click Installation ⚡
+### 方式一：一键安装（推荐）
 ```bash
-# For Windows users - just double-click:
+# Windows 用户直接双击运行
 ONE_CLICK_INSTALL.bat
 ```
 
-### Web Interface: Visual Project Management 🌐
+### 方式二：Web 界面管理
 ```bash
-# Double-click to start the web interface:
+# 启动 Web 管理界面
 START_WEB_INTERFACE.bat
-# Then open http://localhost:5000 to manage projects visually
+# 浏览器访问 http://localhost:5000
 ```
 
-### Manual Setup Prerequisites
-- Unreal Engine 5.6
-- Python 3.12+
-- MCP Client (e.g., Claude Desktop, Cursor, Windsurf)
+### 方式三：手动安装
+1. 复制 `MCPGameProject/Plugins/UnrealMCP` 到您的项目
+2. 在 UE 编辑器中启用 UnrealMCP 插件
+3. 运行 `python install_to_project.py "您的项目路径"`
 
-### Sample project
+## 🛠️ 核心功能
 
-For getting started quickly, feel free to use the starter project in `MCPGameProject`. This is a UE 5.6 Blank Starter Project with the `UnrealMCP.uplugin` already configured. 
+| 工具类别 | 主要功能 | 使用场景 |
+|---------|---------|---------|
+| **[蓝图工具](Docs/Blueprint-Tools-Usage.md)** | 创建蓝图类、添加组件、设置属性 | 游戏逻辑开发、Actor 创建 |
+| **[蓝图节点工具](Docs/Blueprint-Node-Tools-Usage.md)** | 创建事件节点、连接节点、查找节点 | 蓝图可视化编程 |
+| **[蓝图动作工具](Docs/Blueprint-Action-Tools-Usage.md)** | 动态发现可用动作、智能节点创建 | 高级蓝图开发 |
+| **[UMG UI 工具](Docs/UMG-Tools-Usage.md)** | 创建 UI 组件、布局设计、事件绑定 | 用户界面开发 |
+| **[编辑器工具](Docs/Editor-Tools-Usage.md)** | 场景管理、Actor 操作、视口控制 | 场景编辑、关卡设计 |
+| **[数据表工具](Docs/DataTable-Tools-Usage.md)** | 创建数据表、管理行数据、属性映射 | 游戏数据管理 |
+| **[项目管理工具](Docs/Project-Tools-Usage.md)** | 文件夹管理、输入映射、结构体创建 | 项目组织、系统配置 |
 
-1. **Prepare the project**
-   - Right-click your .uproject file
-   - Generate Visual Studio project files
-2. **Build the project (including the plugin)**
-   - Open solution (`.sln`)
-   - Choose `Development Editor` as your target.
-   - Build
+## 🎮 使用示例
 
-### Plugin
-Otherwise, if you want to use the plugin in your existing project:
+### 创建游戏角色
+```
+"创建一个名为 PlayerCharacter 的 Pawn 蓝图，添加摄像机组件和静态网格体组件"
+```
 
-1. **Copy the plugin to your project**
-   - Copy `MCPGameProject/Plugins/UnrealMCP` to your project's Plugins folder
+### 设计 UI 界面
+```
+"创建一个主菜单 UI，包含开始游戏按钮、设置按钮和退出按钮"
+```
 
-2. **Enable the plugin**
-   - Edit > Plugins
-   - Find "UnrealMCP" in Editor category
-   - Enable the plugin
-   - Restart editor when prompted
+### 管理游戏数据
+```
+"创建一个物品数据表，包含武器、防具和消耗品的数据"
+```
 
-3. **Build the plugin**
-   - Right-click your .uproject file
-   - Generate Visual Studio project files
-   - Open solution (`.sln)
-   - Build with your target platform and output settings
+## 📋 系统要求
 
-### Python Server Setup
+- **虚幻引擎**: 5.6+
+- **Python**: 3.12+
+- **AI 客户端**: Cursor、Claude Desktop、Windsurf 等支持 MCP 的客户端
 
-See [Python/README.md](Python/README.md) for detailed Python setup instructions, including:
-- Setting up your Python environment
-- Running the MCP server
-- Using direct or server-based connections
+## 🔧 配置 AI 客户端
 
-### Configuring your MCP Client
-
-Use the following JSON for your mcp configuration based on your MCP client.
-
+### Cursor 配置
+在项目根目录创建 `.cursor/mcp.json`：
 ```json
 {
   "mcpServers": {
     "blueprintMCP": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "E:\\code\\unreal-mcp\\Python",
-        "run",
-        "blueprint_mcp_server.py"
-      ]
-    },
-    "editorMCP": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "E:\\code\\unreal-mcp\\Python",
-        "run",
-        "editor_mcp_server.py"
-      ]
-    },
-    "umgMCP": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "E:\\code\\unreal-mcp\\Python",
-        "run",
-        "umg_mcp_server.py"
-      ]
-    },
-    "nodeMCP": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "E:\\code\\unreal-mcp\\Python",
-        "run",
-        "node_mcp_server.py"
-      ]
-    },
-    "datatableMCP": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "E:\\code\\unreal-mcp\\Python",
-        "run",
-        "datatable_mcp_server.py"
-      ]
-    },
-    "projectMCP": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "E:\\code\\unreal-mcp\\Python",
-        "run",
-        "project_mcp_server.py"
-      ]
-    },
-    "blueprintActionMCP": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "E:\\code\\unreal-mcp\\Python",
-        "run",
-        "blueprint_action_mcp_server.py"
-      ]
+      "command": "python",
+      "args": ["Python/blueprint_mcp_server.py"]
     }
   }
 }
 ```
 
-An example is found in `mcp.json`
+### Claude Desktop 配置
+在 `~/.config/claude-desktop/mcp.json` 中添加相同配置。
 
-### MCP Configuration Locations
+## 📚 详细文档
 
-Depending on which MCP client you're using, the configuration file location will differ:
+- **[AI 集成指南](Docs/AI_INTEGRATION_GUIDE_ZH.md)** - 了解 MCP 架构和 AI 助手配置
+- **[简单集成指南](SIMPLE_INTEGRATION_GUIDE.md)** - 快速上手教程
+- **[功能特性](Docs/FEATURES_ZH.md)** - 完整功能列表
+- **[使用指南](Docs/USAGE_GUIDE_ZH.md)** - 详细使用说明
 
-| MCP Client | Configuration File Location | Notes |
-|------------|------------------------------|-------|
-| Claude Desktop | `~/.config/claude-desktop/mcp.json` | On Windows: `%USERPROFILE%\.config\claude-desktop\mcp.json` |
-| Cursor | `.cursor/mcp.json` | Located in your project root directory |
-| Windsurf | `~/.config/windsurf/mcp.json` | On Windows: `%USERPROFILE%\.config\windsurf\mcp.json` |
+### 工具使用文档
+- [蓝图工具使用指南](Docs/Blueprint-Tools-Usage.md)
+- [蓝图节点工具使用指南](Docs/Blueprint-Node-Tools-Usage.md)
+- [蓝图动作工具使用指南](Docs/Blueprint-Action-Tools-Usage.md)
+- [UMG UI 工具使用指南](Docs/UMG-Tools-Usage.md)
+- [编辑器工具使用指南](Docs/Editor-Tools-Usage.md)
+- [数据表工具使用指南](Docs/DataTable-Tools-Usage.md)
+- [项目管理工具使用指南](Docs/Project-Tools-Usage.md)
 
-Each client uses the same JSON format as shown in the example above. 
-Simply place the configuration in the appropriate location for your MCP client.
+## 🚨 注意事项
 
+- 本项目处于**实验性**阶段，API 可能发生变化
+- 建议在测试环境中使用，生产环境请谨慎
+- 使用前请备份重要项目文件
 
-## License
-MIT
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！请查看 [贡献指南](CONTRIBUTING.md)。
+
+## 📄 许可证
+
+MIT License - 详见 [LICENSE](LICENSE) 文件。
+
+---
+
+<div align="center">
+
+**让 AI 成为您的虚幻引擎开发伙伴！** 🚀
+
+</div>
