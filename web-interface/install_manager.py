@@ -17,6 +17,7 @@ import socket
 @dataclass
 class ProjectInfo:
     """项目信息"""
+    id: str  # 唯一项目ID
     name: str
     path: str
     status: str  # "configured", "installing", "installed", "error"
@@ -30,8 +31,15 @@ class InstallManager:
     
     def __init__(self):
         self.projects_config_file = Path("projects_config.json")
-        self.projects: Dict[str, ProjectInfo] = {}
+        self.projects: Dict[str, ProjectInfo] = {}  # 使用project_id作为key
         self.load_projects()
+    
+    def generate_project_id(self, project_name: str, project_path: str) -> str:
+        """生成唯一的项目ID"""
+        import hashlib
+        # 使用项目名称和路径的组合生成唯一ID
+        id_source = f"{project_name}:{project_path}"
+        return hashlib.md5(id_source.encode('utf-8')).hexdigest()[:12]
     
     def load_projects(self):
         """加载项目配置"""
@@ -40,8 +48,13 @@ class InstallManager:
                 with open(self.projects_config_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     for proj_data in data.get('projects', []):
+                        # 兼容旧格式：如果没有ID字段，生成一个
+                        if 'id' not in proj_data:
+                            proj_data['id'] = self.generate_project_id(
+                                proj_data['name'], proj_data['path']
+                            )
                         project = ProjectInfo(**proj_data)
-                        self.projects[project.path] = project
+                        self.projects[project.id] = project
             except Exception as e:
                 print(f"Error loading projects config: {e}")
     
@@ -51,6 +64,7 @@ class InstallManager:
             data = {
                 'projects': [
                     {
+                        'id': proj.id,
                         'name': proj.name,
                         'path': proj.path,
                         'status': proj.status,
@@ -141,7 +155,15 @@ class InstallManager:
         if not success:
             return False, info.get("error", "Unknown error")
         
+        # 生成唯一ID
+        project_id = self.generate_project_id(info["name"], info["path"])
+        
+        # 检查是否已存在
+        if project_id in self.projects:
+            return False, "Project already exists"
+        
         project = ProjectInfo(
+            id=project_id,
             name=info["name"],
             path=info["path"],
             status="configured",
@@ -150,15 +172,15 @@ class InstallManager:
             ue_version=info["ue_version"]
         )
         
-        self.projects[project.path] = project
+        self.projects[project.id] = project
         self.save_projects()
         
         return True, "Project added successfully"
     
-    def remove_project(self, project_path: str) -> Tuple[bool, str]:
+    def remove_project(self, project_id: str) -> Tuple[bool, str]:
         """移除项目"""
-        if project_path in self.projects:
-            del self.projects[project_path]
+        if project_id in self.projects:
+            del self.projects[project_id]
             self.save_projects()
             return True, "Project removed successfully"
         return False, "Project not found"
@@ -173,6 +195,7 @@ class InstallManager:
                 project.has_mcp_tools = self.check_mcp_tools_installed(project_dir)
             
             projects_list.append({
+                "id": project.id,
                 "name": project.name,
                 "path": project.path,
                 "status": project.status,
@@ -184,12 +207,13 @@ class InstallManager:
         
         return sorted(projects_list, key=lambda x: x["last_updated"], reverse=True)
     
-    async def install_mcp_tools(self, project_path: str) -> Tuple[bool, str]:
+    async def install_mcp_tools(self, project_id: str) -> Tuple[bool, str]:
         """安装 MCP 工具"""
-        if project_path not in self.projects:
+        if project_id not in self.projects:
             return False, "Project not found"
         
-        project = self.projects[project_path]
+        project = self.projects[project_id]
+        project_path = project.path
         project.status = "installing"
         project.error_message = ""
         self.save_projects()
@@ -271,12 +295,12 @@ class InstallManager:
         except FileNotFoundError:
             return False, "Python not installed"
     
-    def get_installation_status(self, project_path: str) -> Dict:
+    def get_installation_status(self, project_id: str) -> Dict:
         """获取安装状态"""
-        if project_path not in self.projects:
+        if project_id not in self.projects:
             return {"status": "not_found"}
         
-        project = self.projects[project_path]
+        project = self.projects[project_id]
         return {
             "status": project.status,
             "has_mcp_tools": project.has_mcp_tools,
@@ -284,29 +308,16 @@ class InstallManager:
             "last_updated": project.last_updated
         }
     
-    def start_mcp_servers(self, project_path: str) -> Tuple[bool, str]:
+    def start_mcp_servers(self, project_id: str) -> Tuple[bool, str]:
         """启动项目的 MCP 服务器"""
-        print(f"🔍 Looking for project path: '{project_path}'")
+        print(f"🔍 Looking for project ID: '{project_id}'")
         print(f"📋 Available projects: {list(self.projects.keys())}")
         
-        # 尝试多种路径匹配方式
-        target_project = None
-        normalized_path = str(Path(project_path).resolve())
+        if project_id not in self.projects:
+            return False, f"Project not found. Looking for: '{project_id}', Available: {list(self.projects.keys())}"
         
-        for stored_path, project in self.projects.items():
-            stored_normalized = str(Path(stored_path).resolve())
-            if (project_path == stored_path or 
-                normalized_path == stored_normalized or
-                project_path.replace('\\', '/') == stored_path.replace('\\', '/') or
-                project_path.replace('/', '\\') == stored_path.replace('/', '\\')):
-                target_project = project
-                project_path = stored_path  # 使用存储的路径
-                break
-        
-        if not target_project:
-            return False, f"Project not found. Looking for: '{project_path}', Available: {list(self.projects.keys())}"
-        
-        project = self.projects[project_path]
+        project = self.projects[project_id]
+        project_path = project.path
         if not project.has_mcp_tools:
             return False, "MCP tools not installed in this project"
         
@@ -351,26 +362,12 @@ class InstallManager:
             print(f"💥 Exception: {error_msg}")
             return False, error_msg
     
-    def check_mcp_servers_running(self, project_path: str) -> Tuple[bool, List[str]]:
+    def check_mcp_servers_running(self, project_id: str) -> Tuple[bool, List[str]]:
         """检查 MCP 服务器是否运行"""
-        # 使用同样的路径匹配逻辑
-        target_project = None
-        normalized_path = str(Path(project_path).resolve())
-        
-        for stored_path, project in self.projects.items():
-            stored_normalized = str(Path(stored_path).resolve())
-            if (project_path == stored_path or 
-                normalized_path == stored_normalized or
-                project_path.replace('\\', '/') == stored_path.replace('\\', '/') or
-                project_path.replace('/', '\\') == stored_path.replace('/', '\\')):
-                target_project = project
-                project_path = stored_path
-                break
-        
-        if not target_project:
+        if project_id not in self.projects:
             return False, ["Project not found"]
         
-        project = self.projects[project_path]
+        project = self.projects[project_id]
         if not project.has_mcp_tools:
             return False, ["MCP tools not installed"]
         

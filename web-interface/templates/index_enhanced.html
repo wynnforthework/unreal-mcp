@@ -771,25 +771,25 @@
                     
                     <div class="project-actions">
                         ${!project.has_mcp_tools ? `
-                            <button class="btn btn-success" onclick="installMCPTools('${project.path}')" ${project.status === 'installing' ? 'disabled' : ''}>
+                            <button class="btn btn-success" onclick="installMCPTools('${project.id}')" ${project.status === 'installing' ? 'disabled' : ''}>
                                 ${project.status === 'installing' ? '<div class="loading"></div>' : '<i class="fas fa-download"></i>'} 
                                 ${project.status === 'installing' ? i18n.t('installing') : i18n.t('install_mcp')}
                             </button>
                         ` : `
-                            <button class="btn btn-primary" onclick="selectProject('${project.path}')">
+                            <button class="btn btn-primary" onclick="selectProject('${project.id}')">
                                 <i class="fas fa-check"></i> ${i18n.t('select_project')}
                             </button>
-                            <button class="btn btn-warning" onclick="startMCPServers('${project.path}')" id="start-btn-${btoa(project.path)}">
+                            <button class="btn btn-warning" onclick="startMCPServers('${project.id}')" id="start-btn-${project.id}">
                                 <i class="fas fa-play"></i> ${i18n.t('start_servers')}
                             </button>
-                            <button class="btn btn-info" onclick="checkServerStatus('${project.path}')" id="status-btn-${btoa(project.path)}">
+                            <button class="btn btn-info" onclick="checkServerStatus('${project.id}')" id="status-btn-${project.id}">
                                 <i class="fas fa-heartbeat"></i> ${i18n.t('check_status')}
                             </button>
                         `}
                         <button class="btn btn-secondary" onclick="openProjectFolder('${project.path}')">
                             <i class="fas fa-folder-open"></i> ${i18n.t('open_folder')}
                         </button>
-                        <button class="btn btn-danger" onclick="removeProject('${project.path}')">
+                        <button class="btn btn-danger" onclick="removeProject('${project.id}')">
                             <i class="fas fa-trash"></i> ${i18n.t('remove_project')}
                         </button>
                     </div>
@@ -847,13 +847,13 @@
         }
 
         // 安装 MCP 工具
-        function installMCPTools(projectPath) {
+        function installMCPTools(projectId) {
             if (!systemStatus.python) {
-                showNotification('Python is required for installation', 'error');
+                showNotification(i18n.t('python_required'), 'error');
                 return;
             }
 
-            fetch(`/api/projects/${encodeURIComponent(projectPath)}/install`, {
+            fetch(`/api/projects/${projectId}/install`, {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -872,8 +872,8 @@
         }
 
         // 选择项目
-        function selectProject(projectPath) {
-            fetch(`/api/projects/${encodeURIComponent(projectPath)}/select`, {
+        function selectProject(projectId) {
+            fetch(`/api/projects/${projectId}/select`, {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -893,12 +893,12 @@
         }
 
         // 移除项目
-        function removeProject(projectPath) {
+        function removeProject(projectId) {
             if (!confirm(i18n.t('remove_project_confirm'))) {
                 return;
             }
 
-            fetch(`/api/projects/${encodeURIComponent(projectPath)}`, {
+            fetch(`/api/projects/${projectId}`, {
                 method: 'DELETE'
             })
             .then(response => response.json())
@@ -923,14 +923,14 @@
         }
 
         // 启动 MCP 服务器
-        function startMCPServers(projectPath) {
-            const startBtn = document.getElementById(`start-btn-${btoa(projectPath)}`);
+        function startMCPServers(projectId) {
+            const startBtn = document.getElementById(`start-btn-${projectId}`);
             if (startBtn) {
                 startBtn.disabled = true;
                 startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
             }
 
-            fetch(`/api/projects/${encodeURIComponent(projectPath)}/start-servers`, {
+            fetch(`/api/projects/${projectId}/start-servers`, {
                 method: 'POST'
             })
             .then(response => {
@@ -940,50 +940,50 @@
             .then(data => {
                 console.log('Start servers response data:', data);
                 if (data.status === 'success') {
-                    showNotification('MCP servers started successfully! Check your terminal windows.', 'success');
+                    showNotification(i18n.t('servers_started'), 'success');
                     // 自动检查状态
-                    setTimeout(() => checkServerStatus(projectPath), 2000);
+                    setTimeout(() => checkServerStatus(projectId), 2000);
                 } else {
-                    showNotification(data.message || 'Unknown error', 'error');
+                    showNotification(data.message || i18n.t('unknown_error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Error starting MCP servers:', error);
-                showNotification(`Failed to start MCP servers: ${error.message}`, 'error');
+                showNotification(`${i18n.t('failed_start_servers')}: ${error.message}`, 'error');
             })
             .finally(() => {
                 if (startBtn) {
                     startBtn.disabled = false;
-                    startBtn.innerHTML = '<i class="fas fa-play"></i> Start Servers';
+                    startBtn.innerHTML = `<i class="fas fa-play"></i> ${i18n.t('start_servers')}`;
                 }
             });
         }
 
         // 检查服务器状态
-        function checkServerStatus(projectPath) {
-            const statusBtn = document.getElementById(`status-btn-${btoa(projectPath)}`);
+        function checkServerStatus(projectId) {
+            const statusBtn = document.getElementById(`status-btn-${projectId}`);
             if (statusBtn) {
                 statusBtn.disabled = true;
                 statusBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
             }
 
-            fetch(`/api/projects/${encodeURIComponent(projectPath)}/server-status`)
+            fetch(`/api/projects/${projectId}/server-status`)
             .then(response => response.json())
             .then(data => {
                 const statusMessage = data.running 
-                    ? `✅ ${data.total_servers} MCP servers running:\n${data.servers.join('\n')}`
-                    : '❌ No MCP servers detected';
+                    ? `✅ ${data.total_servers} ${i18n.t('servers_running')}:\n${data.servers.join('\n')}`
+                    : `❌ ${i18n.t('no_servers_detected')}`;
                 
                 showNotification(statusMessage, data.running ? 'success' : 'warning');
             })
             .catch(error => {
                 console.error('Error checking server status:', error);
-                showNotification('Failed to check server status', 'error');
+                showNotification(i18n.t('failed_check_status'), 'error');
             })
             .finally(() => {
                 if (statusBtn) {
                     statusBtn.disabled = false;
-                    statusBtn.innerHTML = '<i class="fas fa-heartbeat"></i> Check Status';
+                    statusBtn.innerHTML = `<i class="fas fa-heartbeat"></i> ${i18n.t('check_status')}`;
                 }
             });
         }

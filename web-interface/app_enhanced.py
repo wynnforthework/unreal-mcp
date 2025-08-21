@@ -96,18 +96,18 @@ def add_project():
     else:
         return jsonify({'status': 'error', 'message': message}), 400
 
-@app.route('/api/projects/<path:project_path>', methods=['DELETE'])
-def remove_project(project_path):
+@app.route('/api/projects/<project_id>', methods=['DELETE'])
+def remove_project(project_id):
     """移除项目"""
-    success, message = install_manager.remove_project(project_path)
+    success, message = install_manager.remove_project(project_id)
     
     if success:
         return jsonify({'status': 'success', 'message': message})
     else:
         return jsonify({'status': 'error', 'message': message}), 404
 
-@app.route('/api/projects/<path:project_path>/install', methods=['POST'])
-def install_project(project_path):
+@app.route('/api/projects/<project_id>/install', methods=['POST'])
+def install_project(project_id):
     """安装 MCP 工具到项目"""
     # 异步安装
     def install_async():
@@ -116,19 +116,19 @@ def install_project(project_path):
             asyncio.set_event_loop(loop)
             
             success, message = loop.run_until_complete(
-                install_manager.install_mcp_tools(project_path)
+                install_manager.install_mcp_tools(project_id)
             )
             
             # 通过 WebSocket 发送安装结果
             socketio.emit('installation_result', {
-                'project_path': project_path,
+                'project_id': project_id,
                 'success': success,
                 'message': message
             })
             
         except Exception as e:
             socketio.emit('installation_result', {
-                'project_path': project_path,
+                'project_id': project_id,
                 'success': False,
                 'message': str(e)
             })
@@ -140,54 +140,55 @@ def install_project(project_path):
     
     return jsonify({'status': 'success', 'message': 'Installation started'})
 
-@app.route('/api/projects/<path:project_path>/status')
-def get_project_status(project_path):
+@app.route('/api/projects/<project_id>/status')
+def get_project_status(project_id):
     """获取项目安装状态"""
-    status = install_manager.get_installation_status(project_path)
+    status = install_manager.get_installation_status(project_id)
     return jsonify(status)
 
-@app.route('/api/projects/<path:project_path>/select', methods=['POST'])
-def select_project(project_path):
+@app.route('/api/projects/<project_id>/select', methods=['POST'])
+def select_project(project_id):
     """选择当前工作项目"""
-    if project_path in install_manager.projects:
-        app_state.current_project = project_path
-        app_state.config['project_path'] = project_path
+    if project_id in install_manager.projects:
+        project = install_manager.projects[project_id]
+        app_state.current_project = project.path
+        app_state.config['project_path'] = project.path
         
         # 如果项目已安装 MCP 工具，重新创建 orchestrator
-        if AGENTS_AVAILABLE and install_manager.projects[project_path].has_mcp_tools:
+        if AGENTS_AVAILABLE and project.has_mcp_tools:
             create_orchestrator()
         
         return jsonify({'status': 'success', 'message': 'Project selected'})
     else:
         return jsonify({'status': 'error', 'message': 'Project not found'}), 404
 
-@app.route('/api/projects/<path:project_path>/start-servers', methods=['POST'])
-def start_mcp_servers(project_path):
+@app.route('/api/projects/<project_id>/start-servers', methods=['POST'])
+def start_mcp_servers(project_id):
     """启动项目的 MCP 服务器"""
     try:
-        print(f"🚀 Starting MCP servers for project: {project_path}")
+        print(f"🚀 Starting MCP servers for project ID: {project_id}")
         
-        # 检查项目路径是否存在
-        if project_path not in install_manager.projects:
+        # 检查项目ID是否存在
+        if project_id not in install_manager.projects:
             return jsonify({'status': 'error', 'message': 'Project not found'}), 404
         
-        success, message = install_manager.start_mcp_servers(project_path)
+        success, message = install_manager.start_mcp_servers(project_id)
         
         if success:
-            print(f"✅ MCP servers started successfully for: {project_path}")
+            print(f"✅ MCP servers started successfully for: {project_id}")
             return jsonify({'status': 'success', 'message': message})
         else:
-            print(f"❌ Failed to start MCP servers for: {project_path} - {message}")
+            print(f"❌ Failed to start MCP servers for: {project_id} - {message}")
             return jsonify({'status': 'error', 'message': message}), 400
             
     except Exception as e:
         print(f"💥 Exception in start_mcp_servers: {str(e)}")
         return jsonify({'status': 'error', 'message': f'Server error: {str(e)}'}), 500
 
-@app.route('/api/projects/<path:project_path>/server-status')
-def get_server_status(project_path):
+@app.route('/api/projects/<project_id>/server-status')
+def get_server_status(project_id):
     """获取 MCP 服务器运行状态"""
-    running, servers = install_manager.check_mcp_servers_running(project_path)
+    running, servers = install_manager.check_mcp_servers_running(project_id)
     
     return jsonify({
         'running': running,
