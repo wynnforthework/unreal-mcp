@@ -220,5 +220,8 @@ async def list_blueprint_components(blueprint_name: str) -> Dict[str, Any]:
     
     return await send_tcp_command("list_blueprint_components", params)
 
+# Print registration success message
+print("[INFO] Blueprint tools registered successfully")
+
 if __name__ == "__main__":
     mcp.run(transport='stdio')
