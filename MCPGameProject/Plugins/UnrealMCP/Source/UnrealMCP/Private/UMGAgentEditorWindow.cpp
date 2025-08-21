@@ -1,4 +1,6 @@
 #include "UMGAgentEditorWindow.h"
+
+#include "EditorStyleSet.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -17,7 +19,7 @@
 #include "HAL/PlatformFilemanager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/DateTime.h"
-#include "Engine/TimerManager.h"
+#include "Engine/World.h"
 
 #define LOCTEXT_NAMESPACE "UMGAgentEditorWindow"
 
@@ -608,7 +610,26 @@ void SUMGAgentEditorWindow::ShowNotification(const FText& Message, SNotification
 
 UWorld* SUMGAgentEditorWindow::GetWorld() const
 {
-    return GEngine ? GEngine->GetWorldFromContextObject(this, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
+    // For Slate widgets, we need to get the world from the editor context
+    if (GEngine)
+    {
+        // Try to get the world from the editor world context
+        if (UWorld* EditorWorld = GEngine->GetWorldContexts()[0].World())
+        {
+            return EditorWorld;
+        }
+        
+        // Fallback: try to get any world
+        for (const FWorldContext& Context : GEngine->GetWorldContexts())
+        {
+            if (UWorld* World = Context.World())
+            {
+                return World;
+            }
+        }
+    }
+    
+    return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE
